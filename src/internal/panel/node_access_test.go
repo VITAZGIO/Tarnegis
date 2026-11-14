@@ -1,9 +1,11 @@
 package panel
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"sshtunnel/internal/meshsvc"
 	"sshtunnel/internal/nodeapi"
@@ -89,5 +91,21 @@ func TestNodeДоступВДемо(t *testing.T) {
 		if dm := d.(map[string]any); dm["id"] == id && dm["folders"].(float64) != 1 {
 			t.Fatalf("сколько папок у устройства: %v", dm)
 		}
+	}
+}
+
+// Надзор за правилом обновления папок сервера не падает без хоста плагинов и
+// останавливается вместе с контекстом.
+func TestNodeДоступНадзорБезХостаИОстановка(t *testing.T) {
+	s := &Server{}
+	s.MigrateNodeAccess(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan struct{})
+	go func() { s.WatchNodeAccess(ctx); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("надзор не остановился")
 	}
 }

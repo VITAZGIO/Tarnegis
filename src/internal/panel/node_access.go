@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"sshtunnel/internal/nodeapi"
 )
@@ -143,6 +144,34 @@ func (s *Server) nodeStatusWithAccess(ctx context.Context) NodeStatus {
 	}
 	st.Access = nodeAccess(nets, st.State)
 	return st
+}
+
+// MigrateNodeAccess применяет правило обновления к папкам сервера прошлой
+// версии (см. migrateTargets), не дожидаясь, пока кто-то откроет «Плагины»:
+// до этого такие папки видны всем устройствам сети.
+func (s *Server) MigrateNodeAccess(ctx context.Context) {
+	if s.node == nil {
+		return
+	}
+	_ = s.nodeStatusWithAccess(ctx)
+}
+
+// WatchNodeAccess — надзор: MigrateNodeAccess через минуту после запуска и
+// дальше раз в 5 минут, пока жив ctx.
+func (s *Server) WatchNodeAccess(ctx context.Context) {
+	t := time.NewTimer(time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		c, cancel := context.WithTimeout(ctx, 30*time.Second)
+		s.MigrateNodeAccess(c)
+		cancel()
+		t.Reset(5 * time.Minute)
+	}
 }
 
 // handleNodeFolderAccess — POST /api/node/folder/access AccessReq: галочка

@@ -172,6 +172,7 @@ func main() {
 		WithDataDir(*dataDir)
 	handler := srv.Handler()
 	go srv.SyncAccess()
+	go srv.WatchNodeAccess(ctx)
 	if *selfAddr != "" {
 		go serveSelfService(srv, *selfAddr)
 	}
