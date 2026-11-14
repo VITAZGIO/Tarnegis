@@ -77,8 +77,9 @@ rebooted and the home internet is down. The "Device network" button turns
 on, and the status line says "no server, direct: 2" (how many devices are
 seen) or "no connection, no neighbours in sight". The round button turns
 off with an error meanwhile: without the server there is no bypass. When
-the internet is back, the device network connects to the server by itself;
-turn the round button on again (or autostart will).
+the internet is back, the device network connects to the server by itself.
+The round button also comes back by itself if it went off because the server
+was lost; if you switched it off, it stays off.
 
 A device removed in the panel while you were without the server stops being
 let in as soon as this device talks to the server again.
