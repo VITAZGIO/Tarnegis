@@ -15,8 +15,8 @@ key and the device network is switched on. The panel helps you find such servers
    and the **Port**, and press **Add server**.
 
 The devices of this server learn from the list which other servers the network
-has. In the device card such servers are shown at the bottom of the list, with
-an **Add profile** button. The address and the network key are filled in
+has. In the program window on the device such servers are shown in the list of
+servers suggested by panels, with an **Add profile** button. The address and the network key are filled in
 automatically. Enter the user and the key of the server yourself.
 
 ## Moving from the old way
@@ -28,12 +28,14 @@ to own network service** on this server.
 
 The order is:
 
-1. Update `meshd` on the first server (see the chapter "Update").
-2. For each device, add both profiles with one network key. The device will see
+1. Update the program on the devices: after the switch an old version talks
+   only to the server of its own profile.
+2. Update `meshd` on the first server (see the chapter "Update").
+3. For each device, add both profiles with one network key. The device will see
    both servers.
-3. On the second server, press **Switch to own network service**. The old
+4. On the second server, press **Switch to own network service**. The old
    forwarding process stops, and the address in the network stays the same.
-4. Set the same access rules in both panels.
+5. Set the same access rules in both panels.
 
 ## If one server dies
 
@@ -73,5 +75,7 @@ The address of each server in the network is its own. Do not tie settings to it.
 
 ## Known limit
 
-Android still works with one server only. Several servers on a phone are not
-supported. For the phone in detail, see the Book of the program.
+A phone can use several servers the same way a computer does, but this has
+not been run on a real phone yet: treat it as a manual check. How much battery
+a second server costs has not been measured either. For the phone in detail,
+see the Book of the program.

@@ -20,7 +20,8 @@ local network in about half a minute. The network finds them by itself.
 ## What does not work
 
 - **Access rules are not checked by anyone.** There is no server, so nobody
-  decides "let in or not". Devices let each other in from the last known rules.
+  decides "let in or not". Everyone from the last device list the
+  server sent is let in, whatever the rules said.
 - **A removed device is not forgotten at once.** If you removed a device in the
   panel while there was no server, it stops being let in only when the device
   next contacts the server.

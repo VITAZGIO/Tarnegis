@@ -58,4 +58,5 @@ will not go until you add that server's profile to the device.
 
 - If a device has no profile for some hop, the chain is kept as "profile needed",
   and the tunnel stays down until the profile is added.
-- On Android the panel does not yet show the chain or its state.
+- A phone does not receive the chain from the panel yet. On a phone it is set
+  in the app itself, in the server settings.
