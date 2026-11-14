@@ -1630,8 +1630,10 @@ const I18N = {
     acc_creator_short:'создаёт пользователей',
     hint_acc:'<p>Кто к кому может подключаться в сети устройств — как политики в NetBird.</p>'+
       '<p>Устройства кладёшь в группы (кнопка «Права» у устройства), правила говорят «группа → группа, порты». '+
-      'Выключено — все видят всех, как раньше.</p><p>Права привязаны к ключу устройства на сервере: '+
-      'подделать их с другого устройства нельзя. Устройства, пришедшие через побочный сервер, '+
+      'Выключено — все видят всех, как раньше. В простом режиме то же самое задаётся ролями и галочками, '+
+      'а группы и правила панель пишет сама.</p><p>Права принадлежат пользователю SSH, под которым устройство '+
+      'входит на сервер: подделать их с другого устройства нельзя, а два устройства под одним пользователем '+
+      'получают одни и те же права. Устройства, пришедшие через побочный сервер, '+
       'получают только правила для «Все».</p>',
     hint_acc_rules:'<p>«Откуда → куда»: устройства первой группы могут открывать соединения к устройствам второй. '+
       'Обратно — только если есть правило в другую сторону.</p><p>Порты: пусто — все, или «22,80,8000-8100».</p>'+
@@ -2045,9 +2047,10 @@ const I18N = {
     acc_creator_short:'creates users',
     hint_acc:'<p>Who can connect to whom in the device network — like NetBird policies.</p>'+
       '<p>Put devices into groups (the “Access” button on a device); rules say “group → group, ports”. '+
-      'Disabled — everyone sees everyone, as before.</p><p>Rights are bound to the device key on the server '+
-      'and cannot be faked from another device. Devices that come through a secondary server get only '+
-      'the rules for “All”.</p>',
+      'Disabled — everyone sees everyone, as before. In simple mode the same is set with roles and checkboxes, '+
+      'and the panel writes the groups and rules itself.</p><p>Rights belong to the SSH user the device logs in as: '+
+      'they cannot be faked from another device, and two devices under one user get the same rights. '+
+      'Devices that come through a secondary server get only the rules for “All”.</p>',
     hint_acc_rules:'<p>“From → to”: devices of the first group may open connections to devices of the second. '+
       'The reverse needs its own rule.</p><p>Ports: empty — all, or “22,80,8000-8100”.</p>'+
       '<p>“All” — every device and server, “Servers” — the network servers. Direct (peer-to-peer) links are '+
