@@ -123,6 +123,8 @@ type Tunnel struct {
 	// сети), exit — цепочка выхода активного сервера. Оба из SetProfiles.
 	meshLinks *tunnel.MeshLinks
 	extras    []config.Profile
+	// netServers — последний список сети серверов (ТЗ 22), см. ApplyNetServers.
+	netServers *mesh.NetServers
 	exit      []tunnel.Hop
 
 	// localOnly — туннель поднят без сервера ради сети устройств (сервер не
@@ -267,6 +269,7 @@ func (t *Tunnel) ConfigureMesh(enabled bool, key, name, deviceID string, incomin
 		Key: key, DeviceID: deviceID, Name: name, AllowIncoming: incoming, NoDirect: !direct,
 		Platform: "android", Mode: "vpn", Via: t.cfg.Host, AppVersion: updater.Version,
 	}
+	t.cfg.Mesh.OnServers = t.onNetServers
 	// Ключ прямых соединений и список устройств (работа без сервера) — в
 	// личной папке приложения (filesDir), рядом с known_hosts и ключом SSH.
 	if t.cfg.KnownHostsPath != "" {

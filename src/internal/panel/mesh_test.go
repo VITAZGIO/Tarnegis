@@ -384,6 +384,9 @@ func (fakeDownAdmin) ForgetServer(context.Context, string) error { return meshsv
 func (fakeDownAdmin) SetKnown(context.Context, []meshsvc.KnownServer) error {
 	return meshsvc.ErrNotRunning
 }
+func (fakeDownAdmin) SetKnownShared(context.Context, []meshsvc.KnownServer, []string) error {
+	return meshsvc.ErrNotRunning
+}
 func (fakeDownAdmin) SetSelfIP(context.Context, string) error { return meshsvc.ErrNotRunning }
 func (fakeDownAdmin) SetPolicy(context.Context, meshsvc.Policy) error {
 	return meshsvc.ErrNotRunning

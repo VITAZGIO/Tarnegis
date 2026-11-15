@@ -109,6 +109,23 @@ type Client struct {
 	CanCreate   bool   `json:"canCreate,omitempty"`
 	CreatorHash string `json:"creatorHash,omitempty"`
 	CreatedBy   string `json:"createdBy,omitempty"`
+
+	// Сеть серверов (ТЗ 22). ExtraKeys — ещё открытые ключи, которым можно
+	// входить под этим пользователем: при входе сервера в сеть одна и та же
+	// учётная запись с разными ключами объединяется, и остаются оба. Origin
+	// — имя сервера сети, где запись заведена, если не здесь: закрытого
+	// ключа у такой записи на этом сервере нет (он не передаётся).
+	ExtraKeys []string `json:"extraKeys,omitempty"`
+	Origin    string   `json:"origin,omitempty"`
+}
+
+// keys — все открытые ключи клиента.
+func (c Client) keys() []string {
+	out := make([]string, 0, 1+len(c.ExtraKeys))
+	if c.PublicKey != "" {
+		out = append(out, c.PublicKey)
+	}
+	return append(out, c.ExtraKeys...)
 }
 
 // ClientStore — клиенты панели одним JSON-файлом, рядом с users.json.

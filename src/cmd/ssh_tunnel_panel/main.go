@@ -144,19 +144,17 @@ func main() {
 	}
 
 	mesh := panel.NewMeshManager(settings, panel.NewSystemMesh(), meshsvc.NewAdmin(meshsvc.AdminSocket),
-		*dataDir, updater.Version).WithSSH(effectiveSSHHost, *sshPort)
+		*dataDir, updater.Version).WithSSH(effectiveSSHHost, *sshPort).
+		WithLog(func(format string, args ...any) { log.Printf(format, args...) })
 	mesh.Start()
 
 	node := panel.NewNodeManager(panel.NewSystemMesh(), nodeapi.NewClient(nodeapi.ControlSocket), updater.Version)
 	egress := panel.NewEgressManager(panel.NewSystemEgress(*dataDir), filepath.Join(*dataDir, "egress"),
 		updater.Version, func() []string {
-			// Связь со своим главным сервером сети устройств (если этот
-			// сервер — побочный) всегда напрямую, не через B — иначе при
-			// потере связи с B сеть устройств тоже пропала бы.
-			if h := settings.Get().Mesh.MainHost; h != "" {
-				return []string{h}
-			}
-			return nil
+			// Связь с другими серверами сети серверов (ТЗ 22) всегда
+			// напрямую, не через B — иначе при потере связи с B пропала бы
+			// и сеть.
+			return mesh.DirectHosts()
 		})
 	ctx, cancelEgress := context.WithCancel(context.Background())
 	defer cancelEgress()

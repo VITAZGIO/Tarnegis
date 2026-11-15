@@ -56,6 +56,7 @@ type demoBackend struct {
 	servers  []MeshServer
 	self     meshsvc.Self
 	known    []meshsvc.KnownServer // серверы, которые панель советует устройствам (ТЗ 12)
+	srvnet   demoSrvNet            // сеть серверов (ТЗ 22)
 	capacity int
 
 	meshdStarted int64
@@ -916,7 +917,7 @@ func (d *demoBackend) routes() http.Handler {
 			writeJSON(w, http.StatusOK, ok)
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "в режиме показа сервер остаётся главным"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "в режиме показа сеть устройств не выключается"})
 	})
 	// «Обновить meshd» в показе лечит «старую версию» — чтобы было видно,
 	// как страница возвращается к полной работе.
@@ -1015,7 +1016,7 @@ func (d *demoBackend) routes() http.Handler {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "в режиме показа серверы не удаляются"})
 	})
 	h("/api/mesh/join", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "в режиме показа сервер остаётся главным"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "старый способ подключения больше не предлагается — «Серверы сети» → «Войти в сеть»"})
 	})
 	h("/api/mesh/known", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -1161,6 +1162,7 @@ func (d *demoBackend) routes() http.Handler {
 		writeJSON(w, http.StatusOK, meshsvc.Events{Seq: d.seq, Events: out})
 	})
 	d.deviceRoutes(h)
+	d.srvnetRoutes(h)
 	h("/api/mesh/check", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Net  string `json:"net"`
@@ -1568,5 +1570,6 @@ func (d *demoBackend) state() MeshState {
 		st.Networks = append(st.Networks, c)
 	}
 	sort.SliceStable(st.Networks, func(i, j int) bool { return st.Networks[i].Created < st.Networks[j].Created })
+	st.ServerNet = d.srvnetState()
 	return st
 }

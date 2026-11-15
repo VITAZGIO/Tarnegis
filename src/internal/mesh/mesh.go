@@ -84,6 +84,36 @@ type Config struct {
 	// применить её или нет (новее ли она), решает хозяин — приложение. Зовётся
 	// в своей горутине. nil — цепочки из панели не принимаются.
 	OnExit func(ExitOrder)
+
+	// OnServers получает список серверов сети серверов (ТЗ 22, meshd 6):
+	// каждый раз, когда какой-нибудь сервер прислал свой. Добавлять ли
+	// профиль (учётная запись там есть) и выключать ли убранный сервер,
+	// решает приложение. Зовётся в своей горутине; nil — список не нужен.
+	OnServers func(NetServers)
+}
+
+// NetServer — сервер сети серверов глазами устройства (ТЗ 22).
+type NetServer struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	Host string `json:"host"`
+	Port int    `json:"port,omitempty"`
+	// HostKey — SSH-ключ сервера ("тип ключ"); Net — id сети серверов;
+	// Acct — учётная запись этого устройства там есть (тот же пользователь
+	// и ключ); Via — ключ «адрес:порт» профиля, через который пришёл список.
+	HostKey string `json:"hk,omitempty"`
+	Net     string `json:"sn,omitempty"`
+	Acct    bool   `json:"acct,omitempty"`
+	Via     string `json:"via,omitempty"`
+}
+
+// NetServers — все серверы сетей серверов, о которых сейчас рассказали
+// серверы на связи. Nets — сети, чей список известен целиком (сервер этой
+// сети на связи и прислал его): сервера, которого в таком списке нет, в
+// сети больше нет.
+type NetServers struct {
+	Servers []NetServer `json:"servers"`
+	Nets    []string    `json:"nets"`
 }
 
 // ProfileRef — сервер, для которого у устройства есть профиль, как его видят
@@ -261,6 +291,8 @@ type srvLink struct {
 	peers    []wirePeer
 	peersSet bool
 	ads      []wireAd
+	netAds   []wireAd  // список сети серверов (op servers, meshd 6)
+	netSet   bool      // прислан ли он с этого соединения
 	since    time.Time // когда соединение поднялось
 	sentOn   string    // последний отчёт op on этому серверу
 	sentProf string    // последний отчёт op profiles этому серверу
@@ -404,6 +436,11 @@ type wireAd struct {
 	Name string `json:"name,omitempty"`
 	Host string `json:"host"`
 	Port int    `json:"port,omitempty"`
+	// meshd 6 (ТЗ 22), только в op servers.
+	ID   string `json:"id,omitempty"`
+	HK   string `json:"hk,omitempty"`
+	Sn   string `json:"sn,omitempty"`
+	Acct bool   `json:"acct,omitempty"`
 }
 
 const protoVersion = 2
@@ -900,6 +937,7 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 	l.sentProf = ""
 	l.hold = welcome.Hold
 	l.ads = welcome.Servers
+	l.netAds, l.netSet = nil, false
 	firstOnline := true
 	for _, o := range c.links {
 		if o != l && o.ctrl != nil {
@@ -1046,6 +1084,17 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 			if changed {
 				c.pushSelf(l)
 			}
+		case "servers":
+			// Сеть серверов (ТЗ 22): полный список с отметкой «учётная запись
+			// есть». Свой сервер в нём тоже есть — по нему видно, в какой он
+			// сети.
+			c.mu.Lock()
+			l.netAds, l.netSet = m.Servers, true
+			ns := c.netServersLocked()
+			c.mu.Unlock()
+			if f := c.cfg.OnServers; f != nil {
+				go f(ns)
+			}
 		case "hold":
 			c.mu.Lock()
 			l.hold = m.Hold
@@ -1070,6 +1119,51 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 			}
 		}
 	}
+}
+
+// netServersLocked — списки сетей серверов со всех соединений на связи.
+func (c *Client) netServersLocked() NetServers {
+	ns := NetServers{Servers: []NetServer{}, Nets: []string{}}
+	seen := map[string]bool{}
+	nets := map[string]bool{}
+	for _, l := range c.links {
+		if l.ctrl == nil || !l.netSet {
+			continue
+		}
+		for _, a := range l.netAds {
+			if a.ID != "" && a.ID == l.info.ID {
+				// Свой сервер: его сеть известна целиком.
+				if a.Sn != "" {
+					nets[a.Sn] = true
+				}
+				continue
+			}
+			if a.ID == "" || a.Host == "" {
+				continue
+			}
+			k := a.Sn + "/" + a.ID
+			if seen[k] {
+				// Тот же сервер от другого соединения: «учётная запись есть»
+				// достаточно услышать один раз.
+				if a.Acct {
+					for i := range ns.Servers {
+						if ns.Servers[i].Net+"/"+ns.Servers[i].ID == k {
+							ns.Servers[i].Acct = true
+						}
+					}
+				}
+				continue
+			}
+			seen[k] = true
+			ns.Servers = append(ns.Servers, NetServer{ID: a.ID, Name: a.Name, Host: a.Host, Port: a.Port,
+				HostKey: a.HK, Net: a.Sn, Acct: a.Acct, Via: l.key})
+		}
+	}
+	for n := range nets {
+		ns.Nets = append(ns.Nets, n)
+	}
+	sort.Strings(ns.Nets)
+	return ns
 }
 
 // probe спрашивает сервер «кто ты» (op id) до hello: если это тот же

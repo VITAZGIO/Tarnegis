@@ -1,6 +1,6 @@
 # Network map
 
-A diagram of your device network — the same one as in the main server panel.
+A diagram of your device network — the same one as in the server panel.
 
 - **The server is in the middle**, devices around it. The first one at the
   top is this device.
@@ -13,8 +13,8 @@ A diagram of your device network — the same one as in the main server panel.
   and the **SSH** and **Files** buttons. If those apps are not added yet,
   the app offers to add them.
 
-The map is view-only. Names and icons are changed in the main server panel
-(«Device network» → device card).
+The map is view-only. Names and icons are changed in the panel of any
+server of the network («Devices» → device card).
 
 The map is empty or says «The device network is off» — turn on the «Device
 network» button on the main screen (see the «Device network» chapter).

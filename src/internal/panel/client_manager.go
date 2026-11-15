@@ -35,6 +35,19 @@ type ClientManager struct {
 	// editMu — Update читает и пишет запись целиком: два изменения подряд
 	// (группы и право создавать) не должны затирать друг друга.
 	editMu sync.Mutex
+
+	// onChange узнаёт о каждом изменении учётной записи, сделанном на этом
+	// сервере (заведена, удалена, заморожена, сменились группы), — так их
+	// получает сеть серверов (srvnet.go). Изменения, пришедшие из сети,
+	// сюда не попадают (client_shared.go).
+	onChange func(c Client, deleted bool)
+}
+
+// notify сообщает сети серверов об изменении записи.
+func (m *ClientManager) notify(c Client, deleted bool) {
+	if f := m.onChange; f != nil {
+		f(c, deleted)
+	}
 }
 
 func NewClientManager(store *ClientStore, provisioner Provisioner) *ClientManager {
@@ -101,7 +114,11 @@ func (m *ClientManager) Update(id string, fn func(*Client)) error {
 		return fmt.Errorf("нет клиента %q", id)
 	}
 	fn(&c)
-	return m.store.Put(c)
+	if err := m.store.Put(c); err != nil {
+		return err
+	}
+	m.notify(c, false)
+	return nil
 }
 
 func (m *ClientManager) createClient(name string, deviceType DeviceType, extra func(*Client)) (Client, error) {
@@ -183,6 +200,7 @@ func (m *ClientManager) createClient(name string, deviceType DeviceType, extra f
 			m.warn("не удалось завести правило учёта трафика для %s: %v", clientID, err)
 		}
 	}
+	m.notify(c, false)
 	return c, nil
 }
 
@@ -195,6 +213,15 @@ func (m *ClientManager) DeleteClient(id string) error {
 	if !ok {
 		return nil
 	}
+	if err := m.deleteClient(c); err != nil {
+		return err
+	}
+	m.notify(c, true)
+	return nil
+}
+
+func (m *ClientManager) deleteClient(c Client) error {
+	id := c.ID
 	if err := m.provisioner.DeleteUser(c.Username); err != nil {
 		return fmt.Errorf("не могу удалить пользователя %s: %w", c.Username, err)
 	}
@@ -217,6 +244,15 @@ func (m *ClientManager) Freeze(id string) error {
 	if c.State == StateFrozen {
 		return nil
 	}
+	if err := m.freeze(c); err != nil {
+		return err
+	}
+	c.State = StateFrozen
+	m.notify(c, false)
+	return nil
+}
+
+func (m *ClientManager) freeze(c Client) error {
 	content, err := m.provisioner.ReadAuthorizedKeys(c.Username)
 	if err != nil {
 		return fmt.Errorf("не могу прочитать authorized_keys: %w", err)
@@ -241,10 +277,15 @@ func (m *ClientManager) Unfreeze(id string) error {
 	if c.State != StateFrozen {
 		return nil
 	}
-	akLine, err := AuthorizedKeysLine(c.PublicKey, c.ID)
-	if err != nil {
-		return fmt.Errorf("не могу собрать строку authorized_keys: %w", err)
+	if err := m.unfreeze(c); err != nil {
+		return err
 	}
+	c.State = StateActive
+	m.notify(c, false)
+	return nil
+}
+
+func (m *ClientManager) unfreeze(c Client) error {
 	content, err := m.provisioner.ReadAuthorizedKeys(c.Username)
 	if err != nil {
 		return fmt.Errorf("не могу прочитать authorized_keys: %w", err)
@@ -256,16 +297,32 @@ func (m *ClientManager) Unfreeze(id string) error {
 		c.State = StateActive
 		return m.store.Put(c)
 	}
-	newContent := strings.TrimRight(content, "\n")
-	if newContent != "" {
-		newContent += "\n"
+	newContent, err := withClientKeys(content, c)
+	if err != nil {
+		return err
 	}
-	newContent += akLine + "\n"
 	if err := m.provisioner.WriteAuthorizedKeys(c.Username, newContent); err != nil {
 		return fmt.Errorf("не могу обновить authorized_keys: %w", err)
 	}
 	c.State = StateActive
 	return m.store.Put(c)
+}
+
+// withClientKeys — содержимое authorized_keys, где строки клиента заменены
+// строками всех его ключей (остальные строки файла не трогаются).
+func withClientKeys(content string, c Client) (string, error) {
+	out := strings.TrimRight(RemoveClientKey(content, c.ID), "\n")
+	if out != "" {
+		out += "\n"
+	}
+	for _, k := range c.keys() {
+		line, err := AuthorizedKeysLine(k, c.ID)
+		if err != nil {
+			return "", fmt.Errorf("не могу собрать строку authorized_keys: %w", err)
+		}
+		out += line + "\n"
+	}
+	return out, nil
 }
 
 // Disconnect обрывает живые сессии клиента, не трогая его ключ — в отличие
