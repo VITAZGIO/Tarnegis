@@ -20,7 +20,7 @@ only with version 5 of the service. An old service does not understand them.
 
 ## The panel
 
-**Settings** → block **Panel version** → **Check for updates**. If a new version is
+**Settings** → the **Panel** tab → block **Panel version** → **Check for updates**. If a new version is
 out, the button **Update to …** appears.
 
 The panel downloads its own file from the release on GitHub. It checks the file

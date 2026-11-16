@@ -2,7 +2,7 @@
 
 The journal shows what happened in the device network: who connected and
 disconnected, who was refused by access rules, what was renamed and deleted. It is
-on the main screen **Overview**, in the card **Journal**.
+in the **Access** section, on the **Journal** tab.
 
 ## Filters
 
