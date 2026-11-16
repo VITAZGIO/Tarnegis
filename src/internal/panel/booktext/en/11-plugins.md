@@ -71,8 +71,8 @@ reason. Common reasons:
 - **No rule "to @servers".** If access rules are on, and some devices have no rule
   to the servers, the panel names them. The rule is set in **Access**. The panel
   does not change the rights itself.
-- **This is a secondary server.** The plugins here cannot tell which device came.
-  Put the plugins on the main server of the network.
+- **The server is connected the old way.** The plugins here cannot tell which
+  device came. Press **Move** in **Settings** (chapter "Servers of the network").
 
 Plugin ports: 47835 — files, 47836 — folders, 47837 — clipboard, 47838 — backups,
 47844 — machines, 47845 — ad blocking, 47846 — site check.

@@ -107,7 +107,7 @@ type Network struct {
 	Devices  []Device `json:"devices"`
 }
 
-// Server — подключённый побочный сервер.
+// Server — сервер, подключённый к этому старым способом (проброс).
 type Server struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -149,11 +149,16 @@ type SeenServer struct {
 	LastSeen int64  `json:"lastSeen,omitempty"`
 }
 
-// KnownServer — сервер сети, который панель советует устройствам.
+// KnownServer — сервер сети, который панель советует устройствам. С meshd 6
+// (ТЗ 22) ещё id его meshd, SSH-ключ сервера и id сети серверов: по ним
+// устройство само добавляет сервер, если его учётная запись там есть.
 type KnownServer struct {
-	Name string `json:"name,omitempty"`
-	Host string `json:"host"`
-	Port int    `json:"port,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Host    string `json:"host"`
+	Port    int    `json:"port,omitempty"`
+	ID      string `json:"id,omitempty"`
+	HostKey string `json:"hk,omitempty"`
+	Net     string `json:"sn,omitempty"`
 }
 
 // State — ответ meshd на /v1/state.
@@ -341,6 +346,19 @@ func (a *Admin) SetKnown(ctx context.Context, list []KnownServer) error {
 	return a.do(ctx, http.MethodPost, "/v1/known", map[string]any{"servers": list}, nil)
 }
 
+// SetKnownShared — серверы сети для устройств и SSH-пользователи, чьи
+// учётные записи есть на всех серверах сети (meshd 6+; старый meshd возьмёт
+// только список серверов).
+func (a *Admin) SetKnownShared(ctx context.Context, list []KnownServer, shared []string) error {
+	if list == nil {
+		list = []KnownServer{}
+	}
+	if shared == nil {
+		shared = []string{}
+	}
+	return a.do(ctx, http.MethodPost, "/v1/known", map[string]any{"servers": list, "shared": shared}, nil)
+}
+
 // SetApproval включает «Новые устройства — после одобрения» (meshd 5+).
 func (a *Admin) SetApproval(ctx context.Context, netID string, on bool) error {
 	return a.do(ctx, http.MethodPost, "/v1/net/approval", map[string]any{"net": netID, "on": on}, nil)
@@ -372,7 +390,7 @@ func (a *Admin) SetExit(ctx context.Context, netID, device, entry string, via []
 	return ExitOrder{}, err
 }
 
-// ForgetServer забывает адрес отключённого побочного сервера.
+// ForgetServer забывает адрес отключённого сервера старого способа.
 func (a *Admin) ForgetServer(ctx context.Context, id string) error {
 	return a.do(ctx, http.MethodPost, "/v1/forget-server", deviceReq{Device: id}, nil)
 }

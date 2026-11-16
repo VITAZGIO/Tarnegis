@@ -106,8 +106,9 @@ const (
 	protoVersion = 2
 	// version — версия самого meshd, её видно в панели.
 	// "4" — несколько серверов без главного (ТЗ 12); "5" — профиль
-	// устройства в панели: одобрение, заморозка, цепочка выхода (ТЗ 16).
-	version = "5"
+	// устройства в панели: одобрение, заморозка, цепочка выхода (ТЗ 16); "6" — сеть серверов:
+	// список серверов сети с отметкой «учётная запись есть» (ТЗ 22).
+	version = "6"
 
 	maxLine          = 4096
 	maxNetworks      = 1000
@@ -270,6 +271,14 @@ type serverAd struct {
 	Name string `json:"name,omitempty"`
 	Host string `json:"host"`
 	Port int    `json:"port,omitempty"`
+	// Сеть серверов (ТЗ 22, meshd 6): id meshd того сервера, его SSH-ключ и
+	// id сети серверов. Acct — у этого устройства там есть учётная запись
+	// (тот же пользователь и ключ): тогда устройство добавит сервер само.
+	// Старые устройства этих полей не читают.
+	ID   string `json:"id,omitempty"`
+	HK   string `json:"hk,omitempty"`
+	Sn   string `json:"sn,omitempty"`
+	Acct bool   `json:"acct,omitempty"`
 }
 
 // serverSeen — сервер, с которым устройство на связи (по его словам).
@@ -964,7 +973,8 @@ func (s *server) control(conn net.Conn, m msg) {
 	d.ctrl = c
 	c.send(msg{Op: "welcome", V: protoVersion, IP: d.IP, Host: d.Host, Since: d.Since,
 		Alias: d.Alias, AliasT: d.AliasT, Peers: s.peersLocked(n, d), Stun: s.stunPorts,
-		Server: s.infoLocked(), Servers: s.self.Known, Hold: d.hold()})
+		Server: s.infoLocked(), Servers: basicAds(s.self.Known, s.self.ID), Hold: d.hold()})
+	c.send(s.serversMsgLocked(d))
 	if o := s.exitDueLocked(d); o != nil {
 		// Панель задала цепочку, пока устройства не было, — или оно её ещё
 		// не применило: отдать снова (устройство само решит, новее ли она).
@@ -1849,6 +1859,9 @@ func (s *server) adminHandler() http.Handler {
 		// Для /v1/self (адрес сервера) и /v1/known.
 		IP      string     `json:"ip"`
 		Servers []serverAd `json:"servers"`
+		// Shared — у каких SSH-пользователей есть учётная запись на всех
+		// серверах сети (ТЗ 22; nil — не менять).
+		Shared *[]string `json:"shared"`
 		// Для /v1/net/approval и /v1/freeze — включить или выключить; для
 		// /v1/exit — цепочка выхода (ТЗ 16).
 		On    bool     `json:"on"`
@@ -1893,7 +1906,7 @@ func (s *server) adminHandler() http.Handler {
 		}
 		q, err := decode(r)
 		if err == nil {
-			err = s.setKnown(q.Servers)
+			err = s.setKnown(q.Servers, q.Shared)
 		}
 		reply(w, map[string]bool{"ok": true}, err)
 	})
@@ -2046,6 +2059,8 @@ type selfConfig struct {
 	ID    string     `json:"id,omitempty"`
 	IP    string     `json:"ip,omitempty"`
 	Known []serverAd `json:"known,omitempty"`
+	// Shared — SSH-пользователи с учётной записью на всех серверах сети.
+	Shared []string `json:"shared,omitempty"`
 }
 
 type relayRecord struct {
@@ -2716,13 +2731,17 @@ func (s *server) seenLocked() []adminSeen {
 // setKnown — какие серверы сети советовать устройствам. Только подсказка:
 // устройство пойдёт на такой сервер, лишь если у него есть свой вход туда
 // (профиль с ключом и проверенным ключом сервера).
-func (s *server) setKnown(list []serverAd) error {
+func (s *server) setKnown(list []serverAd, shared *[]string) error {
 	if len(list) > 16 {
 		return errors.New("слишком много серверов")
 	}
 	out := []serverAd{}
 	for _, a := range list {
-		a.Host, a.Name = clip(a.Host), clip(a.Name)
+		a.Host, a.Name, a.ID, a.Sn = clip(a.Host), clip(a.Name), clip(a.ID), clip(a.Sn)
+		a.Acct = false
+		if len(a.HK) > 200 || strings.ContainsAny(a.HK, "\n\r") {
+			a.HK = ""
+		}
 		if a.Host == "" || strings.ContainsAny(a.Host, " /@") {
 			return errors.New("неверный адрес сервера: " + a.Host)
 		}
@@ -2733,9 +2752,60 @@ func (s *server) setKnown(list []serverAd) error {
 	}
 	s.mu.Lock()
 	s.self.Known = out
+	if shared != nil {
+		if len(*shared) > 4096 {
+			s.mu.Unlock()
+			return errors.New("слишком много пользователей")
+		}
+		s.self.Shared = append([]string(nil), (*shared)...)
+	}
+	// Устройствам на связи — новый список сразу (ТЗ 22): сервер, только что
+	// вошедший в сеть, появляется у них без переподключения.
+	for _, n := range s.nets {
+		for _, d := range n.Devices {
+			if d.ctrl != nil {
+				d.ctrl.send(s.serversMsgLocked(d))
+			}
+		}
+	}
 	s.mu.Unlock()
 	s.markDirty()
 	return nil
+}
+
+// serversMsgLocked — серверы сети для устройства d (op servers, meshd 6):
+// с отметкой, есть ли там его учётная запись. Отдельным сообщением, а не в
+// welcome: строка welcome и так длинная, а старые устройства его не знают и
+// пропускают.
+func (s *server) serversMsgLocked(d *device) msg {
+	shared := false
+	for _, u := range s.self.Shared {
+		if u == d.User && u != "" {
+			shared = true
+			break
+		}
+	}
+	list := make([]serverAd, len(s.self.Known))
+	for i, a := range s.self.Known {
+		a.Acct = shared && a.Sn != ""
+		list[i] = a
+	}
+	return msg{Op: "servers", Servers: list}
+}
+
+// basicAds — список серверов для welcome в прежнем виде (только имя и
+// адрес) и без этого сервера: панель сети серверов кладёт в список и его
+// самого (по нему устройство узнаёт, в какой он сети), а старому устройству
+// советовать сервер, на котором оно и так, незачем.
+func basicAds(list []serverAd, self string) []serverAd {
+	out := []serverAd{}
+	for _, a := range list {
+		if a.ID != "" && a.ID == self {
+			continue
+		}
+		out = append(out, serverAd{Name: a.Name, Host: a.Host, Port: a.Port})
+	}
+	return out
 }
 
 // setSelfIP — адрес сервера в сети устройств (если два сервера сети

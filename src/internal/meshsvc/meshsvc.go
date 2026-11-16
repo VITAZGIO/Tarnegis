@@ -1,7 +1,7 @@
 // Пакет meshsvc — всё, что нужно, чтобы поставить и настроить службу сети
 // устройств (sshtunnel/cmd/meshd) на сервере: скрипт установки, юнит systemd,
-// исключение в брандмауэре и юнит «побочного» сервера, который пробрасывает
-// свой meshd к главному. Им пользуются и мастер настройки VPS на компьютере
+// исключение в брандмауэре, вход для других серверов сети и юнит старого
+// способа связи серверов (проброс своего meshd к другому серверу). Им пользуются и мастер настройки VPS на компьютере
 // (по SSH), и панель на самом сервере (локально) — чтобы не разъезжаться.
 package meshsvc
 
@@ -27,9 +27,13 @@ const (
 	AdminSocket = "/run/meshd/admin.sock"
 	// UplinkUnitName — служба побочного сервера: проброс к главному.
 	UplinkUnitName = "meshd-uplink.service"
-	// LinkUser — пользователь на главном сервере, под которым к нему
-	// подключаются побочные: ему разрешён только проброс до meshd.
+	// LinkUser — пользователь, под которым к серверу подключаются другие
+	// серверы сети: ему разрешён только проброс до порта обмена панели (и
+	// до meshd — для серверов, подключённых старым способом).
 	LinkUser = "meshlink"
+	// SyncPort — где панель слушает обмен с другими серверами сети
+	// (127.0.0.1, ТЗ 22).
+	SyncPort = 47847
 )
 
 // Unit — юнит systemd для meshd.
@@ -190,13 +194,30 @@ WantedBy=multi-user.target
 `
 }
 
-// LinkKeyOptions — ограничения ключа побочного сервера в authorized_keys:
-// только проброс и только до meshd, ни оболочки, ни чего-то ещё. Команда
-// принудительная на случай, если кто-то всё же попросит сессию.
-var LinkKeyOptions = `restrict,port-forwarding,permitopen="127.0.0.1:` + strconv.Itoa(Port) + `",command="/usr/sbin/nologin"`
+// LinkKeyOptions — ограничения ключа сервера, подключённого старым
+// способом (проброс до meshd), в authorized_keys: только проброс и только до
+// meshd и порта обмена (через него он переходит в сеть серверов), ни
+// оболочки, ни чего-то ещё. Команда принудительная на случай, если кто-то
+// всё же попросит сессию.
+var LinkKeyOptions = `restrict,port-forwarding,permitopen="127.0.0.1:` + strconv.Itoa(Port) +
+	`",permitopen="127.0.0.1:` + strconv.Itoa(SyncPort) + `",command="/usr/sbin/nologin"`
 
-// LinkAuthorizedKey — строка authorized_keys пользователя meshlink на главном
-// сервере для ключа побочного сервера name.
+// PeerKeyOptions — ограничения ключа сервера сети: только проброс до порта
+// обмена панели.
+var PeerKeyOptions = `restrict,port-forwarding,permitopen="127.0.0.1:` + strconv.Itoa(SyncPort) + `",command="/usr/sbin/nologin"`
+
+// PeerAuthorizedKey — строка authorized_keys пользователя meshlink для ключа
+// связи сервера сети name.
+func PeerAuthorizedKey(pubKey, name string) string {
+	fields := strings.Fields(strings.TrimSpace(pubKey))
+	if len(fields) >= 2 {
+		pubKey = fields[0] + " " + fields[1]
+	}
+	return PeerKeyOptions + " " + pubKey + " " + sanitizeComment(name)
+}
+
+// LinkAuthorizedKey — строка authorized_keys пользователя meshlink для
+// ключа сервера name, подключённого старым способом.
 func LinkAuthorizedKey(pubKey, name string) string {
 	pubKey = strings.TrimSpace(pubKey)
 	fields := strings.Fields(pubKey)
@@ -209,11 +230,11 @@ func LinkAuthorizedKey(pubKey, name string) string {
 // LinkSSHDBlock — ограничения для пользователя meshlink в sshd_config:
 // вторая линия защиты после опций в authorized_keys (их можно забыть при
 // ручной правке файла, а этот блок — нет). Проброс только «к себе» (-L) и
-// только до meshd; обратный проброс, сессии, агент — закрыты.
+// только до meshd и порта обмена; обратный проброс, сессии, агент — закрыты.
 func LinkSSHDBlock() string {
 	return "Match User " + LinkUser + "\n" +
 		"    AllowTcpForwarding local\n" +
-		"    PermitOpen 127.0.0.1:" + strconv.Itoa(Port) + "\n" +
+		"    PermitOpen 127.0.0.1:" + strconv.Itoa(Port) + " 127.0.0.1:" + strconv.Itoa(SyncPort) + "\n" +
 		"    PermitListen none\n" +
 		"    AllowStreamLocalForwarding no\n" +
 		"    AllowAgentForwarding no\n" +

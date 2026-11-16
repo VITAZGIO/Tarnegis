@@ -150,6 +150,11 @@ func (s *Server) pushPolicy(ctx context.Context) error {
 // SyncAccess — при старте панели: meshd мог поставиться или обновиться без
 // неё. Повторяем, пока meshd не ответит (он мог ещё не подняться).
 func (s *Server) SyncAccess() {
+	// Сеть серверов (ТЗ 22) стартует вместе с панелью: обмен с другими
+	// серверами и сверка общих данных идут сами.
+	if s.mesh != nil {
+		s.mesh.net.Start()
+	}
 	for i := 0; i < 30; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := s.pushPolicy(ctx)
@@ -209,6 +214,10 @@ func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
 // панели, см. SyncAccess).
 func (s *Server) respondPushed(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"ok": true}
+	if s.mesh != nil && s.settings != nil {
+		// Правила общие для сети серверов (ТЗ 22).
+		s.mesh.net.noteAccess(s.settings.Get().Access)
+	}
 	if err := s.pushPolicy(r.Context()); err != nil {
 		resp["warning"] = "сохранено, но meshd не принял: " + err.Error()
 	}

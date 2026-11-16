@@ -162,3 +162,59 @@ func (t *Tunnel) ExitJSON() string {
 	b, _ := json.Marshal(out)
 	return string(b)
 }
+
+// ---------- сеть серверов (ТЗ 22) ----------
+
+// onNetServers запоминает последний список сети серверов от сервера на
+// связи: приложение заберёт его через ApplyNetServers.
+func (t *Tunnel) onNetServers(ns mesh.NetServers) {
+	t.mu.Lock()
+	t.netServers = &ns
+	t.mu.Unlock()
+}
+
+// ApplyNetServers — то же, что на ПК (config.Config.ApplyNetServers):
+// серверы сети, где есть учётная запись телефона, добавляются профилями
+// сами, убранные из сети — выключаются. Принимает профили приложения (тот же
+// JSON, что SetProfiles) и список уже добавлявшихся («id сети/id сервера»,
+// JSON-массив), отдаёт JSON {"profiles","seen","added","off"} или "" —
+// ничего не поменялось. Приложение сохраняет profiles и seen и показывает
+// по уведомлению на каждое имя из added и off.
+func (t *Tunnel) ApplyNetServers(profilesJSON, seenJSON string) (string, error) {
+	t.mu.Lock()
+	ns := t.netServers
+	t.mu.Unlock()
+	if ns == nil {
+		return "", nil
+	}
+	cfg := config.Config{}
+	if err := json.Unmarshal([]byte(profilesJSON), &cfg.Profiles); err != nil {
+		return "", fmt.Errorf("список серверов не разобран: %v", err)
+	}
+	if strings.TrimSpace(seenJSON) != "" {
+		if err := json.Unmarshal([]byte(seenJSON), &cfg.MeshAutoSeen); err != nil {
+			return "", fmt.Errorf("список добавленных серверов не разобран: %v", err)
+		}
+	}
+	seenBefore := len(cfg.MeshAutoSeen)
+	list := make([]config.NetServerAd, 0, len(ns.Servers))
+	for _, s := range ns.Servers {
+		list = append(list, config.NetServerAd{ID: s.ID, Name: s.Name, Host: s.Host, Port: s.Port,
+			HostKey: s.HostKey, Net: s.Net, Acct: s.Acct, Via: s.Via})
+	}
+	res := cfg.ApplyNetServers(list, ns.Nets)
+	if len(res.Added) == 0 && len(res.Off) == 0 && len(cfg.MeshAutoSeen) == seenBefore {
+		return "", nil
+	}
+	added := []string{}
+	for _, p := range res.Added {
+		added = append(added, p.Name)
+	}
+	off := res.Off
+	if off == nil {
+		off = []string{}
+	}
+	out, err := json.Marshal(map[string]any{"profiles": cfg.Profiles, "seen": cfg.MeshAutoSeen,
+		"added": added, "off": off})
+	return string(out), err
+}

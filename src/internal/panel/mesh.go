@@ -1,23 +1,17 @@
 package panel
 
-// Сеть устройств на сервере: панель ставит и настраивает meshd, показывает
-// подключённые устройства и связывает несколько серверов в одну сеть.
+// Сеть устройств на сервере: панель ставит и настраивает meshd и показывает
+// подключённые устройства. Серверы между собой равны и связываются в сеть
+// серверов одним кодом (ТЗ 22, srvnet*.go).
 //
-// Роли сервера:
-//   - главный (main) — здесь работает meshd, к нему сходятся все устройства и
-//     все побочные серверы; здесь видно всю сеть;
-//   - побочный (secondary) — meshd здесь не нужен: его 127.0.0.1:47831 — это
-//     SSH-проброс к главному (служба meshsvc.UplinkUnitName). Устройства,
-//     подключённые к побочному серверу, ничего об этом не знают и попадают в
-//     ту же сеть, что и подключённые к главному;
-//   - выключено.
+// На сервере сеть устройств либо включена (свой meshd; в настройках
+// Role == MeshRoleMain — значение осталось от прошлых версий), либо нет.
 //
-// Как подключить побочный сервер. На главном «Добавить сервер» — панель
-// заводит для него пару ключей и выдаёт код подключения: адрес и SSH-ключи
-// главного, закрытый ключ побочного. На побочном этот код вставляется один
-// раз — панель сама пишет ключи и поднимает проброс. Ключ побочного на
-// главном ограничен пробросом до meshd (meshsvc.LinkKeyOptions и
-// meshsvc.LinkSSHDBlock) — ни оболочки, ни других адресов.
+// Старый способ (до ТЗ 22): сервер без своего meshd, чей 127.0.0.1:47831 —
+// SSH-проброс к meshd другого сервера (служба meshsvc.UplinkUnitName,
+// Role == MeshRoleSecondary). Панель его больше не предлагает; код остался,
+// чтобы ещё не обновлённый сервер работал, а обновлённый перешёл в сеть
+// серверов кнопкой «Перейти» (ServerNet.Migrate).
 
 import (
 	"context"
@@ -87,6 +81,7 @@ type meshAdmin interface {
 	SetSelf(ctx context.Context, name string, enabled bool, ports string) error
 	ForgetServer(ctx context.Context, id string) error
 	SetKnown(ctx context.Context, list []meshsvc.KnownServer) error
+	SetKnownShared(ctx context.Context, list []meshsvc.KnownServer, shared []string) error
 	SetSelfIP(ctx context.Context, ip string) error
 	SetPolicy(ctx context.Context, p meshsvc.Policy) error
 	RenameNetwork(ctx context.Context, netID, name string) error
@@ -119,6 +114,10 @@ type MeshManager struct {
 	// meshsvc.Port на 127.0.0.1, то есть проброс (подменяется в тестах).
 	linkAddr string
 
+	// net — сеть серверов (ТЗ 22); logFn — журнал панели.
+	net   *ServerNet
+	logFn func(format string, args ...any)
+
 	mu         sync.Mutex
 	job        *meshJob
 	link       *meshsvc.ServerLink
@@ -133,11 +132,40 @@ type resolvedHost struct {
 
 // NewMeshManager собирает сеть устройств панели.
 func NewMeshManager(settings *SettingsStore, sys MeshSystem, admin meshAdmin, dataDir, version string) *MeshManager {
-	return &MeshManager{
+	m := &MeshManager{
 		settings: settings, sys: sys, admin: admin, dataDir: dataDir, version: version,
 		lookup:   net.DefaultResolver.LookupHost,
 		resolved: map[string]resolvedHost{},
+		logFn:    func(string, ...any) {},
 	}
+	m.net = newServerNet(m)
+	return m
+}
+
+// Net — сеть серверов этой панели.
+func (m *MeshManager) Net() *ServerNet { return m.net }
+
+// WithLog подключает журнал панели.
+func (m *MeshManager) WithLog(f func(format string, args ...any)) *MeshManager {
+	m.logFn = f
+	return m
+}
+
+func (m *MeshManager) logf(format string, args ...any) {
+	if m.logFn != nil {
+		m.logFn(format, args...)
+	}
+}
+
+// DirectHosts — куда этому серверу всегда ходить напрямую, мимо выхода
+// через другой сервер: серверы сети (и сервер, к которому проброс старого
+// способа).
+func (m *MeshManager) DirectHosts() []string {
+	out := m.net.DirectHosts()
+	if s := m.settings.Get().Mesh; s.MainHost != "" && s.Role == MeshRoleSecondary {
+		out = append(out, s.MainHost)
+	}
+	return out
 }
 
 // WithSSH задаёт адрес этого сервера для устройств.
@@ -146,7 +174,8 @@ func (m *MeshManager) WithSSH(host string, port int) *MeshManager {
 	return m
 }
 
-// Start — при запуске панели: побочный сервер сразу держит связь с главным.
+// Start — при запуске панели: сервер старого способа сразу держит связь с
+// тем, к которому у него проброс.
 func (m *MeshManager) Start() {
 	if s := m.settings.Get().Mesh; s.Role == MeshRoleSecondary {
 		m.startLink(s)
@@ -218,10 +247,10 @@ func (m *MeshManager) jobSnapshot() *meshJob {
 	return &j
 }
 
-// ---------- роли ----------
+// ---------- сеть устройств на этом сервере ----------
 
-// SetMain делает сервер главным: ставит (или обновляет) meshd и готовит вход
-// для побочных серверов.
+// SetMain включает сеть устройств на этом сервере: ставит (или обновляет)
+// свой meshd. Имя функции и значение настройки остались от прошлых версий.
 func (m *MeshManager) SetMain(name string) error {
 	name = cleanName(name)
 	if err := m.settings.Update(func(s *Settings) error {
@@ -277,7 +306,7 @@ func (m *MeshManager) keepSelfIP(ip string, onLine func(string)) {
 // Reinstall — обновить meshd до версии из релиза.
 func (m *MeshManager) Reinstall() error {
 	if m.settings.Get().Mesh.Role != MeshRoleMain && !m.sys.UnitState(meshdUnit).Installed {
-		return errors.New("сначала выбери роль «главный сервер»")
+		return errors.New("сначала включи сеть устройств на этом сервере")
 	}
 	return m.runJob("install", m.installMain)
 }
@@ -308,33 +337,87 @@ func (m *MeshManager) installMain(onLine func(string)) error {
 	if err := m.sys.RunScript(meshsvc.InstallScript(m.version), onLine); err != nil {
 		return err
 	}
-	onLine("Готовлю вход для побочных серверов (пользователь " + meshsvc.LinkUser + ")")
+	onLine("Готовлю вход для других серверов сети (пользователь " + meshsvc.LinkUser + ")")
 	if err := m.syncLinks(); err != nil {
-		return fmt.Errorf("вход для побочных серверов: %w", err)
+		return fmt.Errorf("вход для других серверов сети: %w", err)
 	}
 	onLine("Готово: сеть устройств работает")
 	return nil
 }
 
-// syncLinks приводит пользователя meshlink и его ключи к списку в настройках.
+// syncLinks приводит пользователя meshlink и его ключи к серверам сети,
+// действующим кодам и серверам старого способа.
 func (m *MeshManager) syncLinks() error {
-	links := m.settings.Get().Mesh.Links
+	return m.writeLinks(m.net.linkLines(m.settings.Get().Mesh.Links))
+}
+
+func (m *MeshManager) writeLinks(lines []string) error {
 	if err := m.sys.EnsureLinkUser(); err != nil {
 		return err
 	}
 	if err := m.sys.EnsureLinkSSHD(); err != nil {
 		return err
 	}
-	lines := make([]string, 0, len(links))
-	for _, l := range links {
-		lines = append(lines, meshsvc.LinkAuthorizedKey(l.PublicKey, l.Name))
+	if err := m.sys.WriteLinkKeys(lines); err != nil {
+		return err
 	}
-	return m.sys.WriteLinkKeys(lines)
+	m.net.mu.Lock()
+	m.net.lastKeys = "\x00" + strings.Join(lines, "\n")
+	m.net.mu.Unlock()
+	return nil
+}
+
+// meshdVersion — версия meshd, которую ставит эта панель.
+const meshdVersion = "6"
+
+// ensureOwnMeshd — перед входом в сеть серверов: своя служба сети есть и
+// свежая. Сервер старого способа переходит на свою (адрес в сети тот же).
+func (m *MeshManager) ensureOwnMeshd(onLine func(string)) error {
+	if m.settings.Get().Mesh.Role == MeshRoleSecondary {
+		m.mu.Lock()
+		oldIP := ""
+		if m.link != nil {
+			oldIP = m.link.State().MeshIP
+		}
+		m.mu.Unlock()
+		return m.becomeOwn(onLine, oldIP)
+	}
+	if err := m.settings.Update(func(s *Settings) error { s.Mesh.Role = MeshRoleMain; return nil }); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	st, err := m.admin.State(ctx)
+	cancel()
+	have, _ := strconv.Atoi(st.Version)
+	want, _ := strconv.Atoi(meshdVersion)
+	if err == nil && m.sys.UnitState(meshdUnit).Active && have >= want {
+		onLine("meshd уже свежий: версия " + st.Version)
+		return nil
+	}
+	return m.installMain(onLine)
+}
+
+// becomeOwn — сервер старого способа получает свою службу сети: проброс
+// снимается, адрес сервера в сети, который знают устройства, сохраняется.
+func (m *MeshManager) becomeOwn(onLine func(string), oldIP string) error {
+	m.mu.Lock()
+	m.stopLinkLocked()
+	m.mu.Unlock()
+	if err := m.settings.Update(func(s *Settings) error { s.Mesh.Role = MeshRoleMain; return nil }); err != nil {
+		return err
+	}
+	if err := m.installMain(onLine); err != nil {
+		return err
+	}
+	if oldIP != "" {
+		m.keepSelfIP(oldIP, onLine)
+	}
+	return nil
 }
 
 // Disable выключает сеть устройств на этом сервере. Данные meshd (адреса
-// устройств) и список побочных серверов остаются — включишь снова, всё
-// вернётся как было.
+// устройств) и сеть серверов остаются — включишь снова, всё вернётся как
+// было.
 func (m *MeshManager) Disable() error {
 	m.mu.Lock()
 	if m.job != nil && m.job.Running {
@@ -346,8 +429,9 @@ func (m *MeshManager) Disable() error {
 
 	var errs []error
 	errs = append(errs, m.sys.DisableUnit(meshdUnit), m.sys.DisableUnit(meshsvc.UplinkUnitName))
-	// Ключи побочных серверов убираем: пускать их больше некуда.
-	errs = append(errs, m.sys.WriteLinkKeys(nil), m.sys.KillLinkSessions())
+	// Ключи серверов старого способа убираем: пускать их больше некуда.
+	// Серверы сети остаются: правила и учётные записи общие и без meshd.
+	errs = append(errs, m.sys.WriteLinkKeys(m.net.linkLines(nil)), m.sys.KillLinkSessions())
 	if err := m.settings.Update(func(s *Settings) error {
 		s.Mesh.Role = MeshRoleOff
 		return nil
@@ -357,9 +441,9 @@ func (m *MeshManager) Disable() error {
 	return errors.Join(errs...)
 }
 
-// ---------- побочные серверы (на главном) ----------
+// ---------- старый способ: серверы с пробросом к этому ----------
 
-// meshInvite — код подключения побочного сервера.
+// meshInvite — код старого способа (проброс к этому серверу).
 type meshInvite struct {
 	V        int      `json:"v"`
 	ID       string   `json:"id"`
@@ -438,7 +522,7 @@ func randomHex(n int) string {
 // побочный; пустой — тот, что задан панели при запуске.
 func (m *MeshManager) CreateLink(name, host string, port int) (MeshLink, string, error) {
 	if m.settings.Get().Mesh.Role != MeshRoleMain {
-		return MeshLink{}, "", errors.New("подключать другие серверы может только главный")
+		return MeshLink{}, "", errors.New("сначала включи сеть устройств на этом сервере")
 	}
 	name = cleanName(name)
 	if name == "" {
@@ -454,7 +538,7 @@ func (m *MeshManager) CreateLink(name, host string, port int) (MeshLink, string,
 		port = 22
 	}
 	if err := validHost(host); err != nil {
-		return MeshLink{}, "", errors.New("укажи адрес этого сервера — по нему к нему подключится побочный")
+		return MeshLink{}, "", errors.New("укажи адрес этого сервера — по нему к нему подключится другой сервер")
 	}
 	if port < 1 || port > 65535 {
 		return MeshLink{}, "", errors.New("неверный порт SSH")
@@ -546,7 +630,10 @@ func (m *MeshManager) selfName(s MeshSettings) string {
 	if s.Name != "" {
 		return s.Name
 	}
-	return "Главный сервер"
+	if m.sshHost != "" {
+		return m.sshHost
+	}
+	return "Сервер"
 }
 
 // allowLocal — пускать ли устройство сети на порт побочного сервера.
@@ -730,6 +817,9 @@ type MeshState struct {
 	SelfHost string             `json:"selfHost,omitempty"`
 	LinkInfo *meshsvc.LinkState `json:"link,omitempty"`
 	Log      []string           `json:"log,omitempty"`
+
+	// ServerNet — сеть серверов (ТЗ 22): этот сервер и остальные.
+	ServerNet SrvNetState `json:"serverNet"`
 }
 
 // State собирает состояние сети для интерфейса.
@@ -772,14 +862,24 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 		m.mu.Unlock()
 		st.Log = m.sys.UnitLog(meshsvc.UplinkUnitName, 15)
 	}
+	// Серверы старого способа (проброс к этому) — в том же списке, «ждут
+	// перехода».
+	var links []SrvState
+	for _, sv := range st.Servers {
+		if !sv.Main {
+			links = append(links, SrvState{ID: legacyPrefix + sv.ID, Name: sv.Name, Host: sv.Host,
+				Online: sv.Online, Waiting: true})
+		}
+	}
+	st.ServerNet = m.net.State(links)
 	return st
 }
 
+// legacyPrefix — id сервера старого способа в списке «Серверы сети».
+const legacyPrefix = "link:"
+
 func (m *MeshManager) fillMain(ctx context.Context, st *MeshState, s MeshSettings) {
-	name := s.Name
-	if name == "" {
-		name = "Главный сервер"
-	}
+	name := m.selfName(s)
 	st.Servers = append(st.Servers, MeshServer{ID: "main", Name: name, Host: m.sshHost, Main: true, Online: st.Meshd.Active, Known: true})
 
 	ms, err := m.admin.State(ctx)
@@ -942,22 +1042,38 @@ func (m *MeshManager) SetKnown(ctx context.Context, list []meshsvc.KnownServer) 
 
 // Rename переименовывает устройство (пустое имя — вернуть его собственное).
 func (m *MeshManager) Rename(ctx context.Context, netID, device, alias string) error {
-	return m.admin.Rename(ctx, netID, device, alias)
+	if err := m.admin.Rename(ctx, netID, device, alias); err != nil {
+		return err
+	}
+	m.net.noteAlias(netID, device, alias)
+	return nil
 }
 
 // Forget убирает устройство из сети.
 func (m *MeshManager) Forget(ctx context.Context, netID, device string) error {
-	return m.admin.Forget(ctx, netID, device)
+	if err := m.admin.Forget(ctx, netID, device); err != nil {
+		return err
+	}
+	m.net.noteForget(netID, device)
+	return nil
 }
 
 // RenameNetwork задаёт сети имя (пустое — убрать).
 func (m *MeshManager) RenameNetwork(ctx context.Context, netID, name string) error {
-	return m.admin.RenameNetwork(ctx, netID, name)
+	if err := m.admin.RenameNetwork(ctx, netID, name); err != nil {
+		return err
+	}
+	m.net.noteNetName(netID, strings.Join(strings.Fields(name), " "))
+	return nil
 }
 
 // DeleteNetwork удаляет сеть и отключает её устройства.
 func (m *MeshManager) DeleteNetwork(ctx context.Context, netID string) error {
-	return m.admin.DeleteNetwork(ctx, netID)
+	if err := m.admin.DeleteNetwork(ctx, netID); err != nil {
+		return err
+	}
+	m.net.noteNetDelete(netID)
+	return nil
 }
 
 // Events — журнал событий сети устройств.
@@ -967,17 +1083,29 @@ func (m *MeshManager) Events(ctx context.Context, after int64, limit int) (meshs
 
 // SetApproval — «Новые устройства — после одобрения» у сети (ТЗ 16).
 func (m *MeshManager) SetApproval(ctx context.Context, netID string, on bool) error {
-	return m.admin.SetApproval(ctx, netID, on)
+	if err := m.admin.SetApproval(ctx, netID, on); err != nil {
+		return err
+	}
+	m.net.noteApproval(netID, on)
+	return nil
 }
 
 // Approve пускает в сеть устройство, которое ждёт одобрения.
 func (m *MeshManager) Approve(ctx context.Context, netID, device string) error {
-	return m.admin.Approve(ctx, netID, device)
+	if err := m.admin.Approve(ctx, netID, device); err != nil {
+		return err
+	}
+	m.net.noteApprove(netID, device)
+	return nil
 }
 
 // Freeze замораживает (on) или размораживает устройство.
 func (m *MeshManager) Freeze(ctx context.Context, netID, device string, on bool) error {
-	return m.admin.Freeze(ctx, netID, device, on)
+	if err := m.admin.Freeze(ctx, netID, device, on); err != nil {
+		return err
+	}
+	m.net.noteFreeze(netID, device, on)
+	return nil
 }
 
 // SetExit задаёт устройству цепочку выхода (ключи «адрес:порт»). Проверяет

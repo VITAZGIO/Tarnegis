@@ -31,19 +31,24 @@ forwarding on the router is needed.
 
 ## Several servers
 
-A network can have several servers and none of them is the main one. To make a
-server part of the network, add its profile on the device with the same network
-key and the device network on — the device then stays connected to all such
-servers at once (to the extra ones with a light connection, no internet
-traffic through them). If one server goes down, connections go through
+A network can have several servers, all of them equal. Servers are linked in
+their panels with one code ("Servers of the network" → "Add a server" and "Join
+a network"). If your account exists on a new server of the network, the app adds
+its profile by itself — same user and key, device network on — and says "Server
+… added to the network". Switch such a server off and it does not come back by
+itself. You can also do it by hand: add the server's profile with the same
+network key. The device stays connected to all servers of the network at once
+(to the extra ones with a light connection, no internet traffic through them). If one server goes down, connections go through
 another server both devices share; direct connections notice nothing.
 
 - A device on two servers is listed once, with the same address and name on
   both.
 - If there is no shared live server, the app says so: "no common server: it is
   connected via …".
-- Access rules, the journal and removal are per server. If the servers have
-  different rules, the panel says so: make them the same.
+- Access rules, approvals, freezes and removals are shared by servers linked
+  in their panels. The journal is per server.
+- If a server is removed from the network, its profile added by the app is
+  switched off with a notice.
 
 ## What the server panel can do
 

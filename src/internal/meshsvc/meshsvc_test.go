@@ -39,12 +39,28 @@ func TestInstallScriptParses(t *testing.T) {
 
 func TestLinkAuthorizedKeyТолькоПроброс(t *testing.T) {
 	line := LinkAuthorizedKey("ssh-ed25519 AAAAC3Nza root@nl  \n", `Нидерланды "x" nl-1`)
-	const opts = `restrict,port-forwarding,permitopen="127.0.0.1:47831",command="/usr/sbin/nologin" `
+	// Сервер старого способа: meshd и порт обмена (через него он переходит
+	// в сеть серверов, ТЗ 22) — и больше ничего.
+	const opts = `restrict,port-forwarding,permitopen="127.0.0.1:47831",permitopen="127.0.0.1:47847",command="/usr/sbin/nologin" `
 	if !strings.HasPrefix(line, opts+"ssh-ed25519 AAAAC3Nza ") {
 		t.Fatalf("строка: %q", line)
 	}
 	if strings.ContainsAny(strings.TrimPrefix(line, opts), "\"\n") {
 		t.Fatalf("в строке кавычки или перевод строки: %q", line)
+	}
+}
+
+func TestPeerAuthorizedKeyТолькоПортОбмена(t *testing.T) {
+	line := PeerAuthorizedKey("ssh-ed25519 AAAAC3Nza comment\n", "Германия")
+	const opts = `restrict,port-forwarding,permitopen="127.0.0.1:47847",command="/usr/sbin/nologin" `
+	if !strings.HasPrefix(line, opts+"ssh-ed25519 AAAAC3Nza ") {
+		t.Fatalf("строка: %q", line)
+	}
+	if strings.Contains(line, "47831") || strings.Contains(line, "\n") {
+		t.Fatalf("лишнее в строке: %q", line)
+	}
+	if !strings.Contains(LinkSSHDBlock(), "PermitOpen 127.0.0.1:47831 127.0.0.1:47847\n") {
+		t.Fatalf("блок sshd: %s", LinkSSHDBlock())
 	}
 }
 

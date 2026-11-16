@@ -18,6 +18,8 @@ func (s *Server) WithSettings(st *SettingsStore) *Server {
 // WithMesh подключает сеть устройств.
 func (s *Server) WithMesh(m *MeshManager) *Server {
 	s.mesh = m
+	m.net.srv = s
+	s.clients.onChange = m.net.noteClient
 	return s
 }
 
@@ -42,6 +44,7 @@ func (s *Server) meshRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mesh/serveraccess", s.requireAuth(s.withMesh(s.handleMeshServerAccess)))
 	mux.HandleFunc("/api/mesh/known", s.requireAuth(s.withMesh(s.handleMeshKnown)))
 	s.deviceRoutes(mux)
+	s.serverNetRoutes(mux)
 }
 
 func (s *Server) withMesh(next http.HandlerFunc) http.HandlerFunc {

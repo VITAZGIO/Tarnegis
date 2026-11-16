@@ -8,7 +8,8 @@ host and the panel itself. The program on the devices is updated last.
 Servers first, then devices:
 
 1. **`meshd` on each server.** The **Update meshd** button in **Settings**. Version 5
-   is needed for approval of new devices and for freezing in the network.
+   is needed for approval of new devices and for freezing in the network, version 6 —
+   for devices to add new servers of the network by themselves.
 2. **Plugin host.** If the plugins are installed, press **Update** in the host card.
 3. **The program on the devices.** Update it after the servers.
 
