@@ -15,7 +15,7 @@ blocked. This is not a replacement for a proper password.
 
 ## Change the password
 
-1. Open **Settings** → the **Account** block.
+1. Open **Settings** → the **Panel** tab → the **Account** block.
 2. Press **Change password**.
 3. Enter the **Current password**, then the **New password**, and repeat it.
 4. Press **Set password**.
@@ -65,6 +65,6 @@ Check in this order:
 
 ## Autostart
 
-**Settings** → **Autostart** → tick **Start on system boot**. If you untick it,
+**Settings** → the **Panel** tab → **Autostart** → tick **Start on system boot**. If you untick it,
 the panel will not start by itself after the server reboots. It does not stop the
 panel that is already running.
