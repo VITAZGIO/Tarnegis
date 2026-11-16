@@ -54,9 +54,10 @@
          padding:6px 8px;color:var(--text);font:inherit}
   select:focus{outline:none;border-color:var(--accent)}
 
-  /* ---------- каркас: выбор раздела слева, содержимое на всю ширину ---------- */
-  /* Ширина страницы не ограничена: на широком мониторе карточки встают в
-     несколько колонок. Ограничена только длина строк текста (.note и т.п.). */
+  /* ---------- каркас: выбор раздела слева, содержимое одной колонкой ---------- */
+  /* ТЗ 23: содержимое — одна колонка по центру ограниченной ширины, раздел —
+     стопка блоков во всю её ширину. На широком мониторе по бокам остаётся
+     пусто — так задумано: ничего не разъезжается в 4–5 колонок. */
   .app{display:grid;grid-template-columns:200px minmax(0,1fr);min-height:calc(100vh - 51px)}
   .side{position:sticky;top:51px;align-self:start;height:calc(100vh - 51px);overflow-y:auto;
         display:flex;flex-direction:column;gap:4px;padding:14px 10px;
@@ -69,14 +70,32 @@
   .side button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;
                    stroke-linecap:round;stroke-linejoin:round;flex:none}
   main{min-width:0;padding:18px 20px 40px}
+  main > section, main > .msg, main > .demo-banner{width:100%;max-width:1560px;margin-left:auto;margin-right:auto}
   main > section{display:grid;gap:14px;align-content:start}
+  /* Экраны-формы (настройки, плагины) — узкой колонкой: читаются сверху вниз. */
+  main > section.narrow{max-width:880px}
   main > section .card{margin-bottom:0}
   .sec-head{grid-column:1/-1}
-  /* Сетка карточек: на телефоне одна колонка, на мониторе 2–3, на широком больше. */
-  .cards{display:grid;gap:14px;align-items:start;
-         grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr))}
+  /* Блоки раздела — стопкой во всю ширину. Рядом два блока ставятся только
+     явной строкой .row2: обе ячейки одной высоты, длинное листается внутри. */
+  .cards{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr)}
   .cards:empty{display:none}
-  @media (min-width:1300px){ .cards > .span2{grid-column:span 2} }
+  .sub{display:grid;gap:14px;align-content:start;min-width:0}
+  .row2{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+  @media (min-width:1100px){
+    .row2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+    .row2 > .card{min-height:0;display:flex;flex-direction:column}
+  }
+  /* Одинаковые карточки одного вида (сети) — сеткой, ряд одной высоты. */
+  .cards.same{grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));align-items:stretch}
+  /* Вкладки внутри раздела: под заголовком; на телефоне листаются вбок. */
+  .subtabs{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:-2px 0 2px;
+           padding-bottom:2px}
+  .subtabs::-webkit-scrollbar{display:none}
+  .subtabs button{flex:none;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card2);
+                  color:var(--dim);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .subtabs button:hover{color:var(--text)}
+  .subtabs button.on{background:var(--accent-muted);border-color:var(--accent-muted);color:#fff}
   /* Средняя ширина: раздел — только значком, чтобы содержимому хватило места. */
   @media (max-width:1100px) and (min-width:761px){
     .app{grid-template-columns:64px minmax(0,1fr)}
@@ -185,45 +204,46 @@
   table.list .sub{color:var(--dim);font-size:11.5px}
   .scroll-x{overflow-x:auto}
 
-  /* ---------- обзор: схема занимает свободное место ---------- */
+  /* ---------- обзор: плитки, схема во всю ширину, ниже ровные строки ---------- */
   .ov{grid-template-columns:minmax(0,1fr);
-      grid-template-areas:"head" "tiles" "map" "status" "clients" "journal" "traffic"}
+      grid-template-areas:"head" "tiles" "map" "clients" "traffic" "status"}
   .ov > .sec-head{grid-area:head} .ov-tiles{grid-area:tiles;margin:0}
   .ov-map{grid-area:map;min-width:0} .ov-status{grid-area:status}
-  .ov-clients{grid-area:clients} .ov-traffic{grid-area:traffic} .ov-journal{grid-area:journal;min-width:0}
+  .ov-clients{grid-area:clients} .ov-traffic{grid-area:traffic}
   @media (min-width:1100px){
-    .ov{grid-template-columns:minmax(0,2fr) minmax(340px,1fr);
-        grid-template-areas:"head head" "tiles tiles" "map status" "map clients" "map journal" "traffic traffic"}
-    .ov.nomap{grid-template-areas:"head head" "tiles tiles" "status clients" "journal journal" "traffic traffic";
-        grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+    .ov{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch;
+        grid-template-areas:"head head" "tiles tiles" "map map" "clients traffic" "status status"}
+    .ov-clients,.ov-traffic{display:flex;flex-direction:column;min-height:0}
+    .ov-clients .scroll-x,.ov-traffic .scroll-x{max-height:420px;overflow:auto}
+    /* Состояние сервера — строкой: пары «название — значение» в три колонки. */
+    .ov-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:28px}
+    .ov-status > h1{grid-column:1/-1}
   }
-  @media (min-width:1900px){
-    .ov{grid-template-columns:minmax(0,2.2fr) minmax(360px,1fr) minmax(360px,1fr);
-        grid-template-areas:"head head head" "tiles tiles tiles" "map status traffic" "map clients traffic" "map journal journal"}
-    .ov.nomap{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr);
-        grid-template-areas:"head head head" "tiles tiles tiles" "status clients traffic" "journal journal traffic"}
-  }
-  .ov-map .map-wrap svg{height:clamp(360px, calc(100vh - 330px), 960px)}
+  .ov-map .map-wrap svg{height:max(420px, 55vh)}
   .ov.nomap .ov-map{display:none}
 
-  /* ---------- устройства: список | карточка | схема ---------- */
+  /* ---------- устройства: таблица и боковая панель ---------- */
+  /* Таблица во всю ширину; выбранное устройство (и формы «Добавить»,
+     «Права») открываются панелью справа: от 1300 px — колонкой рядом с
+     таблицей, уже — поверх неё, на телефоне — на весь экран с «Назад». */
   .devs{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr)}
   .dmap{display:none}
-  .back{display:none;margin-bottom:12px}
-  .ddetail{display:flex;flex-direction:column;gap:14px;min-width:0}
-  @media (min-width:980px){
-    .devs{grid-template-columns:minmax(0,1.25fr) minmax(360px,1fr)}
-    /* Карточка не уезжает вместе с длинным списком. */
-    .ddetail,.dmap{position:sticky;top:69px;max-height:calc(100vh - 87px);overflow-y:auto}
+  .back{display:inline-block;align-self:flex-start;margin:0}
+  .ddetail{display:none;flex-direction:column;gap:14px;min-width:0}
+  .devs.open .ddetail{display:flex}
+  /* Панель закрыта — строка не выглядит выбранной. */
+  .devs:not(.open) button.drow.on{background:none;border-color:transparent}
+  @media (min-width:1300px){
+    .devs.open{grid-template-columns:minmax(0,1fr) 460px}
+    /* Панель не уезжает вместе с длинной таблицей. */
+    .ddetail{position:sticky;top:69px;max-height:calc(100vh - 87px);overflow-y:auto}
   }
-  @media (min-width:1700px){
-    .devs.withmap{grid-template-columns:minmax(0,1.2fr) minmax(380px,1fr) minmax(420px,1.1fr)}
-    .devs.withmap .dmap{display:block}
-    .dmap .map-wrap svg{height:clamp(380px, calc(100vh - 230px), 900px)}
+  @media (min-width:761px) and (max-width:1299px){
+    .devs.open .ddetail{position:fixed;top:51px;right:0;bottom:0;z-index:25;width:min(460px,100%);
+      overflow-y:auto;padding:14px;background:var(--bg);border-left:1px solid var(--line);
+      box-shadow:-10px 0 28px rgba(0,0,0,.35)}
   }
-  @media (max-width:979px){
-    .back{display:inline-block;align-self:flex-start;margin:0}
-    .devs:not(.open) .ddetail{display:none}
+  @media (max-width:760px){
     .devs.open .dlist{display:none}
   }
   .dlist{container-type:inline-size}
@@ -274,9 +294,6 @@
   .help p{margin:0 0 10px}
   .help b{color:var(--text)}
   .acc-sec{grid-template-columns:minmax(0,1fr)}
-  @media (min-width:1100px){
-    .acc-sec{grid-template-columns:minmax(0,2fr) minmax(300px,1fr)}
-  }
   .acc-checks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
   .acc-checks .g{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
                  border:1px solid var(--line);background:var(--card2);font-size:12.5px}
@@ -427,7 +444,7 @@
   #hintPop b{color:var(--accent)}
 
   /* ---------- Книга (Настройки) ---------- */
-  .cards > #bookCard{grid-column:1/-1}
+  /* Книга — на всю ширину раздела. */
   .bk{display:grid;grid-template-columns:minmax(200px,280px) minmax(0,1fr);gap:16px;align-items:start}
   .bk-list{display:flex;flex-direction:column;gap:8px;min-width:0}
   .bk-list input[type=search]{width:100%;background:var(--card2);border:1px solid var(--line);
@@ -837,18 +854,6 @@
         </div>
       </div>
 
-      <!-- журнал сети устройств: новые сверху -->
-      <div class="card ov-journal" id="jrCard" hidden>
-        <h1><span data-i18n="jr_title">Журнал</span><button class="hint" data-hint="hint_jr">?</button></h1>
-        <div class="chips" id="jrFilter" style="margin-bottom:10px">
-          <button data-f="all" data-i18n="jr_all">Все</button>
-          <button data-f="conn" data-i18n="jr_conn">Подключения</button>
-          <button data-f="denied" data-i18n="jr_denied">Отказы</button>
-        </div>
-        <div class="msg err" id="jrOldHint" hidden></div>
-        <div class="msg err" id="jrErr" hidden></div>
-        <div class="journal" id="journal"></div>
-      </div>
     </section>
 
     <!-- ======== УСТРОЙСТВА ======== -->
@@ -969,7 +974,7 @@
           </div>
         </div>
 
-        <div class="dmap" id="devMapSlot"></div>
+        <div class="dmap" id="devMapSlot" hidden></div>
       </div>
     </section>
 
@@ -979,7 +984,12 @@
         <h1 class="page-title" data-i18n="nav_access">Доступ</h1>
         <p class="page-sub" data-i18n="access_sub">Кто к кому может подключаться в сети устройств.</p>
       </div>
-      <div class="acc-main">
+      <div class="subtabs" data-tab="Access">
+        <button type="button" data-sub="simple" data-i18n="sub_access_simple">Простой</button>
+        <button type="button" data-sub="adv" data-i18n="sub_access_adv">Расширенный</button>
+        <button type="button" data-sub="journal" data-i18n="sub_access_journal">Журнал</button>
+      </div>
+      <div class="sub" data-sub="simple">
         <!-- простой режим: роли и галочки поверх групп и правил -->
         <div class="card" id="smCard">
           <h1><span data-i18n="sm_title">Кто к кому может подключаться</span><button class="hint" data-hint="hint_sm">?</button></h1>
@@ -1000,6 +1010,13 @@
             <p class="note sm-counts" id="smCounts"></p>
           </div>
         </div>
+        <div class="card">
+          <h1 data-i18n="sm_roles_title">Роли</h1>
+          <div class="help" id="smRolesHelp"></div>
+          <button class="btn ghost small" id="accAdvBtn" style="margin-top:6px" data-i18n="acc_adv">Расширенное: группы и правила</button>
+        </div>
+      </div>
+      <div class="sub" data-sub="adv" hidden>
         <!-- права доступа в сети устройств -->
         <div class="card" id="accessCard" hidden>
           <h1><span data-i18n="acc_adv">Расширенное: группы и правила</span><button class="hint" data-hint="hint_acc">?</button></h1>
@@ -1018,8 +1035,6 @@
             <button class="btn" id="accSaveBtn" data-i18n="save">Сохранить</button>
           </div>
         </div>
-      </div>
-      <div class="acc-side">
         <div class="card">
           <h1><span data-i18n="ck_title">Проверка</span><button class="hint" data-hint="hint_ck">?</button></h1>
           <div class="ck-form">
@@ -1029,15 +1044,24 @@
             <div class="verdict" id="ckVerdict"></div>
           </div>
         </div>
-        <div class="card">
-          <h1 data-i18n="sm_roles_title">Роли</h1>
-          <div class="help" id="smRolesHelp"></div>
-          <button class="btn ghost small" id="accAdvBtn" style="margin-top:6px" data-i18n="acc_adv">Расширенное: группы и правила</button>
-        </div>
         <!-- Те же тексты, что в подсказках «?», — раскрытыми. -->
         <div class="card acc-help">
           <h1 data-i18n="acc_help_title">Как это работает</h1>
           <div class="help" id="accHelp"></div>
+        </div>
+      </div>
+      <div class="sub" data-sub="journal" hidden>
+        <!-- журнал сети устройств: новые сверху -->
+        <div class="card ov-journal" id="jrCard" hidden>
+          <h1><span data-i18n="jr_title">Журнал</span><button class="hint" data-hint="hint_jr">?</button></h1>
+          <div class="chips" id="jrFilter" style="margin-bottom:10px">
+            <button data-f="all" data-i18n="jr_all">Все</button>
+            <button data-f="conn" data-i18n="jr_conn">Подключения</button>
+            <button data-f="denied" data-i18n="jr_denied">Отказы</button>
+          </div>
+          <div class="msg err" id="jrOldHint" hidden></div>
+          <div class="msg err" id="jrErr" hidden></div>
+          <div class="journal" id="journal"></div>
         </div>
       </div>
     </section>
@@ -1049,15 +1073,21 @@
         <p class="page-sub" data-i18n="mesh_sub">Твои устройства в одной сети через твои же серверы — как NetBird:
           каждое получает постоянный адрес и имя вида «ноутбук.mesh».</p>
       </div>
-
-      <div class="card" id="netsNone" hidden>
-        <p class="note" id="netsNoneText" style="margin:0"></p>
+      <div class="subtabs" data-tab="Mesh">
+        <button type="button" data-sub="nets" data-i18n="sub_mesh_nets">Сети</button>
+        <button type="button" data-sub="servers" data-i18n="sub_mesh_servers">Серверы</button>
+        <button type="button" data-sub="links" data-i18n="sub_mesh_links">Соединения</button>
       </div>
+      <div class="sub" data-sub="nets">
 
-      <div class="msg err" id="netsOldHint" hidden></div>
-      <div class="cards" id="meshNets"></div>
+        <div class="card" id="netsNone" hidden>
+          <p class="note" id="netsNoneText" style="margin:0"></p>
+        </div>
 
-      <div class="cards">
+        <div class="msg err" id="netsOldHint" hidden></div>
+        <div class="cards same" id="meshNets"></div>
+      </div>
+      <div class="sub" data-sub="servers" hidden>
         <div class="card" id="meshServersCard" hidden>
           <h1><span data-i18n="mesh_servers_title">Серверы сети</span><button class="hint" data-hint="hint_servers">?</button></h1>
           <p class="note" data-i18n="srv_eq_note">Все серверы сети равны. Правила доступа, одобрения, заморозки, имена и учётные записи устройств — общие: поменял на одном, получили все.</p>
@@ -1113,6 +1143,8 @@
           <button class="btn" id="selfSaveBtn" data-i18n="cap_save">Применить</button>
         </div>
 
+      </div>
+      <div class="sub" data-sub="links" hidden>
         <div class="card" id="meshForecastCard" hidden>
           <h1><span data-i18n="fc_title">Прямые соединения: прогноз</span><button class="hint" data-hint="hint_fc">?</button></h1>
           <p class="note" data-i18n="fc_note">Проверка NAT идёт сама при каждом подключении устройства. По её итогам —
@@ -1128,10 +1160,15 @@
         <h1 class="page-title" data-i18n="nav_settings">Настройки</h1>
         <p class="page-sub" data-i18n="settings_sub">Роль сервера в сети устройств, службы и сама панель.</p>
       </div>
-
-      <div class="cards">
+      <div class="subtabs" data-tab="Settings">
+        <button type="button" data-sub="net" data-i18n="sub_set_net">Сеть устройств</button>
+        <button type="button" data-sub="egress" data-i18n="sub_set_egress">Выход сервера</button>
+        <button type="button" data-sub="panel" data-i18n="sub_set_panel">Панель</button>
+        <button type="button" data-sub="book" data-i18n="sub_set_book">Книга</button>
+      </div>
+      <div class="sub" data-sub="net">
         <!-- сеть устройств на этом сервере (ТЗ 22: ролей нет) -->
-        <div class="card span2" id="meshRoleCard" hidden>
+        <div class="card" id="meshRoleCard" hidden>
           <h1><span data-i18n="srv_dn_title">Сеть устройств на этом сервере</span><button class="hint" data-hint="hint_srv_dn">?</button></h1>
           <div id="srvDnOff">
             <p class="note" data-i18n="srv_dn_off_note">Выключена. Включи — поставится служба сети, и устройства этого сервера окажутся в одной сети. Связать с другими серверами — «Сети» → «Серверы сети».</p>
@@ -1148,8 +1185,21 @@
           <div id="meshRoleMsg" style="margin-top:12px"></div>
         </div>
 
+        <!-- сервер, подключённый старым способом (проброс): одна кнопка «Перейти» -->
+        <div class="card" id="meshSecView" hidden>
+          <div class="msg warn" style="margin:0"><b data-i18n="srv_legacy_title">Этот сервер подключён старым способом</b>
+            <span data-i18n="srv_legacy_note">— через проброс к другому серверу. Нажми «Перейти»: у него появится своя служба сети (адрес в сети останется прежним), и он войдёт в сеть серверов того, к которому подключён.</span></div>
+          <div class="kv" style="margin-top:12px"><span class="k" data-i18n="srv_legacy_to">Подключён к</span><span class="v" id="secMainHost">—</span></div>
+          <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="secState">—</span></div>
+          <div class="msg err" id="secErr" hidden style="margin-top:12px"></div>
+          <div class="row-inline" style="margin-top:12px">
+            <button class="btn" id="secToMainBtn" data-i18n="srv_legacy_go">Перейти</button>
+            <button class="btn danger" id="secOffBtn" data-i18n="mesh_off">Выключить сеть на сервере</button>
+          </div>
+        </div>
+
         <!-- установка -->
-        <div class="card span2" id="meshJobCard" hidden>
+        <div class="card" id="meshJobCard" hidden>
           <h1 id="meshJobTitle"></h1>
           <div class="console" id="meshJobLog"></div>
         </div>
@@ -1168,21 +1218,25 @@
           </div>
         </div>
 
-        <!-- сервер, подключённый старым способом (проброс): одна кнопка «Перейти» -->
-        <div class="card span2" id="meshSecView" hidden>
-          <div class="msg warn" style="margin:0"><b data-i18n="srv_legacy_title">Этот сервер подключён старым способом</b>
-            <span data-i18n="srv_legacy_note">— через проброс к другому серверу. Нажми «Перейти»: у него появится своя служба сети (адрес в сети останется прежним), и он войдёт в сеть серверов того, к которому подключён.</span></div>
-          <div class="kv" style="margin-top:12px"><span class="k" data-i18n="srv_legacy_to">Подключён к</span><span class="v" id="secMainHost">—</span></div>
-          <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="secState">—</span></div>
-          <div class="msg err" id="secErr" hidden style="margin-top:12px"></div>
-          <div class="row-inline" style="margin-top:12px">
-            <button class="btn" id="secToMainBtn" data-i18n="srv_legacy_go">Перейти</button>
-            <button class="btn danger" id="secOffBtn" data-i18n="mesh_off">Выключить сеть на сервере</button>
+        <div class="card">
+          <h1><span data-i18n="cap_title">Ёмкость сервера</span><button class="hint" data-hint="hint_capacity">?</button></h1>
+          <p class="note" data-i18n="cap_note">Сколько устройств могут подключаться к серверу одновременно. Меняет настройку
+            защиты sshd от наплыва соединений — уже подключённые устройства это не затронет.</p>
+          <div id="capMsg"></div>
+          <div class="cap-row">
+            <input type="range" id="capRange" min="1" max="250" value="30">
+            <input type="number" id="capNum" min="1" max="250" value="30">
           </div>
+          <div class="kv" style="margin-top:8px"><span class="k"><span data-i18n="cap_wanted">Будет выставлено</span><button class="hint" data-hint="hint_maxstartups">?</button></span>
+            <span class="v" id="capWanted">—</span></div>
+          <div class="kv"><span class="k" data-i18n="cap_effective">Действует сейчас (sshd -T)</span>
+            <span class="v" id="capEffective">—</span></div>
+          <button class="btn" id="capSaveBtn" style="margin-top:12px" data-i18n="cap_save">Применить</button>
         </div>
-
+      </div>
+      <div class="sub" data-sub="egress" hidden>
         <!-- выход самого сервера через другой сервер (ТЗ 10) -->
-        <div class="card span2" id="egressCard" hidden>
+        <div class="card" id="egressCard" hidden>
           <h1><span data-i18n="egress_title">Выход сервера → через сервер Б</span><button class="hint" data-hint="hint_egress">?</button></h1>
           <p class="note" data-i18n="egress_note">Собственный трафик этого сервера (обновления, контейнеры, пользователи туннеля,
             выходящие здесь) пойдёт через другой сервер ssh_tunnel. Вход снаружи (SSH, эта панель, устройства) не затрагивается.</p>
@@ -1230,6 +1284,8 @@
           </div>
         </div>
 
+      </div>
+      <div class="sub" data-sub="panel" hidden>
         <div class="card">
           <h1 data-i18n="version_label">Версия панели</h1>
           <div class="kv"><span class="k" data-i18n="version_installed">Установлена</span>
@@ -1248,23 +1304,6 @@
                  data-i18n="update_open_release">Открыть страницу релиза</a></p>
           </div>
         </div>
-
-        <div class="card">
-          <h1><span data-i18n="cap_title">Ёмкость сервера</span><button class="hint" data-hint="hint_capacity">?</button></h1>
-          <p class="note" data-i18n="cap_note">Сколько устройств могут подключаться к серверу одновременно. Меняет настройку
-            защиты sshd от наплыва соединений — уже подключённые устройства это не затронет.</p>
-          <div id="capMsg"></div>
-          <div class="cap-row">
-            <input type="range" id="capRange" min="1" max="250" value="30">
-            <input type="number" id="capNum" min="1" max="250" value="30">
-          </div>
-          <div class="kv" style="margin-top:8px"><span class="k"><span data-i18n="cap_wanted">Будет выставлено</span><button class="hint" data-hint="hint_maxstartups">?</button></span>
-            <span class="v" id="capWanted">—</span></div>
-          <div class="kv"><span class="k" data-i18n="cap_effective">Действует сейчас (sshd -T)</span>
-            <span class="v" id="capEffective">—</span></div>
-          <button class="btn" id="capSaveBtn" style="margin-top:12px" data-i18n="cap_save">Применить</button>
-        </div>
-
         <div class="card">
           <h1><span data-i18n="autostart_title">Автозапуск</span><button class="hint" data-hint="hint_autostart">?</button></h1>
           <p class="note" id="autostartNote" hidden data-i18n="autostart_note">Включено — панель поднимется сама после
@@ -1279,7 +1318,6 @@
              data-i18n="autostart_unsupported">Панель запущена не через systemd — управлять
             автозапуском отсюда нечем.</p>
         </div>
-
         <div class="card">
           <h1 data-i18n="account_title">Учётная запись</h1>
           <div id="accountMsg"></div>
@@ -1306,9 +1344,9 @@
             </div>
           </div>
         </div>
-
-        <!-- Книга -->
-        <div class="card span2" id="bookCard">
+      </div>
+      <div class="sub" data-sub="book" hidden>
+        <div class="card" id="bookCard">
           <h1 data-i18n="book_title">Книга</h1>
           <p class="note" data-i18n="book_note">Справка по панели: что где, как сделать и что делать, если что-то не работает. Работает без интернета.</p>
           <div class="bk" id="bk">
@@ -1332,9 +1370,14 @@
         <h1 class="page-title"><span data-i18n="nav_plugins">Плагины</span><button class="hint" data-hint="hint_plugins_what">?</button></h1>
         <p class="page-sub" data-i18n="plugins_sub">Сервер сам становится участником сети устройств: зеркальные папки, общая папка, общий буфер и резервные копии.</p>
       </div>
-
-      <div class="cards">
-        <div class="card span2" id="nodeHostCard">
+      <div class="subtabs" data-tab="Plugins">
+        <button type="button" data-sub="host" data-i18n="sub_pl_host">Плагины</button>
+        <button type="button" data-sub="ad" data-i18n="sub_pl_ad">Блокировка рекламы</button>
+        <button type="button" data-sub="site" data-i18n="sub_pl_site">Проверка сайта</button>
+        <button type="button" data-sub="nets" data-i18n="sub_pl_nets">Сети на сервере</button>
+      </div>
+      <div class="sub" data-sub="host">
+        <div class="card" id="nodeHostCard">
           <h1><span data-i18n="node_host_title">Хост плагинов</span><button class="hint" data-hint="hint_node_host">?</button></h1>
           <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="nodeSvcState">—</span></div>
           <div class="kv" id="nodeMeshdRow" hidden><span class="k" data-i18n="node_meshd">Опознание устройств</span><span class="v" id="nodeMeshdState">—</span></div>
@@ -1348,17 +1391,17 @@
             <span data-i18n="node_delete_data">Удалить и данные плагинов (папки, буфер)</span></label>
         </div>
 
-        <div class="card span2" id="nodeWarnCard" hidden>
+        <div class="card" id="nodeWarnCard" hidden>
           <h1 data-i18n="node_warn_title">Что мешает плагинам</h1>
           <div id="nodeWarns"></div>
         </div>
 
-        <div class="card span2" id="nodeJobCard" hidden>
+        <div class="card" id="nodeJobCard" hidden>
           <h1 id="nodeJobTitle"></h1>
           <div class="console" id="nodeJobLog"></div>
         </div>
 
-        <div class="card span2" id="nodeConfigCard" hidden>
+        <div class="card" id="nodeConfigCard" hidden>
           <h1 data-i18n="node_plugins_title">Включённые плагины</h1>
           <label class="chk"><input type="checkbox" id="pluginMirror">
             <span data-i18n="plugin_mirror">Зеркальные папки</span></label>
@@ -1389,9 +1432,15 @@
           <div id="nodeConfigMsg"></div>
         </div>
 
+        <div class="card" id="nodeEventsCard" hidden>
+          <h1 data-i18n="node_events_title">Журнал плагинов</h1>
+          <div class="console" id="nodeEvents"></div>
+        </div>
+      </div>
+      <div class="sub" data-sub="ad" hidden>
         <!-- Общий список блокировки рекламы (ТЗ 15): один на сервер, его
              забирают устройства всех сетей с плагином блокировки. -->
-        <div class="card span2" id="nodeAdCard" hidden>
+        <div class="card" id="nodeAdCard" hidden>
           <h1><span data-i18n="node_ad_title">Общий список блокировки</span><button class="hint" data-hint="hint_node_ad">?</button></h1>
           <div class="kv"><span class="k" data-i18n="node_ad_names">Имён в списке</span><span class="v" id="nodeAdNames">—</span></div>
           <div class="kv"><span class="k" data-i18n="node_ad_updated">Обновлён</span><span class="v" id="nodeAdUpdated">—</span></div>
@@ -1416,9 +1465,11 @@
           </div>
         </div>
 
+      </div>
+      <div class="sub" data-sub="site" hidden>
         <!-- Проверить сайт с сервера (ТЗ 15): то же, что второй столбец на
              устройстве. -->
-        <div class="card span2" id="nodeSiteCard" hidden>
+        <div class="card" id="nodeSiteCard" hidden>
           <h1><span data-i18n="node_site_title">Проверить сайт с сервера</span><button class="hint" data-hint="hint_node_site">?</button></h1>
           <div class="row-inline">
             <input type="text" id="nodeSiteInput" placeholder="youtube.com" spellcheck="false" autocomplete="off" style="flex:1;min-width:140px">
@@ -1427,19 +1478,15 @@
           <div id="nodeSiteOut" style="margin-top:8px"></div>
         </div>
       </div>
-
-      <div class="card" id="nodeEventsCard" hidden>
-        <h1 data-i18n="node_events_title">Журнал плагинов</h1>
-        <div class="console" id="nodeEvents"></div>
+      <div class="sub" data-sub="nets" hidden>
+        <div class="sec-head" id="nodeNetsHead" hidden>
+          <h1 class="page-title" data-i18n="node_nets_title">Сети на сервере</h1>
+        </div>
+        <div class="card" id="nodeNetsNone" hidden>
+          <p class="note" data-i18n="node_no_nets" style="margin:0">Ни одна сеть ещё не пользуется плагинами сервера.</p>
+        </div>
+        <div class="cards same" id="nodeNets"></div>
       </div>
-
-      <div class="sec-head" id="nodeNetsHead" hidden style="margin-top:18px">
-        <h1 class="page-title" data-i18n="node_nets_title">Сети на сервере</h1>
-      </div>
-      <div class="card" id="nodeNetsNone" hidden>
-        <p class="note" data-i18n="node_no_nets" style="margin:0">Ни одна сеть ещё не пользуется плагинами сервера.</p>
-      </div>
-      <div class="cards" id="nodeNets"></div>
     </section>
   </main>
 </div>
@@ -1501,7 +1548,7 @@ const I18N = {
     home_sub:'Что сейчас с сервером и кто через него ходит.',
     devices_sub:'У каждого устройства свой ключ и своя системная учётная запись на сервере — '+
       'панель заводит и удаляет их сама, без консоли.',
-    settings_sub:'Сеть устройств на этом сервере, службы и сама панель.',
+    settings_sub:'Сеть устройств на этом сервере, выход сервера, сама панель и Книга.',
     book_title:'Книга', book_note:'Справка по панели: что где, как сделать и что делать, если что-то не работает. Работает без интернета.',
     book_search_ph:'Поиск по Книге', book_back:'Назад', book_more:'Подробнее в Книге →',
     book_empty:'Не удалось загрузить Книгу.', book_nores:'Ничего не нашлось.',
@@ -1784,6 +1831,21 @@ const I18N = {
     hint_autostart:'То же, что «systemctl enable ssh_tunnel_panel» в консоли — просто кнопкой.',
 
     nav_plugins:'Плагины',
+    // Сеть серверов (ТЗ 22)
+    sub_access_simple:'Простой',
+    sub_access_adv:'Расширенный',
+    sub_access_journal:'Журнал',
+    sub_mesh_nets:'Сети',
+    sub_mesh_servers:'Серверы',
+    sub_mesh_links:'Соединения',
+    sub_set_net:'Сеть устройств',
+    sub_set_egress:'Выход сервера',
+    sub_set_panel:'Панель',
+    sub_set_book:'Книга',
+    sub_pl_host:'Плагины',
+    sub_pl_ad:'Блокировка рекламы',
+    sub_pl_site:'Проверка сайта',
+    sub_pl_nets:'Сети на сервере',
     plugins_sub:'Сервер сам становится участником сети устройств: зеркальные папки, общая папка, общий буфер, резервные копии, история машин, общий список блокировки и проверка сайтов.',
     hint_plugins_what:'Те же модули, что в программе на устройстве, только работают прямо на сервере — '+
       'своим отдельным процессом без прав root.',
@@ -1883,7 +1945,7 @@ const I18N = {
     home_sub:'How the server is doing and who goes through it.',
     devices_sub:'Every device gets its own key and its own system account on the server — '+
       'the panel creates and removes them itself, no console needed.',
-    settings_sub:'The device network on this server, services and the panel itself.',
+    settings_sub:'The device network on this server, server exit, the panel itself and the Book.',
     book_title:'Book', book_note:'Help for the panel: what is where, how to do things and what to do when something does not work. Works offline.',
     book_search_ph:'Search the Book', book_back:'Back', book_more:'More in the Book →',
     book_empty:'Could not load the Book.', book_nores:'Nothing found.',
@@ -2163,6 +2225,21 @@ const I18N = {
     hint_autostart:'Same as "systemctl enable ssh_tunnel_panel" in a console — just a button.',
 
     nav_plugins:'Plugins',
+    // Сеть серверов (ТЗ 22)
+    sub_access_simple:'Simple',
+    sub_access_adv:'Advanced',
+    sub_access_journal:'Journal',
+    sub_mesh_nets:'Networks',
+    sub_mesh_servers:'Servers',
+    sub_mesh_links:'Connections',
+    sub_set_net:'Device network',
+    sub_set_egress:'Server exit',
+    sub_set_panel:'Panel',
+    sub_set_book:'Book',
+    sub_pl_host:'Plugins',
+    sub_pl_ad:'Ad blocking',
+    sub_pl_site:'Site check',
+    sub_pl_nets:'Networks on the server',
     plugins_sub:'The server itself joins the device network: mirrored folders, a shared folder, shared clipboard, backups, machine history, a shared block list and site checks.',
     hint_plugins_what:'The same modules the desktop app runs, just on the server itself — their own process, '+
       'no root.',
@@ -2303,20 +2380,92 @@ function showView(name){
 }
 
 const TABS = ['Home','Devices','Access','Mesh','Settings','Plugins'];
-let TAB = localStorage.getItem('panelTab') || 'Home';
+// Раздел и вкладка — в адресе (#nets/servers): ссылка и перезагрузка ведут
+// на тот же экран (ТЗ 23).
+const TAB_SLUG = {Home:'home', Devices:'devices', Access:'access', Mesh:'nets', Settings:'settings', Plugins:'plugins'};
+// Узкие экраны-формы: вкладки, которые читаются сверху вниз.
+const NARROW_SUBS = {Settings:['net','egress','panel'], Plugins:['host','ad','site']};
+function subsOf(tab){
+  const bar = document.querySelector('.subtabs[data-tab="' + tab + '"]');
+  return bar ? [...bar.querySelectorAll('button')].map(b => b.dataset.sub) : [];
+}
+const SUB = {};
+TABS.forEach(tab => {
+  const subs = subsOf(tab);
+  if (!subs.length) return;
+  let v = null;
+  try { v = localStorage.getItem('panelSub' + tab); } catch (_){}
+  SUB[tab] = subs.includes(v) ? v : subs[0];
+});
+function parseHash(){
+  const [slug, sub] = location.hash.replace(/^#/, '').split('/');
+  const tab = TABS.find(t => TAB_SLUG[t] === slug);
+  if (tab && sub && subsOf(tab).includes(sub)) SUB[tab] = sub;
+  return tab;
+}
+function writeHash(){
+  const h = '#' + TAB_SLUG[TAB] + (SUB[TAB] ? '/' + SUB[TAB] : '');
+  if (location.hash !== h) history.replaceState(null, '', h);
+}
+let TAB = parseHash() || localStorage.getItem('panelTab') || 'Home';
 if (!TABS.includes(TAB)) TAB = 'Home';
+// showSub — вкладка внутри раздела.
+function showSub(tab, sub){
+  const subs = subsOf(tab);
+  if (!subs.length) return;
+  if (!subs.includes(sub)) sub = subs[0];
+  SUB[tab] = sub;
+  try { localStorage.setItem('panelSub' + tab, sub); } catch (_){}
+  const sec = $('tab' + tab);
+  sec.querySelectorAll(':scope > .sub').forEach(d => { d.hidden = d.dataset.sub !== sub; });
+  sec.querySelectorAll(':scope > .subtabs button').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
+  refreshSubtabs(tab);
+  sec.classList.toggle('narrow', (NARROW_SUBS[tab] || []).includes(sub));
+  if (tab === TAB) writeHash();
+  if (tab === 'Settings' && sub === 'book') bkShow();
+  if (tab === 'Mesh' || tab === 'Access') { MAP_SIG = ''; if (MESH) renderMesh(); }
+}
+document.querySelectorAll('.subtabs').forEach(bar => {
+  bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    showSub(bar.dataset.tab, b.dataset.sub);
+    scrollTo(0, 0);
+  }));
+});
+// Вкладка, где сейчас нечего показать (например, плагины до установки
+// хоста), не показывается; первая — всегда.
+function refreshSubtabs(tab){
+  const sec = $('tab' + tab);
+  const btns = [...sec.querySelectorAll(':scope > .subtabs button')];
+  btns.forEach((b, i) => {
+    const sub = sec.querySelector(':scope > .sub[data-sub="' + b.dataset.sub + '"]');
+    const has = sub && [...sub.querySelectorAll('.card, .cards > *')].some(c => !c.hidden);
+    const want = i > 0 && !has && SUB[tab] !== b.dataset.sub;
+    if (b.hidden !== want) b.hidden = want; // без лишних записей: наблюдатель не зациклится
+  });
+}
+document.querySelectorAll('.subtabs').forEach(bar => {
+  const tab = bar.dataset.tab;
+  new MutationObserver(() => refreshSubtabs(tab))
+    .observe($('tab' + tab), {subtree: true, childList: true, attributes: true, attributeFilter: ['hidden']});
+  refreshSubtabs(tab);
+});
+addEventListener('hashchange', () => {
+  const tab = parseHash();
+  if (tab) showTab(tab);
+});
 function showTab(name){
   if (!TABS.includes(name)) name = 'Home';
   const changed = TAB !== name;
   TAB = name;
   localStorage.setItem('panelTab', name);
+  if (SUB[name]) showSub(name, SUB[name]); else writeHash();
   TABS.forEach(v => { $('tab'+v).hidden = (v !== name); });
   document.querySelectorAll('.side button').forEach(b => {
     b.classList.toggle('on', b.dataset.tab === name);
   });
   hidePop();
   if (changed) scrollTo(0, 0);
-  if (name === 'Settings'){ loadAutostart(); loadCapacity(); loadEgress(); bkShow(); }
+  if (name === 'Settings'){ loadAutostart(); loadCapacity(); loadEgress(); if (SUB.Settings === 'book') bkShow(); }
   if (name === 'Plugins') loadNode();
   // Группы нужны и редактору правил, и форме прав клиента в «Устройствах».
   if (name === 'Devices' || name === 'Access') loadAccess();
@@ -2616,6 +2765,10 @@ function selectDev(key, open){
   }
 }
 $('devBackBtn').addEventListener('click', () => { $('devsBox').classList.remove('open'); scrollTo(0, 0); });
+// Боковую панель устройства закрывает и Esc (ТЗ 23).
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && TAB === 'Devices' && $('devsBox').classList.contains('open') && !document.querySelector('.modal:not([hidden])')) $('devsBox').classList.remove('open');
+});
 
 // fact — «подпись: значение» в сетке карточки.
 function fact(box, k, v, node){
@@ -3939,9 +4092,10 @@ function renderNetChips(){
 /* ---------- где стоит схема ---------- */
 /* Схема одна (у неё живая раскладка): обычно в «Обзоре», а в «Устройствах»
    на экране от 1700 px — третьей колонкой. */
+// Схема одна и стоит в «Обзоре» во всю ширину (ТЗ 23: рядом с таблицей
+// устройств её больше нет — там боковая панель устройства).
 function placeMap(){
-  const wide = TAB === 'Devices' && matchMedia('(min-width:1700px)').matches;
-  const slot = wide ? $('devMapSlot') : $('ovMapSlot');
+  const slot = $('ovMapSlot');
   const card = $('mapCard');
   if (card.parentNode !== slot){ slot.appendChild(card); MAP_SIG = ''; }
 }
@@ -6565,13 +6719,10 @@ async function runCheck(){
 }
 ['ckFrom', 'ckTo', 'ckPort'].forEach(id => $(id).addEventListener('change', runCheck));
 $('smEnableBtn').addEventListener('click', smEnable);
-$('accAdvBtn').addEventListener('click', () => {
-  const open = $('accessCard').hidden;
-  $('accessCard').hidden = !open;
-  localStorage.setItem('panelAccAdv', open ? '1' : '');
-  if (open) $('accessCard').scrollIntoView({behavior: 'smooth', block: 'start'});
-});
-if (localStorage.getItem('panelAccAdv')) $('accessCard').hidden = false;
+// «Расширенное: группы и правила» — вкладка «Расширенный» (ТЗ 23); карточка
+// правил там видна всегда.
+$('accessCard').hidden = false;
+$('accAdvBtn').addEventListener('click', () => { showSub('Access', 'adv'); scrollTo(0, 0); });
 applyI18N();
 loadSession();
 // Трафик и число сессий на сервере пересчитываются раз в 15 секунд
