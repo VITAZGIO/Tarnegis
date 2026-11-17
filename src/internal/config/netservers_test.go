@@ -118,3 +118,25 @@ func TestСтарыйПрофильСервераВходитВСеть(t *testi
 		t.Fatalf("выключенный человеком включился снова: %+v", res)
 	}
 }
+
+// Via от сети устройств — адрес профиля без порта (так у живой программы:
+// ключ соединения — p.Host). v1.10.4 искала профиль по «адрес:22», не
+// находила и молча ничего не делала: London не включался, Amsterdam не
+// добавлялся.
+func TestViaБезПорта(t *testing.T) {
+	c := Config{Profiles: []Profile{
+		{ID: "a", Name: "Германия", Host: "89.125.168.26", User: "tun_x", KeyPath: "/k", MeshEnabled: true, MeshKey: "K"},
+		{ID: "b", Name: "Лондон", Host: "87.120.219.28", User: "tun_y"},
+	}}
+	ads := []NetServerAd{
+		{ID: "lon", Name: "London", Host: "87.120.219.28", Port: 22, Net: "N", Acct: true, Via: "89.125.168.26"},
+		{ID: "ams", Name: "Amsterdam", Host: "vitazgio.ru", Port: 22, Net: "N", Acct: true, Via: "89.125.168.26"},
+	}
+	res := c.ApplyNetServers(ads, []string{"N"})
+	if len(res.MeshOn) != 1 || len(res.Added) != 1 || res.Added[0].Host != "vitazgio.ru" || res.Added[0].User != "tun_x" {
+		t.Fatalf("результат %+v", res)
+	}
+	if !c.Profiles[1].MeshEnabled || c.Profiles[1].MeshKey != "K" {
+		t.Fatalf("Лондон %+v", c.Profiles[1])
+	}
+}

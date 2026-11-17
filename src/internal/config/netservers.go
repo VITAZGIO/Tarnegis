@@ -6,6 +6,7 @@ package config
 // выключается. Решает только этот код; экран и мост его не повторяют.
 
 import (
+	"net"
 	"slices"
 	"strings"
 )
@@ -144,6 +145,25 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 
 func (c *Config) profileByKey(key string) (Profile, bool) {
 	if key == "" {
+		return Profile{}, false
+	}
+	// Ключ соединения сети устройств (Via) — адрес профиля без порта: ищем
+	// по адресу, сначала профиль с включённой сетью устройств.
+	if _, _, err := net.SplitHostPort(key); err != nil {
+		host := strings.ToLower(strings.TrimSpace(key))
+		var found *Profile
+		for i := range c.Profiles {
+			p := &c.Profiles[i]
+			if strings.ToLower(strings.TrimSpace(p.Host)) != host {
+				continue
+			}
+			if found == nil || (p.MeshEnabled && !found.MeshEnabled) {
+				found = p
+			}
+		}
+		if found != nil {
+			return *found, true
+		}
 		return Profile{}, false
 	}
 	for _, p := range c.Profiles {

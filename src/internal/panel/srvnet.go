@@ -182,6 +182,9 @@ type ServerNet struct {
 	lastKeys string
 	lastKnwn string
 	knownAt  time.Time
+	// meshdStart — когда запущен meshd, которому отдавали списки: meshd
+	// перезапустился (обновили) — у него пусто, отдать всё заново сразу.
+	meshdStart int64
 	applying bool
 }
 
