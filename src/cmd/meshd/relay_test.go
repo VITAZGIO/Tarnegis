@@ -307,3 +307,54 @@ func TestПересылкаВСостоянииДляПанели(t *testing.T) 
 		t.Fatalf("неверный адрес должен просто отброситься: %d", code)
 	}
 }
+
+// К самому серверу London — и тогда, когда у него нет ни одного
+// устройства (своей сети нет): так устройства Германии доходят до нового
+// сервера сети, не заводя его профиль.
+func TestПересылкаКПустомуСерверу(t *testing.T) {
+	de := relayServer(t, "de", "198.18.0.1")
+	lon := relayServer(t, "lon", "198.18.0.2")
+	echoDevice(t, de, "pc")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				l, _ := bufio.NewReader(c).ReadString('\n')
+				c.Write([]byte("london:" + l))
+				c.Close()
+			}()
+		}
+	}()
+	port := ln.Addr().(*net.TCPAddr).Port
+	nid := netID("k")
+	lon.s.mu.Lock()
+	_, has := lon.s.nets[nid]
+	lon.s.mu.Unlock()
+	if has {
+		t.Fatal("у London в этой проверке не должно быть сети")
+	}
+	de.s.setRemote(remoteOf(nid,
+		remotePeer{IP: "198.18.0.2", Host: "london", Name: "London", Server: true, Srv: "lon", SrvName: "London", Online: true}))
+	bridge(t, de, map[string]*relaySide{"lon": lon})
+	c, m := dialFrom(t, de.addr, "pc", "london", port)
+	if m.Op != "connected" {
+		t.Fatalf("ПК → пустой сервер London: %+v", m)
+	}
+	if got := ask(t, c.c, "x"); got != "london:x" {
+		t.Fatalf("ответ сервера: %q", got)
+	}
+	// А к устройству, которого у London нет, — по-прежнему отказ.
+	_, code, text := rawPost(t, lon.admin, "/v1/relay-in", relayAsk{Net: nid, To: "198.19.0.77", Port: 7, Srv: "de",
+		From: relayFrom{IP: "198.19.0.2", Host: "pc", User: "u"}})
+	if code == 200 || !strings.Contains(text, "нет такой сети") {
+		t.Fatalf("устройство пустого сервера: %d %q", code, text)
+	}
+}

@@ -88,3 +88,33 @@ func TestСтараяОтметкаУжеДобавлен(t *testing.T) {
 		t.Fatalf("выключенный человеком вернулся: %+v", res)
 	}
 }
+
+// Профиль сервера сети человек завёл сам раньше (Лондон на устройстве), а
+// сеть устройств в нём выключена: программа включает её с ключом сети
+// один раз. Выключит человек снова — так и останется. Включённую с другим
+// ключом (другая сеть) не трогает.
+func TestСтарыйПрофильСервераВходитВСеть(t *testing.T) {
+	c := Config{Profiles: []Profile{
+		{ID: "a", Name: "Германия", Host: "89.125.168.26", User: "tun_x", KeyPath: "/k", MeshEnabled: true, MeshKey: "K"},
+		{ID: "b", Name: "Лондон", Host: "87.120.219.28", User: "tun_y"},
+		{ID: "c", Name: "Своя сеть", Host: "203.0.113.9", User: "tun_z", MeshEnabled: true, MeshKey: "OTHER"},
+	}}
+	ads := []NetServerAd{
+		{ID: "lon", Name: "London", Host: "87.120.219.28", Port: 22, Net: "N", Acct: true, Via: "89.125.168.26:22"},
+		{ID: "x", Name: "X", Host: "203.0.113.9", Port: 22, Net: "N", Acct: true, Via: "89.125.168.26:22"},
+	}
+	res := c.ApplyNetServers(ads, []string{"N"})
+	if len(res.Added) != 0 || len(res.MeshOn) != 1 || res.MeshOn[0] != "Лондон" {
+		t.Fatalf("результат %+v", res)
+	}
+	if p := c.Profiles[1]; !p.MeshEnabled || p.MeshKey != "K" || p.User != "tun_y" {
+		t.Fatalf("Лондон %+v", p)
+	}
+	if p := c.Profiles[2]; p.MeshKey != "OTHER" {
+		t.Fatalf("другая сеть тронута: %+v", p)
+	}
+	c.Profiles[1].MeshEnabled = false
+	if res := c.ApplyNetServers(ads, []string{"N"}); len(res.MeshOn) != 0 || c.Profiles[1].MeshEnabled {
+		t.Fatalf("выключенный человеком включился снова: %+v", res)
+	}
+}

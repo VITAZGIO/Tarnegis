@@ -27,7 +27,7 @@ func (a *App) onMeshServers(ns mesh.NetServers) {
 	cfg.Profiles = append([]config.Profile(nil), cfg.Profiles...)
 	cfg.MeshAutoSeen = append([]string(nil), cfg.MeshAutoSeen...)
 	res := cfg.ApplyNetServers(list, ns.Nets)
-	if len(res.Added) == 0 && len(res.Off) == 0 {
+	if len(res.Added) == 0 && len(res.Off) == 0 && len(res.MeshOn) == 0 {
 		// Могли пометить «уже есть» — сохранить без шума.
 		if len(cfg.MeshAutoSeen) != len(a.Config().MeshAutoSeen) {
 			a.SetConfig(cfg)
@@ -47,6 +47,9 @@ func (a *App) onMeshServers(ns mesh.NetServers) {
 	}
 	for _, p := range res.Added {
 		a.Bus.Infof("В сеть добавлен сервер %s", p.Name)
+	}
+	for _, name := range res.MeshOn {
+		a.Bus.Infof("Сервер %s в сети устройств — в его профиле включена сеть устройств", name)
 	}
 	for _, name := range res.Off {
 		a.Bus.Warnf("Сервер %s убран из сети — его профиль выключен", name)
