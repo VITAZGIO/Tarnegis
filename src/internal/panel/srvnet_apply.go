@@ -119,6 +119,7 @@ func (n *ServerNet) reconcile(ctx context.Context) {
 		n.pushKnown(ctx, nil, "")
 		return
 	}
+	n.applySelfName(ctx)
 	n.refreshSelf(ctx)
 	n.applyAccounts(items)
 	n.applyAccess(ctx, items)
@@ -160,7 +161,7 @@ func (n *ServerNet) refreshSelf(ctx context.Context) {
 	if id := n.meshID(ctx); id != "" {
 		want.MeshID = id
 	}
-	if want.Host == "" {
+	if want.Host == "" && deviceReachable(cur.Host) {
 		want.Host = cur.Host
 	}
 	if reflect.DeepEqual(cur, want) {
@@ -295,7 +296,10 @@ func (n *ServerNet) pushKnown(ctx context.Context, servers map[string]srvRec, ne
 		sort.Strings(ids)
 		for _, id := range ids {
 			r := servers[id]
-			if validHost(r.Host) != nil {
+			// Адрес, по которому устройству не дойти (london.mesh от
+			// необновлённой панели), не советуем: устройство записало бы его
+			// в профиль, и сервер не добавился бы уже никогда (ТЗ 24).
+			if validHost(r.Host) != nil || !deviceReachable(r.Host) {
 				continue
 			}
 			list = append(list, meshsvc.KnownServer{Name: r.Name, Host: r.Host, Port: r.Port,

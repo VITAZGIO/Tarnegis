@@ -21,8 +21,33 @@ type NetServerAd struct {
 	Via string
 }
 
-// AutoKey — как профиль сервера сети помечен в MeshAuto и MeshAutoSeen.
+// AutoKey — как профиль сервера сети помечен в MeshAuto.
 func (a NetServerAd) AutoKey() string { return a.Net + "/" + a.ID }
+
+// seenKey — отметка в MeshAutoSeen: сервер и адрес, по которому его
+// добавляли (ТЗ 24). Сервер сменил адрес — решение принимается заново:
+// раньше отметка без адреса навсегда закрывала сервер, который однажды
+// пришёл с адресом, недоступным устройству (london.mesh).
+func (a NetServerAd) seenKey(key string) string { return a.AutoKey() + "@" + key }
+
+// seen — сервер уже добавляли (удалён или выключен человеком — его
+// решение). Отметка старого вида (без адреса, v1.10.1) считается, только
+// если профиль, добавленный программой, ещё есть: иначе она могла остаться
+// от ветки «профиль уже есть», которая сервер не добавляла.
+func (c *Config) seen(a NetServerAd, key string) bool {
+	if slices.Contains(c.MeshAutoSeen, a.seenKey(key)) {
+		return true
+	}
+	if !slices.Contains(c.MeshAutoSeen, a.AutoKey()) {
+		return false
+	}
+	for _, p := range c.Profiles {
+		if p.MeshAuto == a.AutoKey() {
+			return true
+		}
+	}
+	return false
+}
 
 // NetServersResult — что поменялось: добавленные профили и выключенные
 // (имена).
@@ -56,17 +81,19 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		if !a.Acct || a.ID == "" || a.Net == "" || a.Host == "" || strings.ContainsAny(a.Host, " /@\n") {
 			continue
 		}
-		if slices.Contains(c.MeshAutoSeen, a.AutoKey()) {
-			continue // уже добавляли: удалён или выключен человеком — его решение
-		}
 		port := a.Port
 		if port <= 0 {
 			port = 22
 		}
 		probe := Profile{Host: a.Host, SSHPort: port}
-		if _, ok := c.profileByKey(ServerKey(probe)); ok {
-			c.MeshAutoSeen = append(c.MeshAutoSeen, a.AutoKey())
-			continue // профиль этого сервера уже есть
+		key := ServerKey(probe)
+		if c.seen(a, key) {
+			continue // уже добавляли: удалён или выключен человеком — его решение
+		}
+		if _, ok := c.profileByKey(key); ok {
+			// Профиль этого сервера уже есть (человек завёл сам) — ничего не
+			// трогаем и не помечаем: отметка закрыла бы сервер навсегда.
+			continue
 		}
 		base, ok := c.profileByKey(a.Via)
 		if !ok || !base.MeshEnabled || base.MeshKey == "" {
@@ -87,7 +114,7 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		p.DirectHosts = slices.Clone(base.DirectHosts)
 		p.TunnelHosts = slices.Clone(base.TunnelHosts)
 		c.Profiles = append(c.Profiles, p)
-		c.MeshAutoSeen = append(c.MeshAutoSeen, a.AutoKey())
+		c.MeshAutoSeen = append(c.MeshAutoSeen, a.seenKey(key))
 		res.Added = append(res.Added, p)
 	}
 	return res

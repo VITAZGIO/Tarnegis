@@ -49,3 +49,42 @@ func TestУбранныйСерверСетиВыключается(t *testing.T
 		t.Fatalf("%+v %+v", res, c.Profiles)
 	}
 }
+
+// ТЗ 24, причина разрыва: London сначала пришёл с адресом london.mesh, а у
+// устройства уже был старый профиль «Лондон» на этом адресе. Программа
+// v1.10.1 помечала сервер «уже добавлен» и, когда London стал давать свой
+// настоящий адрес, больше его не добавляла никогда.
+func TestСерверССтарымАдресомДобавляетсяПослеСменыАдреса(t *testing.T) {
+	c := Config{Profiles: []Profile{
+		{ID: "a", Name: "Германия", Host: "89.125.168.26", User: "tun_x", KeyPath: "/k", MeshEnabled: true, MeshKey: "K"},
+		{ID: "b", Name: "Лондон", Host: "london.mesh", User: "root"},
+	}}
+	bad := []NetServerAd{{ID: "lon", Name: "London", Host: "london.mesh", Net: "N", Acct: true, Via: "89.125.168.26:22"}}
+	if res := c.ApplyNetServers(bad, []string{"N"}); len(res.Added) != 0 {
+		t.Fatalf("профиль уже есть — добавлять нечего: %+v", res)
+	}
+	if len(c.MeshAutoSeen) != 0 {
+		t.Fatalf("сервер помечен «уже добавлен», хотя не добавлялся: %v", c.MeshAutoSeen)
+	}
+	good := []NetServerAd{{ID: "lon", Name: "London", Host: "203.0.113.7", Net: "N", Acct: true, Via: "89.125.168.26:22"}}
+	res := c.ApplyNetServers(good, []string{"N"})
+	if len(res.Added) != 1 || res.Added[0].Host != "203.0.113.7" || !res.Added[0].MeshEnabled {
+		t.Fatalf("London с настоящим адресом не добавлен: %+v", res)
+	}
+}
+
+// Отметка старого вида (v1.10.1, без адреса), оставшаяся от ветки «профиль
+// уже есть», сервер не закрывает; от настоящего добавления — закрывает.
+func TestСтараяОтметкаУжеДобавлен(t *testing.T) {
+	base := Profile{ID: "a", Host: "de.example", User: "tun_x", MeshEnabled: true, MeshKey: "K"}
+	ad := []NetServerAd{{ID: "lon", Host: "uk.example", Net: "N", Acct: true, Via: "de.example:22"}}
+	c := Config{Profiles: []Profile{base}, MeshAutoSeen: []string{"N/lon"}}
+	if res := c.ApplyNetServers(ad, []string{"N"}); len(res.Added) != 1 {
+		t.Fatalf("старая отметка без профиля закрыла сервер: %+v", res)
+	}
+	c = Config{Profiles: []Profile{base, {ID: "b", Host: "uk.example", MeshAuto: "N/lon"}}, MeshAutoSeen: []string{"N/lon"}}
+	c.Profiles[1].MeshEnabled = false
+	if res := c.ApplyNetServers(ad, []string{"N"}); len(res.Added) != 0 || c.Profiles[1].MeshEnabled {
+		t.Fatalf("выключенный человеком вернулся: %+v", res)
+	}
+}
