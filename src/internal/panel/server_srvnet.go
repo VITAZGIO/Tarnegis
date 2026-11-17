@@ -8,6 +8,8 @@ package panel
 //	POST /api/mesh/servers/join    {code}  → {"ok":true} (идёт заданием)
 //	POST /api/mesh/servers/remove  {id}    → {"ok":true}
 //	POST /api/mesh/servers/migrate {}      → {"ok":true} (старый способ → сеть)
+//	POST /api/mesh/servers/rename {id,name} → {"ok":true} (ТЗ 24; id "main" —
+//	     этот сервер, "link:…" — сервер старого способа)
 
 import (
 	"net/http"
@@ -21,6 +23,7 @@ func (s *Server) serverNetRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mesh/servers/join", s.requireAuth(s.withMesh(s.handleServersJoin)))
 	mux.HandleFunc("/api/mesh/servers/remove", s.requireAuth(s.withMesh(s.handleServersRemove)))
 	mux.HandleFunc("/api/mesh/servers/migrate", s.requireAuth(s.withMesh(s.handleServersMigrate)))
+	mux.HandleFunc("/api/mesh/servers/rename", s.requireAuth(s.withMesh(s.handleServersRename)))
 }
 
 func (s *Server) handleServers(w http.ResponseWriter, r *http.Request) {
@@ -79,4 +82,23 @@ func (s *Server) handleServersMigrate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	replyErr(w, s.mesh.net.Migrate(), map[string]bool{"ok": true})
+}
+
+// handleServersRename — новое имя серверу сети: оно общее, побеждает
+// последняя правка, на всех панелях, схеме и устройствах (ТЗ 24).
+func (s *Server) handleServersRename(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if !decodePost(w, r, &req) {
+		return
+	}
+	var err error
+	if id, ok := strings.CutPrefix(req.ID, legacyPrefix); ok {
+		err = s.mesh.RenameLink(id, req.Name)
+	} else {
+		err = s.mesh.net.RenameServer(r.Context(), req.ID, req.Name)
+	}
+	replyErr(w, err, map[string]bool{"ok": true})
 }

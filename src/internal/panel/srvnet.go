@@ -40,6 +40,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"path/filepath"
 	"sort"
@@ -126,6 +127,9 @@ const (
 	kFrz    = "frz:"
 	kAlias  = "alias:"
 	kForget = "forget:"
+	// kSName — имя сервера, выбранное в панели (ТЗ 24): новее — побеждает,
+	// перекрывает имя, которое сервер называет сам.
+	kSName = "sname:"
 )
 
 func devKey(prefix, netID, dev string) string { return prefix + netID + "/" + dev }
@@ -163,6 +167,17 @@ type ServerNet struct {
 	ln     net.Listener
 	cancel context.CancelFunc
 
+	// views — последняя живая картина каждого сервера сети (ТЗ 24,
+	// srvnet_view.go), лежит на диске рядом с общими данными; pulled —
+	// когда её последний раз запрашивали (не чаще раза в 5 секунд).
+	viewPath string
+	views    map[string]peerView
+	pulled   map[string]time.Time
+	// lastRemote/remoteAt — что последним отдали meshd о других серверах
+	// (srvnet_relay.go).
+	lastRemote string
+	remoteAt   time.Time
+
 	reconMu  sync.Mutex
 	lastKeys string
 	lastKnwn string
@@ -174,16 +189,22 @@ type peerStatus struct {
 	Online bool
 	LastOK time.Time
 	Err    string
+	// RTT — сколько шёл подписанный запрос обмена туда и обратно (без
+	// установки SSH), мс; 0 — не мерили.
+	RTT float64
 }
 
 func newServerNet(m *MeshManager) *ServerNet {
-	n := &ServerNet{mesh: m, now: time.Now, peers: map[string]*peerStatus{}, kick: make(chan struct{}, 1)}
+	n := &ServerNet{mesh: m, now: time.Now, peers: map[string]*peerStatus{}, kick: make(chan struct{}, 1),
+		views: map[string]peerView{}, pulled: map[string]time.Time{}}
 	n.dial = n.sshDial
 	if m.dataDir != "" {
 		n.path = filepath.Join(m.dataDir, "servernet.json")
 		n.keyPath = filepath.Join(m.dataDir, "servernet", "id_ed25519")
+		n.viewPath = filepath.Join(m.dataDir, "servernet-views.json")
 	}
 	n.load()
+	n.loadViews()
 	return n
 }
 
@@ -334,7 +355,7 @@ func validItemKey(k string) bool {
 	if k == kAccess {
 		return true
 	}
-	for _, p := range []string{kSrv, kAcct, kAppr, kNName, kNDel, kOK, kFrz, kAlias, kForget} {
+	for _, p := range []string{kSrv, kAcct, kAppr, kNName, kNDel, kOK, kFrz, kAlias, kForget, kSName} {
 		if strings.HasPrefix(k, p) && len(k) > len(p) {
 			return true
 		}
@@ -359,7 +380,9 @@ func (n *ServerNet) serversLocked() map[string]srvRec {
 		}
 		var r srvRec
 		if json.Unmarshal(it.D, &r) == nil {
-			out[strings.TrimPrefix(k, kSrv)] = r
+			id := strings.TrimPrefix(k, kSrv)
+			r.Name = n.srvNameLocked(id, r)
+			out[id] = r
 		}
 	}
 	return out
@@ -378,23 +401,50 @@ func decodeItem[T any](it srvItem) (T, bool) {
 // selfRec — как этот сервер выглядит для других серверов сети.
 func (n *ServerNet) selfRec(signer ssh.Signer, meshID string) srvRec {
 	s := n.mesh.settings.Get().Mesh
-	host, port := n.mesh.sshHost, n.mesh.sshPort
-	if host == "" {
-		host = s.Host
-	}
-	if host == "" {
-		for _, a := range n.mesh.sys.LocalAddrs() {
-			if ip := net.ParseIP(a); ip != nil && ip.To4() != nil && !ip.IsPrivate() {
-				host = a
-				break
-			}
-		}
-	}
+	host, port := n.selfHost(), n.mesh.sshPort
 	if port == 0 {
 		port = 22
 	}
 	return srvRec{Name: n.mesh.selfName(s), Host: host, Port: port, HostKeys: n.mesh.sys.HostKeys(),
 		Key: pubLine(signer.PublicKey()), MeshID: meshID}
+}
+
+// selfHost — по какому адресу устройства и другие серверы приходят на этот
+// сервер: адрес -ssh-host, если он снаружи сети устройств, иначе адрес из
+// настроек, иначе первый внешний адрес машины. ТЗ 24: London был запущен с
+// -ssh-host london.mesh (так его панель отдаёт конфиги клиентам) — и этот
+// адрес уходил в сеть серверов; устройство, у которого есть только
+// Германия, по нему до London не дойдёт.
+func (n *ServerNet) selfHost() string {
+	s := n.mesh.settings.Get().Mesh
+	for _, h := range []string{n.mesh.sshHost, s.Host} {
+		if h != "" && deviceReachable(h) {
+			return h
+		}
+	}
+	for _, a := range n.mesh.sys.LocalAddrs() {
+		if ip := net.ParseIP(a); ip != nil && ip.To4() != nil && !ip.IsPrivate() && deviceReachable(a) {
+			return a
+		}
+	}
+	return ""
+}
+
+// meshRange — адреса сети устройств: 198.19.0.0/16 у устройств,
+// 198.18.0.0/16 у серверов.
+var meshRange = func() *net.IPNet { _, r, _ := net.ParseCIDR("198.18.0.0/15"); return r }()
+
+// deviceReachable — по такому адресу до сервера можно дойти, не будучи
+// уже в его сети устройств: не имя .mesh, не адрес сети устройств, не петля.
+func deviceReachable(h string) bool {
+	h = strings.ToLower(strings.TrimSuffix(strings.Trim(h, "[]"), "."))
+	if h == "" || h == "localhost" || strings.HasSuffix(h, ".mesh") {
+		return false
+	}
+	if ip := net.ParseIP(h); ip != nil {
+		return !ip.IsLoopback() && !ip.IsUnspecified() && !meshRange.Contains(ip)
+	}
+	return true
 }
 
 // meshID — id своего meshd (пусто — не отвечает).
@@ -516,6 +566,12 @@ func hashSecret(s string) string {
 // call отправляет запрос серверу rec и разбирает ответ в out. sign — каким
 // ключом подписать (nil — без подписи: разовые запросы по секрету кода).
 func (n *ServerNet) call(ctx context.Context, rec srvRec, login ssh.Signer, sign bool, netID, path string, body, out any) error {
+	return n.callTimed(ctx, rec, login, sign, netID, path, body, out, nil)
+}
+
+// callTimed — call, который ещё меряет, сколько шёл запрос: от отправки до
+// первого байта ответа (SSH-рукопожатие не в счёт).
+func (n *ServerNet) callTimed(ctx context.Context, rec srvRec, login ssh.Signer, sign bool, netID, path string, body, out any, rtt *time.Duration) error {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -534,6 +590,13 @@ func (n *ServerNet) call(ctx context.Context, rec srvRec, login ssh.Signer, sign
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if rtt != nil {
+		var t0 time.Time
+		req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+			WroteRequest:         func(httptrace.WroteRequestInfo) { t0 = time.Now() },
+			GotFirstResponseByte: func() { *rtt = time.Since(t0) },
+		}))
+	}
 	if sign {
 		n.mu.Lock()
 		self := n.f.Self
@@ -675,7 +738,8 @@ func (n *ServerNet) syncPeer(ctx context.Context, id string, rec srvRec) {
 		return
 	}
 	var resp exchangeResp
-	err = n.call(ctx, rec, signer, true, netID, "/srv/v1/exchange", exchangeReq{Items: items}, &resp)
+	var rtt time.Duration
+	err = n.callTimed(ctx, rec, signer, true, netID, "/srv/v1/exchange", exchangeReq{Items: items}, &resp, &rtt)
 	var ce *callError
 	if errors.As(err, &ce) && ce.Status == http.StatusGone {
 		// Нас убрали из сети: работаем дальше одни.
@@ -694,12 +758,17 @@ func (n *ServerNet) syncPeer(ctx context.Context, id string, rec srvRec) {
 		return
 	}
 	st.Online, st.Err, st.LastOK = true, "", n.now()
+	if rtt > 0 {
+		st.RTT = float64(rtt.Microseconds()) / 1000
+	}
 	var changed []string
 	if resp.Net == netID {
 		changed = n.mergeLocked(resp.Items)
 	}
 	n.mu.Unlock()
 	n.afterMerge(ctx, changed)
+	// Живая картина того сервера — тем же заходом (ТЗ 24).
+	n.pullView(ctx, id, rec)
 }
 
 // syncAll — обмен со всеми серверами сети сразу.
@@ -729,6 +798,7 @@ func (n *ServerNet) Run(ctx context.Context) {
 	}
 	t := time.NewTicker(syncEvery)
 	defer t.Stop()
+	go n.relayLoop(ctx)
 	n.reconcile(ctx)
 	for {
 		if n.InNet() {
@@ -808,6 +878,9 @@ func (n *ServerNet) handler() http.Handler {
 	mux.HandleFunc("/srv/v1/preview", n.handlePreview)
 	mux.HandleFunc("/srv/v1/pair", n.handlePair)
 	mux.HandleFunc("/srv/v1/migrate", n.handleMigrate)
+	mux.HandleFunc("/srv/v1/view", n.handleView)
+	mux.HandleFunc("/srv/v1/exit", n.handleExit)
+	mux.HandleFunc("/srv/v1/relay", n.handleRelay)
 	return mux
 }
 
@@ -829,26 +902,8 @@ func (n *ServerNet) handleExchange(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	from := r.Header.Get("X-Srv-From")
-	n.mu.Lock()
-	netID := n.f.Net
-	it, known := n.f.Items[kSrv+from]
-	n.mu.Unlock()
-	if netID == "" || r.Header.Get("X-Srv-Net") != netID {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "этот сервер не в той сети"})
-		return
-	}
-	if !known {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "этот сервер ещё не знает о вас — повторите позже"})
-		return
-	}
-	if it.Del {
-		writeJSON(w, http.StatusGone, map[string]string{"error": "сервер убран из сети"})
-		return
-	}
-	rec, _ := decodeItem[srvRec](it)
-	if err := verifyRequest(r, rec.Key, body, n.now()); err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+	from, ok := n.authPeer(w, r, body)
+	if !ok {
 		return
 	}
 	var req exchangeReq
@@ -858,16 +913,49 @@ func (n *ServerNet) handleExchange(w http.ResponseWriter, r *http.Request) {
 	}
 	n.mu.Lock()
 	changed := n.mergeLocked(req.Items)
+	n.markPeerLocked(from)
+	resp := exchangeResp{Net: n.f.Net, Items: n.snapshotLocked()}
+	n.mu.Unlock()
+	writeJSON(w, http.StatusOK, resp)
+	go n.afterMerge(context.Background(), changed)
+}
+
+// markPeerLocked — сервер from только что достучался сюда: он на связи.
+func (n *ServerNet) markPeerLocked(from string) {
 	st := n.peers[from]
 	if st == nil {
 		st = &peerStatus{}
 		n.peers[from] = st
 	}
 	st.Online, st.Err, st.LastOK = true, "", n.now()
-	resp := exchangeResp{Net: n.f.Net, Items: n.snapshotLocked()}
+}
+
+// authPeer — запрос пришёл от сервера этой сети и подписан его ключом
+// связи. Нет — отвечает сам и возвращает false.
+func (n *ServerNet) authPeer(w http.ResponseWriter, r *http.Request, body []byte) (string, bool) {
+	from := r.Header.Get("X-Srv-From")
+	n.mu.Lock()
+	netID := n.f.Net
+	it, known := n.f.Items[kSrv+from]
 	n.mu.Unlock()
-	writeJSON(w, http.StatusOK, resp)
-	go n.afterMerge(context.Background(), changed)
+	if netID == "" || r.Header.Get("X-Srv-Net") != netID {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "этот сервер не в той сети"})
+		return "", false
+	}
+	if !known {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "этот сервер ещё не знает о вас — повторите позже"})
+		return "", false
+	}
+	if it.Del {
+		writeJSON(w, http.StatusGone, map[string]string{"error": "сервер убран из сети"})
+		return "", false
+	}
+	rec, _ := decodeItem[srvRec](it)
+	if err := verifyRequest(r, rec.Key, body, n.now()); err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return "", false
+	}
+	return from, true
 }
 
 // afterMerge — пришли чужие правки: разовые действия (убрать устройство,
@@ -908,7 +996,7 @@ func (n *ServerNet) afterMerge(ctx context.Context, changed []string) {
 
 func (n *ServerNet) nameOfLocked(id string) string {
 	if r, ok := n.serversLocked()[id]; ok {
-		return r.Name
+		return n.srvNameLocked(id, r)
 	}
 	if it, ok := n.f.Items[kSrv+id]; ok {
 		var r srvRec
@@ -936,6 +1024,8 @@ func (n *ServerNet) leaveLocal(by string) {
 	}
 	n.f.Invites = nil
 	n.peers = map[string]*peerStatus{}
+	n.views = map[string]peerView{}
+	n.saveViewsLocked()
 	n.saveLocked()
 	n.mu.Unlock()
 	n.mesh.logf("сеть серверов: этот сервер убран из сети (%s) — работает один", by)
@@ -959,6 +1049,11 @@ type SrvState struct {
 	// Waiting — подключён старым способом и ещё не перешёл («ждёт
 	// перехода»).
 	Waiting bool `json:"waiting,omitempty"`
+	// RTTMs — задержка связи с ним по SSH (запрос обмена туда и обратно).
+	RTTMs float64 `json:"rttMs,omitempty"`
+	// HostBad — его адрес устройствам не годится (имя .mesh, адрес сети
+	// устройств): устройства его сами не добавят (ТЗ 24).
+	HostBad bool `json:"hostBad,omitempty"`
 }
 
 // SrvNetState — сеть серверов для панели.
@@ -974,6 +1069,9 @@ type SrvNetState struct {
 	Removed string `json:"removed,omitempty"`
 	// Invites — сколько выданных кодов ещё действуют.
 	Invites int `json:"invites,omitempty"`
+	// SSHHostInside — панель запущена с -ssh-host, по которому снаружи сети
+	// устройств не дойти (london.mesh): в сеть серверов ушёл другой адрес.
+	SSHHostInside string `json:"sshHostInside,omitempty"`
 }
 
 // State — сеть серверов для панели. links — серверы старого способа
@@ -998,9 +1096,9 @@ func (n *ServerNet) State(links []SrvState) SrvNetState {
 			self.Host, self.Port = r.Host, r.Port
 			continue
 		}
-		ss := SrvState{ID: id, Name: r.Name, Host: r.Host, Port: r.Port}
+		ss := SrvState{ID: id, Name: n.srvNameLocked(id, r), Host: r.Host, Port: r.Port, HostBad: !deviceReachable(r.Host)}
 		if p := n.peers[id]; p != nil {
-			ss.Online, ss.Error = p.Online, p.Err
+			ss.Online, ss.Error, ss.RTTMs = p.Online, p.Err, p.RTT
 			if !p.LastOK.IsZero() {
 				ss.LastSync = p.LastOK.Unix()
 			}
@@ -1013,6 +1111,10 @@ func (n *ServerNet) State(links []SrvState) SrvNetState {
 		}
 		return others[i].ID < others[j].ID
 	})
+	if h := n.mesh.sshHost; h != "" && !deviceReachable(h) {
+		st.SSHHostInside = h
+	}
+	self.HostBad = self.Host != "" && !deviceReachable(self.Host)
 	st.Servers = append(st.Servers, self)
 	st.Servers = append(st.Servers, others...)
 	st.Servers = append(st.Servers, links...)

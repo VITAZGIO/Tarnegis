@@ -74,7 +74,8 @@ func TestDemoСостояниеСети(t *testing.T) {
 	d := &demoBackend{returning: map[string]demoReturn{}}
 	d.seed()
 	st := d.state()
-	if len(st.Networks) != 3 || len(st.Servers) != 2 {
+	// Три сервера сети (ТЗ 24): Франкфурт, Лондон и Амстердам без связи.
+	if len(st.Networks) != 3 || len(st.Servers) != 3 {
 		t.Fatalf("сети %d, серверы %d", len(st.Networks), len(st.Servers))
 	}
 	var empty, shared bool

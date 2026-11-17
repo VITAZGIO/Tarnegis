@@ -368,7 +368,7 @@ func (m *MeshManager) writeLinks(lines []string) error {
 }
 
 // meshdVersion — версия meshd, которую ставит эта панель.
-const meshdVersion = "6"
+const meshdVersion = "7"
 
 // ensureOwnMeshd — перед входом в сеть серверов: своя служба сети есть и
 // свежая. Сервер старого способа переходит на свою (адрес в сети тот же).
@@ -571,6 +571,27 @@ func (m *MeshManager) CreateLink(name, host string, port int) (MeshLink, string,
 	return link, code, nil
 }
 
+// RenameLink — новое имя сервера старого способа (только в этой панели).
+func (m *MeshManager) RenameLink(id, name string) error {
+	name = cleanName(name)
+	if name == "" {
+		return errors.New("дай серверу имя")
+	}
+	found := false
+	err := m.settings.Update(func(s *Settings) error {
+		for i := range s.Mesh.Links {
+			if s.Mesh.Links[i].ID == id {
+				s.Mesh.Links[i].Name, found = name, true
+			}
+		}
+		return nil
+	})
+	if err == nil && !found {
+		err = errors.New("нет такого сервера")
+	}
+	return err
+}
+
 // DeleteLink отключает побочный сервер: ключ убирается, соединение рвётся.
 func (m *MeshManager) DeleteLink(id string) error {
 	found := false
@@ -621,6 +642,27 @@ func (m *MeshManager) SetServerAccess(ctx context.Context, enabled bool, ports s
 	}
 	if s.Role == MeshRoleMain || m.sys.UnitState(meshdUnit).Active {
 		return m.admin.SetSelf(ctx, m.selfName(s), enabled, ports)
+	}
+	return nil
+}
+
+// renameSelf — новое имя этого сервера: в настройки и в meshd (имя в сети
+// устройств «имя.mesh» meshd выводит из него сам, как при включении сети).
+func (m *MeshManager) renameSelf(ctx context.Context, name string) error {
+	var s MeshSettings
+	if err := m.settings.Update(func(st *Settings) error {
+		st.Mesh.Name = name
+		s = st.Mesh
+		return nil
+	}); err != nil {
+		return err
+	}
+	if s.Role == MeshRoleMain || m.sys.UnitState(meshdUnit).Active {
+		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := m.admin.SetSelf(cctx, m.selfName(s), !s.ServerAccessOff, s.ServerPorts); err != nil && !errors.Is(err, meshsvc.ErrNotRunning) {
+			return err
+		}
 	}
 	return nil
 }
@@ -750,6 +792,18 @@ type MeshDevice struct {
 	// Server — id сервера из MeshState.Servers, через который пришло
 	// устройство ("main" — этот сервер).
 	Server string `json:"server"`
+	// Сеть серверов (ТЗ 24): Online выше — на связи хоть с одним сервером
+	// сети; Here — с этим сервером; Conns — связь с каждым сервером. Src —
+	// с какого сервера сведения ("" — свои), Age — сколько им секунд, Stale —
+	// есть только в последней картине сервера без связи.
+	Here  bool      `json:"here"`
+	Conns []DevConn `json:"conns,omitempty"`
+	Src   string    `json:"src,omitempty"`
+	Age   int64     `json:"age,omitempty"`
+	Stale bool      `json:"stale,omitempty"`
+	// Missing — серверы сети, с которыми устройство не на связи, и почему
+	// (ТЗ 24, п. 13).
+	Missing []DevMiss `json:"missing,omitempty"`
 }
 
 // MeshNetwork — сеть с устройствами.
@@ -776,6 +830,14 @@ type MeshServer struct {
 	// MeshIP/MeshHost — адрес и имя сервера в сети устройств.
 	MeshIP   string `json:"meshIp,omitempty"`
 	MeshHost string `json:"meshHost,omitempty"`
+	// Сервер сети серверов (ТЗ 24): RTTMs — задержка связи с ним; Age —
+	// сколько секунд его картине, Stale — он не на связи и картина старая,
+	// NoView — картины нет (там старая панель).
+	Net    bool    `json:"net,omitempty"`
+	RTTMs  float64 `json:"rttMs,omitempty"`
+	Age    int64   `json:"age,omitempty"`
+	Stale  bool    `json:"stale,omitempty"`
+	NoView bool    `json:"noView,omitempty"`
 }
 
 // MeshState — всё, что показывает вкладка «Сеть устройств».
@@ -820,6 +882,13 @@ type MeshState struct {
 
 	// ServerNet — сеть серверов (ТЗ 22): этот сервер и остальные.
 	ServerNet SrvNetState `json:"serverNet"`
+	// SelfSrv — id этого сервера в сети серверов; ServerLinks — линии
+	// между серверами на схеме (ТЗ 24).
+	SelfSrv     string         `json:"selfSrv,omitempty"`
+	ServerLinks []SrvLinkState `json:"serverLinks"`
+	// Relays — пересланные между серверами соединения (meshd 7).
+	Relays      []RelayView         `json:"relays"`
+	localRelays []meshsvc.RelayLine // из meshd этого сервера
 }
 
 // State собирает состояние сети для интерфейса.
@@ -840,6 +909,9 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 		Networks: []MeshNetwork{},
 		Peers:    []meshsvc.SeenServer{},
 		Known:    []meshsvc.KnownServer{},
+
+		ServerLinks: []SrvLinkState{},
+		Relays:      []RelayView{},
 	}
 	st.ServerAccess, st.ServerPorts = !s.ServerAccessOff, s.ServerPorts
 	st.EffectiveRole = s.Role
@@ -852,6 +924,8 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 	switch st.EffectiveRole {
 	case MeshRoleMain:
 		m.fillMain(ctx, &st, s)
+		// Картины других серверов сети — в ту же схему и тот же список.
+		m.net.mergeInto(&st)
 	case MeshRoleSecondary:
 		st.MainHost, st.MainPort, st.SelfHost = s.MainHost, s.MainPort, s.Host
 		m.mu.Lock()
@@ -866,7 +940,7 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 	// перехода».
 	var links []SrvState
 	for _, sv := range st.Servers {
-		if !sv.Main {
+		if !sv.Main && !sv.Net {
 			links = append(links, SrvState{ID: legacyPrefix + sv.ID, Name: sv.Name, Host: sv.Host,
 				Online: sv.Online, Waiting: true})
 		}
@@ -901,6 +975,7 @@ func (m *MeshManager) fillMain(ctx context.Context, st *MeshState, s MeshSetting
 		st.Servers[0].MeshIP, st.Servers[0].MeshHost = self.IP, self.Host
 	}
 	st.Version, st.StartedAt = ms.Version, ms.StartedAt
+	st.localRelays = ms.Relays
 	if ms.Peers != nil {
 		st.Peers = ms.Peers
 	}
@@ -1040,8 +1115,28 @@ func (m *MeshManager) SetKnown(ctx context.Context, list []meshsvc.KnownServer) 
 	return m.admin.SetKnown(ctx, list)
 }
 
+// remoteOnly — устройства (device == "" — сети) нет в meshd этого сервера,
+// но оно есть у другого сервера сети (ТЗ 24): действие идёт общей записью,
+// тот сервер применит её сам при сверке. meshd не ответил — false: пусть
+// ошибку скажет сам вызов.
+func (m *MeshManager) remoteOnly(ctx context.Context, netID, device string) bool {
+	ms, err := m.admin.State(ctx)
+	if err != nil {
+		return false
+	}
+	hn, hd := hasDevice(ms.Networks, netID, device)
+	if device == "" {
+		return !hn && m.net.remoteHasNet(netID)
+	}
+	return !hd && m.net.deviceServer(netID, device) != ""
+}
+
 // Rename переименовывает устройство (пустое имя — вернуть его собственное).
 func (m *MeshManager) Rename(ctx context.Context, netID, device, alias string) error {
+	if m.remoteOnly(ctx, netID, device) {
+		m.net.noteAlias(netID, device, alias)
+		return nil
+	}
 	if err := m.admin.Rename(ctx, netID, device, alias); err != nil {
 		return err
 	}
@@ -1051,6 +1146,10 @@ func (m *MeshManager) Rename(ctx context.Context, netID, device, alias string) e
 
 // Forget убирает устройство из сети.
 func (m *MeshManager) Forget(ctx context.Context, netID, device string) error {
+	if m.remoteOnly(ctx, netID, device) {
+		m.net.noteForget(netID, device)
+		return nil
+	}
 	if err := m.admin.Forget(ctx, netID, device); err != nil {
 		return err
 	}
@@ -1060,6 +1159,10 @@ func (m *MeshManager) Forget(ctx context.Context, netID, device string) error {
 
 // RenameNetwork задаёт сети имя (пустое — убрать).
 func (m *MeshManager) RenameNetwork(ctx context.Context, netID, name string) error {
+	if m.remoteOnly(ctx, netID, "") {
+		m.net.noteNetName(netID, strings.Join(strings.Fields(name), " "))
+		return nil
+	}
 	if err := m.admin.RenameNetwork(ctx, netID, name); err != nil {
 		return err
 	}
@@ -1069,6 +1172,10 @@ func (m *MeshManager) RenameNetwork(ctx context.Context, netID, name string) err
 
 // DeleteNetwork удаляет сеть и отключает её устройства.
 func (m *MeshManager) DeleteNetwork(ctx context.Context, netID string) error {
+	if m.remoteOnly(ctx, netID, "") {
+		m.net.noteNetDelete(netID)
+		return nil
+	}
 	if err := m.admin.DeleteNetwork(ctx, netID); err != nil {
 		return err
 	}
@@ -1083,6 +1190,10 @@ func (m *MeshManager) Events(ctx context.Context, after int64, limit int) (meshs
 
 // SetApproval — «Новые устройства — после одобрения» у сети (ТЗ 16).
 func (m *MeshManager) SetApproval(ctx context.Context, netID string, on bool) error {
+	if m.remoteOnly(ctx, netID, "") {
+		m.net.noteApproval(netID, on)
+		return nil
+	}
 	if err := m.admin.SetApproval(ctx, netID, on); err != nil {
 		return err
 	}
@@ -1092,6 +1203,10 @@ func (m *MeshManager) SetApproval(ctx context.Context, netID string, on bool) er
 
 // Approve пускает в сеть устройство, которое ждёт одобрения.
 func (m *MeshManager) Approve(ctx context.Context, netID, device string) error {
+	if m.remoteOnly(ctx, netID, device) {
+		m.net.noteApprove(netID, device)
+		return nil
+	}
 	if err := m.admin.Approve(ctx, netID, device); err != nil {
 		return err
 	}
@@ -1101,6 +1216,10 @@ func (m *MeshManager) Approve(ctx context.Context, netID, device string) error {
 
 // Freeze замораживает (on) или размораживает устройство.
 func (m *MeshManager) Freeze(ctx context.Context, netID, device string, on bool) error {
+	if m.remoteOnly(ctx, netID, device) {
+		m.net.noteFreeze(netID, device, on)
+		return nil
+	}
 	if err := m.admin.Freeze(ctx, netID, device, on); err != nil {
 		return err
 	}
@@ -1113,6 +1232,11 @@ func (m *MeshManager) Freeze(ctx context.Context, netID, device string, on bool)
 func (m *MeshManager) SetExit(ctx context.Context, netID, device, entry string, via []string) (meshsvc.ExitOrder, error) {
 	if len(entry) > 80 || len(via) > 2 {
 		return meshsvc.ExitOrder{}, errors.New("неверная цепочка выхода")
+	}
+	// Устройство подключено к другому серверу сети — цепочку ему отдаёт тот
+	// сервер (ТЗ 24).
+	if m.remoteOnly(ctx, netID, device) {
+		return m.net.forwardExit(ctx, m.net.deviceServer(netID, device), netID, device, entry, via)
 	}
 	return m.admin.SetExit(ctx, netID, device, entry, via)
 }

@@ -117,6 +117,11 @@ func (s *Server) handleCapacity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMeshState(w http.ResponseWriter, r *http.Request) {
+	// ?fresh=1 — страницу только что открыли: взять свежие картины других
+	// серверов сети (в фоне, не чаще раза в 5 секунд на сервер; ТЗ 24).
+	if r.URL.Query().Get("fresh") == "1" {
+		s.mesh.net.RefreshViews()
+	}
 	writeJSON(w, http.StatusOK, s.mesh.State(r.Context()))
 }
 
