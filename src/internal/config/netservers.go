@@ -54,6 +54,9 @@ func (c *Config) seen(a NetServerAd, key string) bool {
 type NetServersResult struct {
 	Added []Profile
 	Off   []string
+	// MeshOn — имена профилей, заведённых человеком раньше, в которых
+	// программа включила сеть устройств (сервер вошёл в сеть).
+	MeshOn []string
 }
 
 // ApplyNetServers добавляет профили серверов сети, где есть учётная запись
@@ -81,6 +84,11 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		if !a.Acct || a.ID == "" || a.Net == "" || a.Host == "" || strings.ContainsAny(a.Host, " /@\n") {
 			continue
 		}
+		// Имя .mesh снаружи сети устройств не работает — такой адрес сервер
+		// мог отдать по ошибке (старая панель); по нему ничего не делаем.
+		if strings.HasSuffix(strings.ToLower(strings.TrimSuffix(a.Host, ".")), ".mesh") {
+			continue
+		}
 		port := a.Port
 		if port <= 0 {
 			port = 22
@@ -90,13 +98,27 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		if c.seen(a, key) {
 			continue // уже добавляли: удалён или выключен человеком — его решение
 		}
-		if _, ok := c.profileByKey(key); ok {
-			// Профиль этого сервера уже есть (человек завёл сам) — ничего не
-			// трогаем и не помечаем: отметка закрыла бы сервер навсегда.
-			continue
-		}
 		base, ok := c.profileByKey(a.Via)
 		if !ok || !base.MeshEnabled || base.MeshKey == "" {
+			continue
+		}
+		if _, ok := c.profileByKey(key); ok {
+			// Профиль этого сервера уже есть (человек завёл сам). Сеть
+			// устройств в нём выключена — включаем с ключом этой сети, один
+			// раз: выключит человек снова — отметка оставит его решение.
+			// Включённую с другим ключом не трогаем — это другая сеть.
+			for i := range c.Profiles {
+				q := &c.Profiles[i]
+				if !strings.EqualFold(ServerKey(*q), key) {
+					continue
+				}
+				if !q.MeshEnabled {
+					q.MeshEnabled, q.MeshKey, q.MeshOnlyThis = true, base.MeshKey, false
+					c.MeshAutoSeen = append(c.MeshAutoSeen, a.seenKey(key))
+					res.MeshOn = append(res.MeshOn, q.Name)
+				}
+				break
+			}
 			continue
 		}
 		p := base

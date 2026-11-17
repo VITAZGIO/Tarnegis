@@ -4096,11 +4096,9 @@ func (s *server) relayIn(q relayAsk) (net.Conn, *device, string) {
 	caller := &device{ID: clip(q.From.PID), IP: clip(q.From.IP), Host: clip(q.From.Host), Name: clip(q.From.Name),
 		User: user, Platform: clip(q.From.Platform)}
 	s.mu.Lock()
-	n := s.nets[q.Net]
-	if n == nil {
-		s.mu.Unlock()
-		return nil, nil, "нет такой сети на этом сервере"
-	}
+	// К самому серверу — и тогда, когда к нему ещё не подключено ни одно
+	// устройство этой сети (сети у него нет): иначе до нового сервера сети
+	// с устройств не достучаться вовсе, пока кто-то не заведёт его профиль.
 	if q.To == s.self.IP && s.self.Enabled {
 		if !s.policy.allowed(user, serversGroup, q.Port) {
 			s.emitLocked(event{Type: "denied", Net: q.Net, Peer: q.To, Port: q.Port, Text: "relay " + caller.Host})
@@ -4130,6 +4128,11 @@ func (s *server) relayIn(q relayAsk) (net.Conn, *device, string) {
 			}}, nil, ""
 		}
 		return local, nil, ""
+	}
+	n := s.nets[q.Net]
+	if n == nil {
+		s.mu.Unlock()
+		return nil, nil, "нет такой сети на этом сервере"
 	}
 	var target *device
 	for _, d := range n.Devices {

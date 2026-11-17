@@ -149,3 +149,33 @@ func TestПересылкаТолькоПоПодписи(t *testing.T) {
 		t.Fatalf("без подписи: %d", c)
 	}
 }
+
+// На новом сервере сети ещё нет ни одного устройства (сетей у его meshd
+// нет) — устройства других серверов всё равно должны видеть его и
+// доходить до него пересылкой: иначе к нему не попасть, пока кто-то не
+// заведёт его профиль (так было с London и Amsterdam на v1.10.3).
+func TestПустойСерверВиденУстройствамДругих(t *testing.T) {
+	tn := newTestNet()
+	de := tn.node(t, "de.example", "Германия")
+	lon := tn.node(t, "lon.example", "London")
+	lon.adm.selfIP = "198.18.0.3"
+	pc := de.client(t, "ПК")
+	lon.join(t, de.invite(t))
+	de.adm.addDevice("N", "noutbuk", pc.Username, false)
+	de.adm.withDev("N", "noutbuk", func(d *meshsvc.Device) {
+		d.Online, d.Host, d.IP = true, "noutbuk", "198.19.0.2"
+	})
+	fde := newFakeRelay(de.adm)
+	de.mesh.admin = fde
+	settle(de, lon)
+	settle(de, lon)
+	fde.mu.Lock()
+	list := fde.remote["N"]
+	fde.mu.Unlock()
+	for _, p := range list {
+		if p.Server && p.IP == "198.18.0.3" && p.Srv == lon.n.SelfID() {
+			return
+		}
+	}
+	t.Fatalf("сервера London нет в сети N у Германии: %+v", list)
+}

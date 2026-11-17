@@ -234,6 +234,15 @@ func (n *ServerNet) pushRemote(ctx context.Context) {
 			users[userHash(c.Username)] = c.Username
 		}
 	}
+	// Сети этого сервера: в каждую из них — все серверы сети серверов, даже
+	// если на том сервере ещё нет ни одного устройства (иначе до нового
+	// сервера с устройств не дойти: замкнутый круг).
+	var local []string
+	if st, err := n.mesh.admin.State(ctx); err == nil {
+		for _, nw := range st.Networks {
+			local = append(local, nw.ID)
+		}
+	}
 	nets := map[string][]meshsvc.RemotePeer{}
 	n.mu.Lock()
 	if n.f.Net != "" {
@@ -250,11 +259,25 @@ func (n *ServerNet) pushRemote(ctx context.Context) {
 			if !live || id == n.f.Self || !n.liveLocked(id, pv, now) {
 				continue
 			}
-			for _, nw := range pv.View.Networks {
-				if pv.View.MeshIP != "" && pv.View.Meshd {
-					nets[nw.ID] = append(nets[nw.ID], meshsvc.RemotePeer{IP: pv.View.MeshIP, Host: pv.View.MeshHost,
+			if pv.View.MeshIP != "" && pv.View.Meshd {
+				seenNet := map[string]bool{}
+				for _, nw := range pv.View.Networks {
+					seenNet[nw.ID] = true
+				}
+				for _, id := range local {
+					seenNet[id] = true
+				}
+				nids := make([]string, 0, len(seenNet))
+				for nid := range seenNet {
+					nids = append(nids, nid)
+				}
+				sort.Strings(nids)
+				for _, nid := range nids {
+					nets[nid] = append(nets[nid], meshsvc.RemotePeer{IP: pv.View.MeshIP, Host: pv.View.MeshHost,
 						Name: r.Name, Server: true, Srv: id, SrvName: r.Name, Online: true})
 				}
+			}
+			for _, nw := range pv.View.Networks {
 				for _, d := range nw.Devices {
 					if d.Pending || d.Frozen || d.IP == "" || d.Host == "" {
 						continue
