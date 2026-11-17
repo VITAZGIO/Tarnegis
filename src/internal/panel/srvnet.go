@@ -444,7 +444,9 @@ func deviceReachable(h string) bool {
 	if ip := net.ParseIP(h); ip != nil {
 		return !ip.IsLoopback() && !ip.IsUnspecified() && !meshRange.Contains(ip)
 	}
-	return true
+	// Имя без точки («London») — это имя сервера, а не адрес: снаружи его
+	// никто не найдёт. Годится только полное имя вида uk.example.com.
+	return strings.Contains(h, ".")
 }
 
 // meshID — id своего meshd (пусто — не отвечает).

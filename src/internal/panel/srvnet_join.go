@@ -397,7 +397,10 @@ func (n *ServerNet) canJoin(c netCode) error {
 	if c.ID == n.f.Self {
 		return errors.New("это код этого же сервера — вставь его в панели другого сервера")
 	}
-	if n.f.Net != "" && n.f.Net == c.Net {
+	// Тот же номер сети, но других серверов этот сервер не знает: его
+	// убрали из сети, пока он был без связи, и он об этом не узнал. Такой
+	// сервер входит заново.
+	if n.f.Net != "" && n.f.Net == c.Net && len(n.serversLocked()) > 1 {
 		return errors.New("этот сервер уже в этой сети")
 	}
 	if n.f.Net != "" && len(n.serversLocked()) > 1 {

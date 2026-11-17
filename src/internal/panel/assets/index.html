@@ -1547,12 +1547,25 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const api = (path, body) => fetch(path, {
-  method: body ? 'POST' : 'GET',
-  headers: {'Content-Type': 'application/json'},
-  credentials: 'same-origin',
-  body: body ? JSON.stringify(body) : undefined
-}).then(async r => ({ok: r.ok, status: r.status, data: await r.json().catch(() => ({}))}));
+// api — запрос к панели. Связь с панелью может идти через сеть устройств
+// этого же сервера: пока meshd перезапускается (кнопка «Обновить meshd»),
+// соединение рвётся или повисает без ответа. Поэтому — ограничение по
+// времени (только у чтения — действия бывают долгими) и ответ-ошибка вместо
+// исключения: опрос страницы не должен останавливаться навсегда.
+const API_TIMEOUT_MS = 20000;
+const api = (path, body) => {
+  const ctl = new AbortController();
+  const timer = body ? 0 : setTimeout(() => ctl.abort(), API_TIMEOUT_MS);
+  return fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: {'Content-Type': 'application/json'},
+    credentials: 'same-origin',
+    body: body ? JSON.stringify(body) : undefined,
+    signal: ctl.signal
+  }).then(async r => ({ok: r.ok, status: r.status, data: await r.json().catch(() => ({}))}))
+    .catch(() => ({ok: false, status: 0, data: {error: t('err_no_link')}}))
+    .finally(() => clearTimeout(timer));
+};
 
 /* ---------- своё окно подтверждения ---------- */
 let confirmResolve = null;
@@ -1678,6 +1691,7 @@ const I18N = {
     err_bad_credentials:'Неверный логин или пароль',
     err_locked:'Слишком много попыток — подожди {s} с.',
     err_bad_request:'Не разобрал запрос', err_internal:'Внутренняя ошибка',
+    err_no_link:'Нет связи с панелью — пробую ещё раз',
     err_password_too_short:'Пароль должен быть не короче 8 символов',
     err_password_mismatch:'Пароли не совпадают',
     err_autostart_unsupported:'Автозапуском отсюда управлять нечем',
@@ -2106,6 +2120,7 @@ const I18N = {
     err_bad_credentials:'Wrong username or password',
     err_locked:'Too many attempts — wait {s}s.',
     err_bad_request:'Could not parse the request', err_internal:'Internal error',
+    err_no_link:'No connection to the panel — retrying',
     err_password_too_short:'Password must be at least 8 characters',
     err_password_mismatch:'Passwords do not match',
     err_autostart_unsupported:'There is nothing to switch here',
@@ -3499,8 +3514,9 @@ $('updateInstallBtn').addEventListener('click', async () => {
   // Шаги до перезапуска.
   for (let i = 0; i < 400 && stage !== 'restart'; i++){
     await sleep(1000);
-    let p;
-    try { p = (await api('/api/update/progress')).data; } catch(e){ break; }
+    const r = await api('/api/update/progress');
+    if (r.status === 0) break; // связи нет — панель уже перезапускается
+    const p = r.data;
     if (p.error){ fail(p.error); return; }
     stage = p.stage || stage;
     if (stage) $('updateStage').textContent = t('upd_stage_' + stage);
@@ -4139,13 +4155,16 @@ async function loadMesh(){
   clearTimeout(MESH_TIMER);
   const fresh = MESH_FRESH;
   MESH_FRESH = false;
-  const {ok, data} = await api('/api/mesh/state' + (fresh ? '?fresh=1' : ''));
-  if (ok){
-    MESH = data;
-    renderMesh();
-    if (!JR.timer && !JR.busy) loadJournal();
+  try {
+    const {ok, data} = await api('/api/mesh/state' + (fresh ? '?fresh=1' : ''));
+    if (ok){
+      MESH = data;
+      renderMesh();
+      if (!JR.timer && !JR.busy) loadJournal();
+    }
+  } finally {
+    scheduleMesh();
   }
-  scheduleMesh();
 }
 function scheduleMesh(){
   clearTimeout(MESH_TIMER);
@@ -5474,8 +5493,10 @@ $('udpRelayBtn').addEventListener('click', async () => {
   loadMesh();
 });
 $('meshReinstallBtn').addEventListener('click', async () => {
-  const {ok, data} = await api('/api/mesh/reinstall', {});
-  if (!ok){ toast(data.error || t('err_internal'), 'err'); return; }
+  const {ok, status, data} = await api('/api/mesh/reinstall', {});
+  // status 0 — связь оборвалась (панель открыта через сеть устройств, а
+  // meshd перезапускается): работа на сервере идёт дальше, опрос покажет.
+  if (!ok && status !== 0){ toast(data.error || t('err_internal'), 'err'); return; }
   loadMesh();
 });
 
