@@ -764,3 +764,57 @@ func (n *ServerNet) signerPub() string {
 	}
 	return strings.Fields(pubLine(s.PublicKey()))[1]
 }
+
+// Сервер убрали из сети, пока он был без связи: он не узнал об этом и
+// остался с номером той сети один. Новый код той же сети должен пускать
+// его обратно (так застрял London на v1.10.2: «этот сервер уже в этой
+// сети»).
+func TestУбранныйБезСвязиВходитЗаново(t *testing.T) {
+	tn := newTestNet()
+	a := tn.node(t, "a.example", "Германия")
+	b := tn.node(t, "b.example", "London")
+	b.join(t, a.invite(t))
+	settle(a, b)
+	ctx := context.Background()
+	stB := b.mesh.State(ctx).ServerNet
+	tn.setDown("b.example", true)
+	if err := a.n.Remove(ctx, stB.SelfID); err != nil {
+		t.Fatal(err)
+	}
+	settle(a)
+	tn.setDown("b.example", false)
+	// А больше не стучится к Б, Б к А пускать перестали: Б остаётся с
+	// номером сети, но без связи. Чтобы это было так, как у Виталия, —
+	// убираем у Б запись А (у него в списке остался только он сам).
+	b.n.mu.Lock()
+	for k := range b.n.f.Items {
+		if strings.HasPrefix(k, kSrv) && k != kSrv+b.n.f.Self {
+			delete(b.n.f.Items, k)
+		}
+	}
+	netB := b.n.f.Net
+	b.n.mu.Unlock()
+	if netB == "" {
+		t.Fatal("в этой проверке Б должен остаться с номером сети")
+	}
+	b.join(t, a.invite(t))
+	settle(a, b)
+	for _, nd := range []*netNode{a, b} {
+		if got := nd.serverIDs(); !slices.Equal(got, []string{"London", "Германия"}) {
+			t.Fatalf("%s: серверы %v", nd.host, got)
+		}
+	}
+}
+
+// Сервер, который в сети вместе с другими, по коду той же сети второй
+// раз не входит.
+func TestВСетиСДругимиВторойРазНеВходит(t *testing.T) {
+	tn := newTestNet()
+	a := tn.node(t, "a.example", "Германия")
+	b := tn.node(t, "b.example", "London")
+	b.join(t, a.invite(t))
+	settle(a, b)
+	if _, err := b.n.Preview(context.Background(), a.invite(t)); err == nil || !strings.Contains(err.Error(), "уже в этой сети") {
+		t.Fatalf("ждали «уже в этой сети», получили %v", err)
+	}
+}

@@ -433,7 +433,7 @@ func mustJSON(v any) json.RawMessage {
 func TestDeviceReachable(t *testing.T) {
 	for h, want := range map[string]bool{"london.mesh": false, "LONDON.MESH.": false, "198.18.0.2": false,
 		"198.19.0.7": false, "127.0.0.1": false, "::1": false, "89.125.168.26": true, "uk.example": true,
-		"192.168.1.10": true} {
+		"192.168.1.10": true, "London": false, "localhost.": false, "uk": false} {
 		if got := deviceReachable(h); got != want {
 			t.Errorf("%s: %v", h, got)
 		}
