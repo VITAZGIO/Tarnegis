@@ -59,6 +59,11 @@
 //	            ← {"op":"exit","exit":{entry,via,t,by,byId}} (цепочку задали
 //	              в панели; новее — побеждает, см. «цепочка выхода из панели»)
 //
+// Пересылка между серверами сети (с версии 7, ТЗ 24): устройство одного
+// сервера достаёт до устройства (и самого сервера) другого, связку держат
+// панели; в протоколе устройства нового — только необязательное
+// peers[].relay. Подробно — «пересылка между серверами» в конце файла.
+//
 // Старый способ тоже работает: на «побочном» сервере meshd не запущен, его
 // 127.0.0.1:47831 — SSH-проброс (ssh -L) к meshd «главного». Сам побочный
 // сервер (его панель) держит здесь управляющее соединение "server" — чтобы
@@ -107,8 +112,9 @@ const (
 	// version — версия самого meshd, её видно в панели.
 	// "4" — несколько серверов без главного (ТЗ 12); "5" — профиль
 	// устройства в панели: одобрение, заморозка, цепочка выхода (ТЗ 16); "6" — сеть серверов:
-	// список серверов сети с отметкой «учётная запись есть» (ТЗ 22).
-	version = "6"
+	// список серверов сети с отметкой «учётная запись есть» (ТЗ 22); "7" —
+	// пересылка между серверами сети (ТЗ 24, «пересылка между серверами»).
+	version = "7"
 
 	maxLine          = 4096
 	maxNetworks      = 1000
@@ -305,6 +311,10 @@ type peer struct {
 	// отчёту этому серверу): так другое устройство понимает, что общего
 	// сервера у них нет.
 	On []serverSeen `json:"on,omitempty"`
+	// Relay — устройство на другом сервере сети, соединение пойдёт через
+	// этот и тот (имя того сервера; meshd 7). Старые устройства поле не
+	// читают — и так звонят через этот сервер.
+	Relay string `json:"relay,omitempty"`
 }
 
 // ---------- состояние ----------
@@ -512,6 +522,13 @@ type server struct {
 	// hadState — при запуске нашлось прежнее состояние (сервер обновили, а
 	// не поставили заново): см. ensureSelfLocked.
 	hadState bool
+	// Пересылка между серверами (meshd 7): remote — кто есть в сети на
+	// других серверах (по сетям, от панели), relayW — панель, которая ждёт
+	// вызовов, rcalls — вызовы, ждущие её ответа, rlive — идущие соединения.
+	remote map[string][]remotePeer
+	relayW *relayWaiter
+	rcalls map[string]*relayCall
+	rlive  map[*relayLine]bool
 }
 
 func newServer(path string) *server {
@@ -519,6 +536,8 @@ func newServer(path string) *server {
 		nets:   map[string]*network{},
 		calls:  map[string]*call{},
 		relays: map[string]*relay{},
+		rcalls: map[string]*relayCall{},
+		rlive:  map[*relayLine]bool{},
 		self:   selfConfig{Enabled: true},
 		path:   path,
 
@@ -684,6 +703,16 @@ func (s *server) peersLocked(n *network, me *device) []peer {
 	}
 	if !me.blocked() && s.policy.visible(me.User, serversGroup) {
 		out = append(out, s.serverPeersLocked(n)...)
+	}
+	if s.relayW != nil {
+		taken := map[string]bool{}
+		for _, d := range n.Devices {
+			taken[d.IP], taken["h:"+d.Host] = true, true
+		}
+		for _, p := range s.serverPeersLocked(n) {
+			taken[p.IP], taken["h:"+p.Host] = true, true
+		}
+		out = append(out, s.remotePeersLocked(n, s.netIDLocked(n), me, taken)...)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
 	return out
@@ -1232,6 +1261,9 @@ func (s *server) dial(conn net.Conn, m msg) {
 			break
 		}
 	}
+	if target == nil && s.relayDialLocked(conn, id, from, user, m, fail) {
+		return // на другом сервере сети — переслано (отпустило s.mu)
+	}
 	if target == nil || target.blocked() || !s.policy.visible(user, target.User) {
 		s.mu.Unlock()
 		fail("нет такого устройства в сети")
@@ -1481,6 +1513,10 @@ type adminState struct {
 	// которые советует панель (ТЗ 12).
 	Peers []adminSeen `json:"peers"`
 	Known []serverAd  `json:"known"`
+	// Relays — идущие пересланные соединения (meshd 7); Relay — панель
+	// ждёт вызовов на пересылку.
+	Relays []relayLine `json:"relays,omitempty"`
+	Relay  bool        `json:"relay,omitempty"`
 }
 
 func unixOrZero(t time.Time) int64 {
@@ -1555,6 +1591,7 @@ func (s *server) adminState() adminState {
 		Enabled: s.self.Enabled, Ports: s.self.Ports}
 	st.Peers = s.seenLocked()
 	st.Known = append([]serverAd{}, s.self.Known...)
+	st.Relays, st.Relay = s.relaysLocked(), s.relayW != nil
 	return st
 }
 
@@ -2000,6 +2037,7 @@ func (s *server) adminHandler() http.Handler {
 		}
 		reply(w, map[string]bool{"ok": true}, err)
 	})
+	s.relayRoutes(mux)
 	return mux
 }
 
@@ -3786,4 +3824,574 @@ func main() {
 		}
 		go s.handle(conn)
 	}
+}
+
+// ---------- пересылка между серверами (версия 7, ТЗ 24) ----------
+//
+// Устройство, подключённое только к Германии, достаёт до устройства (или до
+// самого сервера), подключённого только к London. Серверы между собой
+// по-прежнему не говорят напрямую: связку держат панели (SSH под meshlink,
+// подписанные запросы, тот же порт обмена 127.0.0.1:47847). meshd делает
+// только своё:
+//
+//	панель → /v1/remote {"nets":{ID СЕТИ:[{ip,host,name,user,platform,os,
+//	         server,srv,srvName,online}]}} — кто есть в сети на других
+//	         серверах (без своих). Пока панель ждёт вызовов, такие
+//	         устройства попадают в списки устройств с полем "relay" (имя
+//	         сервера); старые устройства поле не читают, но и так звонят
+//	         через этот сервер.
+//	панель → GET /v1/relay-wait — поток строк JSON: вызовы, которые нужно
+//	         переслать ({call,net,to,port,srv,from:{ip,host,name,pid,user,
+//	         platform}}), раз в 20 с — пустая строка {} («жив»).
+//	панель → POST /v1/relay-out {call,ok,error} — ответ на вызов: ok —
+//	         ответ HTTP 200 и дальше сырые байты до звонящего устройства.
+//	панель → POST /v1/relay-in {net,to,port,srv,from} — вызов с другого
+//	         сервера: адрес — своё устройство или сам этот сервер, иначе
+//	         отказ; дальше пересылки нет (один переход, без петель).
+//
+// Правила доступа проверяются на обоих серверах: здесь — при звонке
+// (пользователь цели известен панели: учётные записи общие), там — при
+// приёме. Звонящий для служб того сервера (op who) — устройство этого.
+
+// remotePeer — устройство или сервер сети на другом сервере (от панели).
+type remotePeer struct {
+	IP       string `json:"ip"`
+	Host     string `json:"host"`
+	Name     string `json:"name,omitempty"`
+	User     string `json:"user,omitempty"`
+	Platform string `json:"platform,omitempty"`
+	OS       string `json:"os,omitempty"`
+	// Server — это сам сервер (адрес сервера в сети); Srv/SrvName — id и
+	// имя сервера сети, через который до него доходить.
+	Server  bool   `json:"server,omitempty"`
+	Srv     string `json:"srv"`
+	SrvName string `json:"srvName,omitempty"`
+	Online  bool   `json:"online"`
+}
+
+// relayFrom — звонящий: устройство этого сервера.
+type relayFrom struct {
+	IP       string `json:"ip"`
+	Host     string `json:"host"`
+	Name     string `json:"name,omitempty"`
+	PID      string `json:"pid,omitempty"`
+	User     string `json:"user,omitempty"`
+	Platform string `json:"platform,omitempty"`
+}
+
+// relayAsk — вызов, который панель должна переслать.
+type relayAsk struct {
+	Call string    `json:"call"`
+	Net  string    `json:"net"`
+	To   string    `json:"to"`
+	Port int       `json:"port"`
+	Srv  string    `json:"srv"`
+	From relayFrom `json:"from"`
+}
+
+// relayCall — вызов ждёт ответа панели.
+type relayCall struct {
+	answer chan answer
+}
+
+// relayLine — идущее пересланное соединение (для панели: пунктир на схеме).
+type relayLine struct {
+	Net   string `json:"net"`
+	Dir   string `json:"dir"` // out — от своего устройства, in — к своему
+	Dev   string `json:"device"`
+	To    string `json:"to"`
+	Port  int    `json:"port"`
+	Srv   string `json:"srv,omitempty"`
+	Since int64  `json:"since"`
+}
+
+// relayWaiter — панель, которая ждёт вызовов.
+type relayWaiter struct {
+	ch   chan relayAsk
+	done chan struct{}
+}
+
+const (
+	// relayTimeout — сколько ждать, пока панель дотянется до другого
+	// сервера и тот найдёт устройство (там ещё свой callTimeout).
+	relayTimeout = callTimeout + 15*time.Second
+	maxRemote    = 4096
+)
+
+// remoteLocked — кто под адресом или именем to на других серверах сети
+// (только пока панель ждёт вызовов). Под s.mu.
+func (s *server) remoteLocked(nid, to string) *remotePeer {
+	if s.relayW == nil {
+		return nil
+	}
+	for i := range s.remote[nid] {
+		p := &s.remote[nid][i]
+		if p.IP == to || p.Host == to {
+			return p
+		}
+	}
+	return nil
+}
+
+// remotePeersLocked — устройства и серверы других серверов для списка
+// устройства me. Адрес или имя, которые здесь уже заняты, не показываются.
+func (s *server) remotePeersLocked(n *network, nid string, me *device, taken map[string]bool) []peer {
+	if s.relayW == nil || me.blocked() {
+		return nil
+	}
+	var out []peer
+	for _, r := range s.remote[nid] {
+		if taken[r.IP] || taken["h:"+r.Host] {
+			continue
+		}
+		user := r.User
+		if r.Server {
+			user = serversGroup
+		}
+		if !s.policy.visible(me.User, user) {
+			continue
+		}
+		p := peer{Name: r.Name, Host: r.Host, IP: r.IP, Online: r.Online, Platform: r.Platform, OS: r.OS,
+			Relay: r.SrvName}
+		if r.Server {
+			p.Platform = "server"
+		}
+		if r.SrvName != "" {
+			p.On = []serverSeen{{ID: r.Srv, Name: r.SrvName}}
+		}
+		out = append(out, p)
+		taken[r.IP], taken["h:"+r.Host] = true, true
+	}
+	return out
+}
+
+// setRemote — панель рассказала, кто есть в сети на других серверах.
+func (s *server) setRemote(nets map[string][]remotePeer) error {
+	total := 0
+	clean := map[string][]remotePeer{}
+	for nid, list := range nets {
+		for _, r := range list {
+			r.IP, r.Host, r.Name, r.User = clip(r.IP), clip(r.Host), clip(r.Name), clip(r.User)
+			r.Srv, r.SrvName, r.Platform, r.OS = clip(r.Srv), clip(r.SrvName), clip(r.Platform), clip(r.OS)
+			if a, err := netip.ParseAddr(r.IP); err != nil || !a.Is4() || r.Host == "" {
+				continue
+			}
+			if total++; total > maxRemote {
+				return errors.New("слишком много устройств")
+			}
+			clean[nid] = append(clean[nid], r)
+		}
+	}
+	s.mu.Lock()
+	s.remote = clean
+	s.broadcastAllLocked()
+	s.mu.Unlock()
+	return nil
+}
+
+// relayDialLocked — звонок своего устройства from на адрес, которого здесь
+// нет. false — его нет и на других серверах (s.mu не отпущен); true —
+// разобрались (s.mu отпущен).
+func (s *server) relayDialLocked(conn net.Conn, nid string, from *device, user string, m msg, fail func(string)) bool {
+	rp := s.remoteLocked(nid, m.To)
+	if rp == nil {
+		return false
+	}
+	target := rp.User
+	if rp.Server {
+		target = serversGroup
+	}
+	if !s.policy.visible(user, target) {
+		return false
+	}
+	if !s.policy.allowed(user, target, m.Port) {
+		s.emitLocked(event{Type: "denied", Net: nid, Device: from.ID, Peer: m.To, Port: m.Port, Text: "relay"})
+		s.mu.Unlock()
+		fail(deniedText)
+		return true
+	}
+	if len(s.rcalls) >= maxPendingCalls {
+		s.mu.Unlock()
+		fail("сервер занят, попробуй ещё раз")
+		return true
+	}
+	callID := randomID()
+	cl := &relayCall{answer: make(chan answer, 1)}
+	ask := relayAsk{Call: callID, Net: nid, To: rp.IP, Port: m.Port, Srv: rp.Srv,
+		From: relayFrom{IP: from.IP, Host: from.Host, Name: from.displayName(), PID: peerID(from.ID), User: user,
+			Platform: from.Platform}}
+	select {
+	case s.relayW.ch <- ask:
+	default:
+		s.mu.Unlock()
+		fail("сервер занят, попробуй ещё раз")
+		return true
+	}
+	s.rcalls[callID] = cl
+	srvName := rp.SrvName
+	s.mu.Unlock()
+
+	var got answer
+	select {
+	case got = <-cl.answer:
+	case <-time.After(relayTimeout):
+		got.err = "сервер " + srvName + " не ответил"
+	}
+	s.mu.Lock()
+	delete(s.rcalls, callID)
+	s.mu.Unlock()
+	if got.conn == nil {
+		select {
+		case late := <-cl.answer:
+			if late.conn != nil {
+				late.conn.Close()
+			}
+		default:
+		}
+		if got.err == "" {
+			got.err = "соединение через сервер " + srvName + " не состоялось"
+		}
+		fail(got.err)
+		return true
+	}
+	line := &relayLine{Net: nid, Dir: "out", Dev: from.ID, To: rp.IP, Port: m.Port, Srv: rp.Srv, Since: s.now().Unix()}
+	s.mu.Lock()
+	frozen := from.blocked()
+	if !frozen {
+		s.trackLocked(from, conn)
+		s.rlive[line] = true
+	}
+	s.mu.Unlock()
+	if frozen {
+		got.conn.Close()
+		fail(holdText(from.hold()))
+		return true
+	}
+	defer func() {
+		s.mu.Lock()
+		delete(s.rlive, line)
+		s.mu.Unlock()
+		s.untrack(from, conn)
+	}()
+	if err := writeMsg(conn, msg{Op: "connected"}); err != nil {
+		conn.Close()
+		got.conn.Close()
+		return true
+	}
+	from.activeCalls.Add(1)
+	defer from.activeCalls.Add(-1)
+	var sink1, sink2 atomic.Int64
+	splice(conn, got.conn, &from.up, &sink1, &sink2, &from.down)
+	s.markDirty()
+	return true
+}
+
+// relayIn — вызов с другого сервера сети: к своему устройству или к самому
+// серверу. Возвращает соединение с целью, кому оно (для учёта) и отказ.
+func (s *server) relayIn(q relayAsk) (net.Conn, *device, string) {
+	if q.Port <= 0 || q.Port > 65535 {
+		return nil, nil, "неверный порт"
+	}
+	user := clip(q.From.User)
+	caller := &device{ID: clip(q.From.PID), IP: clip(q.From.IP), Host: clip(q.From.Host), Name: clip(q.From.Name),
+		User: user, Platform: clip(q.From.Platform)}
+	s.mu.Lock()
+	n := s.nets[q.Net]
+	if n == nil {
+		s.mu.Unlock()
+		return nil, nil, "нет такой сети на этом сервере"
+	}
+	if q.To == s.self.IP && s.self.Enabled {
+		if !s.policy.allowed(user, serversGroup, q.Port) {
+			s.emitLocked(event{Type: "denied", Net: q.Net, Peer: q.To, Port: q.Port, Text: "relay " + caller.Host})
+			s.mu.Unlock()
+			return nil, nil, deniedText
+		}
+		allowed := portAllowed(s.self.Ports, q.Port)
+		s.mu.Unlock()
+		if !allowed || q.Port == 47831 {
+			return nil, nil, "сервер не пускает устройства сети на порт " + itoa(q.Port) + " — это настраивается в его панели"
+		}
+		local, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", itoa(q.Port)), 5*time.Second)
+		if err != nil {
+			return nil, nil, "на сервере на порту " + itoa(q.Port) + " ничего не слушает"
+		}
+		if la, ok := local.LocalAddr().(*net.TCPAddr); ok {
+			lc := &localCall{port: q.Port, net: q.Net, dev: caller}
+			s.mu.Lock()
+			s.local[la.Port] = lc
+			s.mu.Unlock()
+			return &localRelease{Conn: local, release: func() {
+				s.mu.Lock()
+				if s.local[la.Port] == lc {
+					delete(s.local, la.Port)
+				}
+				s.mu.Unlock()
+			}}, nil, ""
+		}
+		return local, nil, ""
+	}
+	var target *device
+	for _, d := range n.Devices {
+		if d.IP == q.To || d.Host == q.To {
+			target = d
+			break
+		}
+	}
+	if target == nil || target.blocked() || !s.policy.visible(user, target.User) {
+		s.mu.Unlock()
+		return nil, nil, "нет такого устройства в сети"
+	}
+	if !s.policy.allowed(user, target.User, q.Port) {
+		s.emitLocked(event{Type: "denied", Net: q.Net, Peer: target.ID, Port: q.Port, Text: "relay " + caller.Host})
+		s.mu.Unlock()
+		return nil, nil, deniedText
+	}
+	if target.ctrl == nil {
+		s.mu.Unlock()
+		return nil, nil, "устройство " + target.Host + " сейчас не в сети"
+	}
+	if len(s.calls) >= maxPendingCalls {
+		s.mu.Unlock()
+		return nil, nil, "сервер занят, попробуй ещё раз"
+	}
+	callID := randomID()
+	cl := &call{net: q.Net, target: target.ID, answer: make(chan answer, 1)}
+	s.calls[callID] = cl
+	target.ctrl.send(msg{Op: "incoming", Call: callID, From: caller.IP, FromHost: caller.Host, FromID: caller.ID, Port: q.Port})
+	s.mu.Unlock()
+	peerConn, errText := s.waitCall(callID, cl)
+	if peerConn == nil {
+		if errText == "не ответил" {
+			errText = "устройство не ответило"
+		}
+		return nil, nil, errText
+	}
+	return peerConn, target, ""
+}
+
+// localRelease — соединение со службой сервера: при закрытии забыть, кто
+// звонил (op who).
+type localRelease struct {
+	net.Conn
+	release func()
+	once    sync.Once
+}
+
+func (c *localRelease) Close() error {
+	c.once.Do(c.release)
+	return c.Conn.Close()
+}
+
+func (c *localRelease) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return c.Close()
+}
+
+// hijackConn — соединение панели после ответа 200: остаток буфера чтения
+// не теряется.
+type hijackConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *hijackConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+func (c *hijackConn) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return c.Close()
+}
+
+// hijack200 — ответить 200 и забрать соединение под сырые байты.
+func hijack200(w http.ResponseWriter) (net.Conn, error) {
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		return nil, errors.New("нельзя забрать соединение")
+	}
+	conn, rw, err := hj.Hijack()
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Time{})
+	if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &hijackConn{Conn: conn, r: rw.Reader}, nil
+}
+
+// relayRoutes — вход пересылки для панели.
+func (s *server) relayRoutes(mux *http.ServeMux) {
+	fail := func(w http.ResponseWriter, code int, text string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(code)
+		json.NewEncoder(w).Encode(map[string]string{"error": text})
+	}
+	mux.HandleFunc("/v1/remote", func(w http.ResponseWriter, r *http.Request) {
+		var q struct {
+			Nets map[string][]remotePeer `json:"nets"`
+		}
+		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(&q) != nil {
+			fail(w, http.StatusBadRequest, "неверный запрос")
+			return
+		}
+		if err := s.setRemote(q.Nets); err != nil {
+			fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}` + "\n"))
+	})
+	mux.HandleFunc("/v1/relay-wait", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := hijack200(w)
+		if err != nil {
+			return
+		}
+		rw := &relayWaiter{ch: make(chan relayAsk, 64), done: make(chan struct{})}
+		s.mu.Lock()
+		if old := s.relayW; old != nil {
+			close(old.done)
+		}
+		s.relayW = rw
+		s.broadcastAllLocked()
+		s.mu.Unlock()
+		gone := make(chan struct{})
+		go func() {
+			io.Copy(io.Discard, conn)
+			close(gone)
+		}()
+		tick := time.NewTicker(20 * time.Second)
+		defer func() {
+			tick.Stop()
+			conn.Close()
+			s.mu.Lock()
+			if s.relayW == rw {
+				s.relayW = nil
+				s.broadcastAllLocked()
+			}
+			s.mu.Unlock()
+		}()
+		enc := json.NewEncoder(conn)
+		for {
+			var err error
+			select {
+			case a := <-rw.ch:
+				err = enc.Encode(a)
+			case <-tick.C:
+				_, err = conn.Write([]byte("{}\n"))
+			case <-rw.done:
+				return
+			case <-gone:
+				return
+			}
+			if err != nil {
+				return
+			}
+		}
+	})
+	mux.HandleFunc("/v1/relay-out", func(w http.ResponseWriter, r *http.Request) {
+		var q struct {
+			Call  string `json:"call"`
+			OK    bool   `json:"ok"`
+			Error string `json:"error"`
+		}
+		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&q) != nil {
+			fail(w, http.StatusBadRequest, "неверный запрос")
+			return
+		}
+		s.mu.Lock()
+		cl := s.rcalls[q.Call]
+		delete(s.rcalls, q.Call)
+		s.mu.Unlock()
+		if cl == nil {
+			fail(w, http.StatusNotFound, "вызова уже нет")
+			return
+		}
+		if !q.OK {
+			if q.Error == "" {
+				q.Error = "соединение не состоялось"
+			}
+			cl.answer <- answer{err: clip(q.Error)}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"ok":true}` + "\n"))
+			return
+		}
+		conn, err := hijack200(w)
+		if err != nil {
+			cl.answer <- answer{err: "соединение не состоялось"}
+			return
+		}
+		cl.answer <- answer{conn: conn}
+	})
+	mux.HandleFunc("/v1/relay-in", func(w http.ResponseWriter, r *http.Request) {
+		var q relayAsk
+		if r.Method != http.MethodPost || json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&q) != nil {
+			fail(w, http.StatusBadRequest, "неверный запрос")
+			return
+		}
+		peerConn, target, errText := s.relayIn(q)
+		if peerConn == nil {
+			fail(w, http.StatusBadRequest, errText)
+			return
+		}
+		conn, err := hijack200(w)
+		if err != nil {
+			peerConn.Close()
+			return
+		}
+		line := &relayLine{Net: q.Net, Dir: "in", To: q.To, Port: q.Port, Srv: clip(q.Srv), Since: s.now().Unix()}
+		var sink1, sink2 atomic.Int64
+		if target == nil {
+			s.mu.Lock()
+			s.rlive[line] = true
+			s.mu.Unlock()
+			splice(conn, peerConn, &sink1, &sink2, &sink1, &sink2)
+		} else {
+			line.Dev = target.ID
+			s.mu.Lock()
+			frozen := target.blocked()
+			if !frozen {
+				s.trackLocked(target, peerConn)
+				s.rlive[line] = true
+			}
+			s.mu.Unlock()
+			if frozen {
+				conn.Close()
+				peerConn.Close()
+				return
+			}
+			target.activeCalls.Add(1)
+			splice(conn, peerConn, &sink1, &target.down, &target.up, &sink2)
+			target.activeCalls.Add(-1)
+			s.untrack(target, peerConn)
+			s.markDirty()
+		}
+		s.mu.Lock()
+		delete(s.rlive, line)
+		s.mu.Unlock()
+	})
+}
+
+// netIDLocked — id сети n. Под s.mu.
+func (s *server) netIDLocked(n *network) string {
+	for id, x := range s.nets {
+		if x == n {
+			return id
+		}
+	}
+	return ""
+}
+
+// relaysLocked — идущие пересланные соединения для панели. Под s.mu.
+func (s *server) relaysLocked() []relayLine {
+	out := []relayLine{}
+	for l := range s.rlive {
+		out = append(out, *l)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Since < out[j].Since })
+	return out
 }

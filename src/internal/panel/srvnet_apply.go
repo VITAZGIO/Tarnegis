@@ -31,7 +31,9 @@ func (n *ServerNet) noteAccess(a AccessSettings) { n.note(kAccess, false, a) }
 
 func (n *ServerNet) noteApproval(netID string, on bool) { n.note(kAppr+netID, false, onRec{On: on}) }
 
-func (n *ServerNet) noteApprove(netID, dev string) { n.note(devKey(kOK, netID, dev), false, struct{}{}) }
+func (n *ServerNet) noteApprove(netID, dev string) {
+	n.note(devKey(kOK, netID, dev), false, struct{}{})
+}
 
 func (n *ServerNet) noteFreeze(netID, dev string, on bool) {
 	n.note(devKey(kFrz, netID, dev), false, onRec{On: on})
@@ -115,6 +117,7 @@ func (n *ServerNet) reconcile(ctx context.Context) {
 	n.mu.Unlock()
 
 	n.syncLinkKeys()
+	n.pushRemote(ctx)
 	if !inNet {
 		n.pushKnown(ctx, nil, "")
 		return

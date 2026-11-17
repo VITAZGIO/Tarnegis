@@ -144,10 +144,14 @@ func twoServers(t *testing.T) (*testNet, *netNode, *netNode) {
 	lon.join(t, de.invite(t))
 	settle(de, lon)
 	de.adm.addDevice("N", "noutbuk", pc.Username, false)
-	de.adm.withDev("N", "noutbuk", func(d *meshsvc.Device) { d.Online, d.FirstSeen, d.LastSeen, d.App = true, 10, 20, "1.10.1" })
+	de.adm.withDev("N", "noutbuk", func(d *meshsvc.Device) {
+		d.Online, d.FirstSeen, d.LastSeen, d.App = true, 10, 20, "1.10.1"
+		d.Host, d.IP = "noutbuk", "198.19.0.2"
+	})
 	lon.adm.addDevice("N", "telefon", pc.Username, false)
 	lon.adm.withDev("N", "telefon", func(d *meshsvc.Device) {
 		d.Online, d.FirstSeen, d.LastSeen, d.Platform, d.App = true, 10, 20, "android", "1.10.1"
+		d.Host, d.IP = "telefon", "198.19.0.3"
 	})
 	settle(de, lon)
 	return tn, de, lon
@@ -299,6 +303,17 @@ func TestПереименованиеСервераОбщее(t *testing.T) {
 }
 
 // ---------- /srv/v1/view ----------
+
+func postPath(t *testing.T, addr, path string) int {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, "http://"+addr+path, strings.NewReader(`{}`))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
 
 func postView(t *testing.T, addr string, h map[string]string) int {
 	t.Helper()

@@ -368,7 +368,7 @@ func (m *MeshManager) writeLinks(lines []string) error {
 }
 
 // meshdVersion — версия meshd, которую ставит эта панель.
-const meshdVersion = "6"
+const meshdVersion = "7"
 
 // ensureOwnMeshd — перед входом в сеть серверов: своя служба сети есть и
 // свежая. Сервер старого способа переходит на свою (адрес в сети тот же).
@@ -886,6 +886,9 @@ type MeshState struct {
 	// между серверами на схеме (ТЗ 24).
 	SelfSrv     string         `json:"selfSrv,omitempty"`
 	ServerLinks []SrvLinkState `json:"serverLinks"`
+	// Relays — пересланные между серверами соединения (meshd 7).
+	Relays      []RelayView         `json:"relays"`
+	localRelays []meshsvc.RelayLine // из meshd этого сервера
 }
 
 // State собирает состояние сети для интерфейса.
@@ -908,6 +911,7 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 		Known:    []meshsvc.KnownServer{},
 
 		ServerLinks: []SrvLinkState{},
+		Relays:      []RelayView{},
 	}
 	st.ServerAccess, st.ServerPorts = !s.ServerAccessOff, s.ServerPorts
 	st.EffectiveRole = s.Role
@@ -971,6 +975,7 @@ func (m *MeshManager) fillMain(ctx context.Context, st *MeshState, s MeshSetting
 		st.Servers[0].MeshIP, st.Servers[0].MeshHost = self.IP, self.Host
 	}
 	st.Version, st.StartedAt = ms.Version, ms.StartedAt
+	st.localRelays = ms.Relays
 	if ms.Peers != nil {
 		st.Peers = ms.Peers
 	}

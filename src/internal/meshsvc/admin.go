@@ -1,6 +1,7 @@
 package meshsvc
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -172,16 +173,26 @@ type State struct {
 	// пусто).
 	Peers []SeenServer  `json:"peers"`
 	Known []KnownServer `json:"known"`
+	// Relays — идущие пересланные соединения; Relay — панель ждёт вызовов
+	// на пересылку (meshd 7, ТЗ 24).
+	Relays []RelayLine `json:"relays,omitempty"`
+	Relay  bool        `json:"relay,omitempty"`
 }
 
 // Admin — клиент входа meshd для панели (HTTP по unix-сокету).
 type Admin struct {
 	http *http.Client
+	// dial — сырое соединение с сокетом (пересылка между серверами, meshd 7).
+	dial func(ctx context.Context) (net.Conn, error)
 }
 
 // NewAdmin — клиент для сокета sock (обычно AdminSocket).
 func NewAdmin(sock string) *Admin {
-	return &Admin{http: &http.Client{
+	dial := func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "unix", sock)
+	}
+	return &Admin{dial: dial, http: &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -415,4 +426,172 @@ type Policy struct {
 // SetPolicy передаёт meshd права доступа устройств (он их сохраняет сам).
 func (a *Admin) SetPolicy(ctx context.Context, p Policy) error {
 	return a.do(ctx, http.MethodPost, "/v1/policy", p, nil)
+}
+
+// ---------- пересылка между серверами (meshd 7, ТЗ 24) ----------
+
+// RemotePeer — устройство или сервер сети на другом сервере (см.
+// remotePeer в cmd/meshd).
+type RemotePeer struct {
+	IP       string `json:"ip"`
+	Host     string `json:"host"`
+	Name     string `json:"name,omitempty"`
+	User     string `json:"user,omitempty"`
+	Platform string `json:"platform,omitempty"`
+	OS       string `json:"os,omitempty"`
+	Server   bool   `json:"server,omitempty"`
+	Srv      string `json:"srv"`
+	SrvName  string `json:"srvName,omitempty"`
+	Online   bool   `json:"online"`
+}
+
+// RelayFrom — звонящее устройство.
+type RelayFrom struct {
+	IP       string `json:"ip"`
+	Host     string `json:"host"`
+	Name     string `json:"name,omitempty"`
+	PID      string `json:"pid,omitempty"`
+	User     string `json:"user,omitempty"`
+	Platform string `json:"platform,omitempty"`
+}
+
+// RelayAsk — вызов на пересылку (от meshd этого сервера или с другого).
+type RelayAsk struct {
+	Call string    `json:"call,omitempty"`
+	Net  string    `json:"net"`
+	To   string    `json:"to"`
+	Port int       `json:"port"`
+	Srv  string    `json:"srv"`
+	From RelayFrom `json:"from"`
+}
+
+// RelayLine — идущее пересланное соединение.
+type RelayLine struct {
+	Net   string `json:"net"`
+	Dir   string `json:"dir"`
+	Dev   string `json:"device"`
+	To    string `json:"to"`
+	Port  int    `json:"port"`
+	Srv   string `json:"srv,omitempty"`
+	Since int64  `json:"since"`
+}
+
+// SetRemote — кто есть в сети на других серверах (по id сетей).
+func (a *Admin) SetRemote(ctx context.Context, nets map[string][]RemotePeer) error {
+	return a.do(ctx, http.MethodPost, "/v1/remote", map[string]any{"nets": nets}, nil)
+}
+
+// bufConn — соединение после ответа 200: остаток буфера не теряется.
+type bufConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *bufConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+// CloseWrite — полузакрытие, если соединение его умеет.
+func (c *bufConn) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return c.Close()
+}
+
+// raw — запрос, после ответа 200 на котором соединение остаётся под сырые
+// байты.
+func (a *Admin) raw(ctx context.Context, method, path string, body any) (net.Conn, *bufio.Reader, error) {
+	if a.dial == nil {
+		return nil, nil, ErrUnsupported
+	}
+	c, err := a.dial(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrNotRunning, err)
+	}
+	var data []byte
+	if body != nil {
+		data, _ = json.Marshal(body)
+	}
+	req, _ := http.NewRequest(method, "http://meshd"+path, bytes.NewReader(data))
+	if body == nil {
+		req.Body, req.ContentLength = nil, 0
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		c.SetDeadline(dl)
+	}
+	if err := req.Write(c); err != nil {
+		c.Close()
+		return nil, nil, err
+	}
+	br := bufio.NewReader(c)
+	resp, err := http.ReadResponse(br, req)
+	if err != nil {
+		c.Close()
+		return nil, nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		c.Close()
+		if resp.StatusCode == http.StatusNotFound && !json.Valid(raw) {
+			return nil, nil, ErrUnsupported
+		}
+		var e struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(raw, &e) == nil && e.Error != "" {
+			return nil, nil, errors.New(e.Error)
+		}
+		return nil, nil, fmt.Errorf("meshd ответил %s", resp.Status)
+	}
+	c.SetDeadline(time.Time{})
+	return c, br, nil
+}
+
+// RelayWait ждёт вызовов на пересылку и отдаёт каждый в on, пока не
+// отменят ctx или meshd не закроет соединение. Старый meshd —
+// ErrUnsupported.
+func (a *Admin) RelayWait(ctx context.Context, on func(RelayAsk)) error {
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	c, br, err := a.raw(cctx, http.MethodGet, "/v1/relay-wait", nil)
+	cancel()
+	if err != nil {
+		return err
+	}
+	stop := context.AfterFunc(ctx, func() { c.Close() })
+	defer stop()
+	defer c.Close()
+	for {
+		// meshd шлёт «жив» раз в 20 секунд: тишина дольше — связь пропала.
+		c.SetReadDeadline(time.Now().Add(70 * time.Second))
+		line, err := br.ReadBytes('\n')
+		if err != nil {
+			return err
+		}
+		var q RelayAsk
+		if json.Unmarshal(line, &q) == nil && q.Call != "" {
+			on(q)
+		}
+	}
+}
+
+// RelayOut — ответ на вызов: ok — соединение до звонящего устройства.
+func (a *Admin) RelayOut(ctx context.Context, call string, ok bool, errText string) (net.Conn, error) {
+	body := map[string]any{"call": call, "ok": ok, "error": errText}
+	if !ok {
+		return nil, a.do(ctx, http.MethodPost, "/v1/relay-out", body, nil)
+	}
+	c, br, err := a.raw(ctx, http.MethodPost, "/v1/relay-out", body)
+	if err != nil {
+		return nil, err
+	}
+	return &bufConn{Conn: c, r: br}, nil
+}
+
+// RelayIn — вызов с другого сервера к своему устройству или к самому этому
+// серверу: соединение с целью или отказ meshd.
+func (a *Admin) RelayIn(ctx context.Context, q RelayAsk) (net.Conn, error) {
+	c, br, err := a.raw(ctx, http.MethodPost, "/v1/relay-in", q)
+	if err != nil {
+		return nil, err
+	}
+	return &bufConn{Conn: c, r: br}, nil
 }

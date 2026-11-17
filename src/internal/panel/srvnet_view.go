@@ -53,35 +53,35 @@ const (
 
 // viewDevice — устройство в живой картине сервера.
 type viewDevice struct {
-	ID          string                `json:"id"`
-	Name        string                `json:"name"`
-	Alias       string                `json:"alias,omitempty"`
-	Display     string                `json:"display"`
-	Host        string                `json:"host"`
-	IP          string                `json:"ip"`
-	Platform    string                `json:"platform,omitempty"`
-	OS          string                `json:"os,omitempty"`
-	App         string                `json:"app,omitempty"`
-	Mode        string                `json:"mode,omitempty"`
-	Hostname    string                `json:"hostname,omitempty"`
-	Online      bool                  `json:"online"`
-	FirstSeen   int64                 `json:"firstSeen,omitempty"`
-	LastSeen    int64                 `json:"lastSeen,omitempty"`
-	ConnectedAt int64                 `json:"connectedAt,omitempty"`
-	Sessions    int64                 `json:"sessions,omitempty"`
-	RTTMs       float64               `json:"rttMs,omitempty"`
-	RTTAvgMs    float64               `json:"rttAvgMs,omitempty"`
-	JitterMs    float64               `json:"jitterMs,omitempty"`
-	LossPct     float64               `json:"lossPct,omitempty"`
-	Quality     string                `json:"quality,omitempty"`
-	BytesUp     int64                 `json:"bytesUp,omitempty"`
-	BytesDown   int64                 `json:"bytesDown,omitempty"`
-	Direct      []meshsvc.DirectLink  `json:"direct,omitempty"`
-	Pending     bool                  `json:"pending,omitempty"`
-	Frozen      bool                  `json:"frozen,omitempty"`
-	Profiles    []meshsvc.ProfileRef  `json:"profiles,omitempty"`
-	ExitSet     *meshsvc.ExitOrder    `json:"exitSet,omitempty"`
-	UH          string                `json:"uh,omitempty"`
+	ID          string               `json:"id"`
+	Name        string               `json:"name"`
+	Alias       string               `json:"alias,omitempty"`
+	Display     string               `json:"display"`
+	Host        string               `json:"host"`
+	IP          string               `json:"ip"`
+	Platform    string               `json:"platform,omitempty"`
+	OS          string               `json:"os,omitempty"`
+	App         string               `json:"app,omitempty"`
+	Mode        string               `json:"mode,omitempty"`
+	Hostname    string               `json:"hostname,omitempty"`
+	Online      bool                 `json:"online"`
+	FirstSeen   int64                `json:"firstSeen,omitempty"`
+	LastSeen    int64                `json:"lastSeen,omitempty"`
+	ConnectedAt int64                `json:"connectedAt,omitempty"`
+	Sessions    int64                `json:"sessions,omitempty"`
+	RTTMs       float64              `json:"rttMs,omitempty"`
+	RTTAvgMs    float64              `json:"rttAvgMs,omitempty"`
+	JitterMs    float64              `json:"jitterMs,omitempty"`
+	LossPct     float64              `json:"lossPct,omitempty"`
+	Quality     string               `json:"quality,omitempty"`
+	BytesUp     int64                `json:"bytesUp,omitempty"`
+	BytesDown   int64                `json:"bytesDown,omitempty"`
+	Direct      []meshsvc.DirectLink `json:"direct,omitempty"`
+	Pending     bool                 `json:"pending,omitempty"`
+	Frozen      bool                 `json:"frozen,omitempty"`
+	Profiles    []meshsvc.ProfileRef `json:"profiles,omitempty"`
+	ExitSet     *meshsvc.ExitOrder   `json:"exitSet,omitempty"`
+	UH          string               `json:"uh,omitempty"`
 }
 
 // viewNet — сеть в живой картине.
@@ -118,6 +118,9 @@ type srvView struct {
 	// сервере действуют: так другая панель скажет «учётная запись на London
 	// не создана» (ТЗ 24, п. 13). nil — старая панель, неизвестно.
 	Accts []string `json:"accts,omitempty"`
+	// Relays — идущие пересланные соединения от устройств этого сервера
+	// (meshd 7): на схеме — пунктиром через оба сервера.
+	Relays []meshsvc.RelayLine `json:"relays,omitempty"`
 }
 
 // peerView — картина другого сервера и когда она пришла (unix, свои часы).
@@ -185,6 +188,11 @@ func (n *ServerNet) buildView(ctx context.Context) srvView {
 		return v
 	}
 	v.MeshIP, v.MeshHost, v.Version = ms.Self.IP, ms.Self.Host, ms.Version
+	for _, l := range ms.Relays {
+		if l.Dir == "out" {
+			v.Relays = append(v.Relays, l)
+		}
+	}
 	for _, nw := range ms.Networks {
 		vn := viewNet{ID: nw.ID, Name: nw.Name, Created: nw.Created, EmptySince: nw.EmptySince, Approval: nw.Approval,
 			Devices: make([]viewDevice, 0, len(nw.Devices))}
@@ -707,6 +715,7 @@ func (n *ServerNet) mergeInto(st *MeshState) {
 		return st.ServerLinks[i].B < st.ServerLinks[j].B
 	})
 	st.Networks = mergeNetworks(st.Networks, srcs, items, users)
+	st.Relays = mergeRelays(st, srcs)
 	if len(why) > 1 {
 		for i := range st.Networks {
 			for j := range st.Networks[i].Devices {
@@ -905,3 +914,67 @@ func hasDevice(nets []meshsvc.Network, netID, device string) (net, dev bool) {
 
 // trimName — для сравнений имён без пробелов по краям.
 func trimName(s string) string { return strings.TrimSpace(s) }
+
+// RelayView — пересланное соединение на схеме: устройство From (сервер
+// A) → цель To (устройство или "srv:"+id сервера) через сервер B.
+type RelayView struct {
+	Net  string `json:"net"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	A    string `json:"a"`
+	B    string `json:"b"`
+	Port int    `json:"port,omitempty"`
+}
+
+// mergeRelays — пересланные соединения всех серверов в именах схемы.
+func mergeRelays(st *MeshState, srcs []viewSrc) []RelayView {
+	out := []RelayView{}
+	srvByIP := map[string]string{}
+	if st.Self != nil && st.Self.IP != "" {
+		srvByIP[st.Self.IP] = "main"
+	}
+	for _, s := range st.Servers {
+		if s.MeshIP != "" && !s.Main {
+			srvByIP[s.MeshIP] = s.ID
+		}
+	}
+	devByIP := map[string]string{}
+	for _, nw := range st.Networks {
+		for _, d := range nw.Devices {
+			devByIP[nw.ID+"|"+d.IP] = d.ID
+		}
+	}
+	ref := func(id string) string {
+		if id == st.SelfSrv {
+			return "main"
+		}
+		return id
+	}
+	add := func(a string, l meshsvc.RelayLine) {
+		if l.Dir != "out" {
+			return
+		}
+		to := devByIP[l.Net+"|"+l.To]
+		if to == "" {
+			if s := srvByIP[l.To]; s != "" {
+				to = "srv:" + s
+			}
+		}
+		if to == "" {
+			return
+		}
+		out = append(out, RelayView{Net: l.Net, From: l.Dev, To: to, A: a, B: ref(l.Srv), Port: l.Port})
+	}
+	for _, l := range st.localRelays {
+		add("main", l)
+	}
+	for _, s := range srcs {
+		if !s.Live {
+			continue
+		}
+		for _, l := range s.View.Relays {
+			add(s.ID, l)
+		}
+	}
+	return out
+}

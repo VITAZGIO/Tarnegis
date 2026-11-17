@@ -173,6 +173,10 @@ type ServerNet struct {
 	viewPath string
 	views    map[string]peerView
 	pulled   map[string]time.Time
+	// lastRemote/remoteAt — что последним отдали meshd о других серверах
+	// (srvnet_relay.go).
+	lastRemote string
+	remoteAt   time.Time
 
 	reconMu  sync.Mutex
 	lastKeys string
@@ -794,6 +798,7 @@ func (n *ServerNet) Run(ctx context.Context) {
 	}
 	t := time.NewTicker(syncEvery)
 	defer t.Stop()
+	go n.relayLoop(ctx)
 	n.reconcile(ctx)
 	for {
 		if n.InNet() {
@@ -875,6 +880,7 @@ func (n *ServerNet) handler() http.Handler {
 	mux.HandleFunc("/srv/v1/migrate", n.handleMigrate)
 	mux.HandleFunc("/srv/v1/view", n.handleView)
 	mux.HandleFunc("/srv/v1/exit", n.handleExit)
+	mux.HandleFunc("/srv/v1/relay", n.handleRelay)
 	return mux
 }
 
