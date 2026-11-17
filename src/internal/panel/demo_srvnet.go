@@ -19,7 +19,7 @@ type demoSrvNet struct {
 func demoOthers() []SrvState {
 	now := time.Now().Unix()
 	return []SrvState{
-		{ID: "a2c4e6f8a1b3c5d7", Name: "Амстердам", Host: "ams.demo.example", Port: 22, Online: true, LastSync: now - 12},
+		{ID: "a2c4e6f8a1b3c5d7", Name: "Амстердам", Host: "ams.demo.example", Port: 22, LastSync: now - 7*60},
 		{ID: "b1d3f5a7c9e2b4d6", Name: "Лондон", Host: "london.demo.example", Port: 2222, Online: true, LastSync: now - 4},
 	}
 }
@@ -28,12 +28,38 @@ func (d *demoBackend) srvnetState() SrvNetState {
 	if d.srvnet.others == nil && !d.srvnet.alone {
 		d.srvnet.others = demoOthers()
 	}
-	st := SrvNetState{SelfID: "f0e1d2c3b4a59687", Servers: []SrvState{
-		{ID: "f0e1d2c3b4a59687", Name: d.servers[0].Name, Host: "demo.example", Port: 22, Self: true, Online: true},
-	}}
+	// «Этот» сервер переключается (ТЗ 24, /api/demo/self): список — тот же,
+	// со стороны выбранного.
+	self := d.demoSelf
+	if self == "" || len(d.srvnet.others) == 0 {
+		self = demoFra
+	}
+	st := SrvNetState{SelfID: self, Servers: []SrvState{}}
+	now := time.Now().Unix()
+	var others []SrvState
+	for _, s := range d.demoServers() {
+		ss := SrvState{ID: s.ID, Name: s.Name, Host: s.Host, Port: s.Port}
+		if s.ID == self {
+			ss.Self, ss.Online = true, true
+			st.Servers = append(st.Servers, ss)
+			continue
+		}
+		ss.Online = s.Reach
+		if s.Reach {
+			ss.LastSync, ss.RTTMs = now-4, s.RTT
+			if s.ID == demoFra {
+				me, _ := d.demoSrvByID(self)
+				ss.RTTMs = me.RTT
+			}
+		} else {
+			ss.Error = "нет связи с " + s.Host + ": dial tcp: i/o timeout"
+			ss.LastSync = now - s.Age
+		}
+		others = append(others, ss)
+	}
 	if len(d.srvnet.others) > 0 {
 		st.Net = "9d8c7b6a5f4e3d2c1b0a99887766aabb"
-		st.Servers = append(st.Servers, d.srvnet.others...)
+		st.Servers = append(st.Servers, others...)
 	}
 	return st
 }

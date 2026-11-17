@@ -33,7 +33,7 @@
   .topbar .inner{padding:10px 18px;display:flex;align-items:center;gap:12px}
   /* Выбор сети — когда ключей несколько: схема, плитки и список устройств
      показывают выбранную. */
-  .net-chips{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .net-chips{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:3px 2px}
   .net-chips .lbl{font-size:12px;color:var(--dim);flex:none}
   .net-chips button{flex:none;padding:5px 11px;border-radius:999px;border:1px solid var(--line);
        background:var(--card2);color:var(--dim);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
@@ -89,13 +89,19 @@
   /* Одинаковые карточки одного вида (сети) — сеткой, ряд одной высоты. */
   .cards.same{grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));align-items:stretch}
   /* Вкладки внутри раздела: под заголовком; на телефоне листаются вбок. */
-  .subtabs{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:-2px 0 2px;
-           padding-bottom:2px}
+  .subtabs{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:-5px -4px -1px;
+           padding:3px 4px 3px}
   .subtabs::-webkit-scrollbar{display:none}
   .subtabs button{flex:none;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card2);
                   color:var(--dim);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
   .subtabs button:hover{color:var(--text)}
   .subtabs button.on{background:var(--accent-muted);border-color:var(--accent-muted);color:#fff}
+  /* Обводка нажатой кнопки-«таблетки» — внутри неё (ТЗ 24): ряд с
+     прокруткой вбок обрезает всё, что выходит за его край. */
+  .subtabs button:focus-visible,.chips button:focus-visible,.net-chips button:focus-visible,.seg button:focus-visible{
+    outline:2px solid var(--accent);outline-offset:-3px}
+  .subtabs button:focus:not(:focus-visible),.chips button:focus:not(:focus-visible),
+  .net-chips button:focus:not(:focus-visible),.seg button:focus:not(:focus-visible){outline:none}
   /* Средняя ширина: раздел — только значком, чтобы содержимому хватило места. */
   @media (max-width:1100px) and (min-width:761px){
     .app{grid-template-columns:64px minmax(0,1fr)}
@@ -552,6 +558,10 @@
   .edge.srv{stroke-width:2.6}
   .edge.srv.on{stroke-dasharray:9 8;animation-duration:.9s}
   .edge.off{stroke:var(--dim);opacity:.28;stroke-dasharray:2 6}
+  /* Соединение, пересланное между серверами (meshd 7): пунктир через оба. */
+  .edge.relay{stroke:var(--warn);stroke-width:2;stroke-dasharray:6 5;animation:flow 1s linear infinite;opacity:.9}
+  /* Сервер без связи: последняя картина, серым. */
+  .node.stale{opacity:.45}
   /* Прямое соединение между устройствами (минуя сервер). */
   .edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;animation:flow .7s linear infinite;
     filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent))}
@@ -621,6 +631,26 @@
 
   .srv-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
   .srv-row:last-child{border-bottom:none}
+  .srv-row .n .icon-btn{width:26px;height:26px;margin-left:6px;vertical-align:middle}
+  .copy{cursor:copy;border-bottom:1px dashed color-mix(in srgb, var(--dim) 60%, transparent)}
+  .copy:hover{color:var(--accent)}
+  .copied{margin-left:8px;font-size:12px;font-weight:600;color:var(--ok)}
+  .copied.fail{color:var(--err)}
+  .dconns{margin:10px 0 4px;display:grid;gap:5px;font-size:13px}
+  .dconns .k{margin-top:6px;color:var(--dim);font-size:12px}
+  .dconn{display:flex;align-items:center;gap:8px;min-width:0}
+  .dconn span:last-child{min-width:0;overflow-wrap:anywhere}
+  .net-sec{margin-top:12px}
+  .net-sec .k{color:var(--dim);font-size:12px;margin-bottom:4px}
+  .net-dev{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:5px 0;
+    border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+  .net-dev:last-child{border-bottom:none}
+  .net-dev .h{color:var(--dim);font-size:12px}
+  .net-dev .v{grid-column:2/-1;color:var(--dim);font-size:12px;overflow-wrap:anywhere}
+  .net-dev .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .net-add{margin-top:12px;font-size:13px}
+  .net-add summary{cursor:pointer;font-weight:600}
+  .net-add ol{margin:8px 0;padding-left:20px;display:grid;gap:4px}
   .srv-row .nm{flex:1;min-width:0}
   .srv-row .nm .n{font-weight:600}
   .srv-row .nm .h{font:11.5px var(--mono);color:var(--dim)}
@@ -1092,6 +1122,7 @@
           <h1><span data-i18n="mesh_servers_title">Серверы сети</span><button class="hint" data-hint="hint_servers">?</button></h1>
           <p class="note" data-i18n="srv_eq_note">Все серверы сети равны. Правила доступа, одобрения, заморозки, имена и учётные записи устройств — общие: поменял на одном, получили все.</p>
           <div class="msg warn" id="srvRemoved" hidden></div>
+          <div class="msg warn" id="srvHostNote" style="white-space:pre-line" hidden></div>
           <div class="row-inline" style="margin:4px 0 12px">
             <button class="btn" id="srvAddBtn" data-i18n="srv_add">Добавить сервер</button>
             <button class="btn ghost" id="srvJoinBtn" data-i18n="srv_join">Войти в сеть</button>
@@ -1732,6 +1763,38 @@ const I18N = {
     srv_waiting_move:'ждёт перехода',
     srv_synced:'данные сверены {t}',
     srv_offline:'нет связи',
+    srv_stale:'последние данные — {t}',
+    srv_noview:'там старая панель — его устройств не видно',
+    srv_rename:'Переименовать сервер', srv_name_ph:'Новое имя сервера', srv_rename_yes:'Переименовать',
+    srv_rename_confirm:'Переименовать сервер «{a}» в «{b}»? Новое имя увидят все серверы сети, схема и устройства.',
+    srv_renamed:'Имя сервера изменено — остальные серверы получат его за полминуты',
+    srv_hostbad:'адрес не годится устройствам',
+    srv_hostbad_note:'У сервера «{s}» адрес {h} — он есть только внутри сети устройств, снаружи по нему не дойти, и устройства этот сервер сами не добавят. Обнови панель на «{s}»: новая отдаёт в сеть свой внешний адрес.',
+    srv_sshhost_inside:'Панель запущена с -ssh-host {h} — по этому адресу снаружи сети устройств не дойти. Другим серверам и устройствам отдан внешний адрес этого сервера: {x}.',
+    srv_tile_reach:'на связи',
+    ago_back:'{t} назад',
+    dev_conns:'На связи через', dev_conns_none:'не на связи', dev_conn_stale:'данные {t}',
+    dev_why_head:'Почему не на связи',
+    why_server_down:'{s}: сервер сейчас не на связи',
+    why_old_meshd:'{s}: на сервере {b} старый meshd — обнови',
+    why_bad_host:'{s}: у сервера нет адреса, по которому до него дойти ({h})',
+    why_no_account:'{s}: учётная запись на {s} не создана',
+    why_profile_off:'{s}: профиль {s} на устройстве есть, но сеть устройств в нём выключена',
+    why_old_app:'{s}: у устройства старая программа (нужна v1.10.1)',
+    why_phone:'{s}: телефон добавляет серверы только вручную',
+    why_unknown:'{s}: не знаем почему — устройство не сообщало',
+    why_here:'На устройстве нет профиля этого сервера — программа v1.10.1 на ПК добавит его сама, на телефоне — вручную.',
+    copied_short:'Скопировано', copy_failed_short:'Не скопировалось', copy_hint:'Нажми, чтобы скопировать',
+    net_devs_head:'Устройства', net_srvs_head:'Серверы, через которые она работает', net_no_devs:'Устройств пока нет.',
+    net_add_head:'Как добавить устройство в эту сеть',
+    net_add_1:'Ключ сети есть только на устройствах: сервер хранит лишь его отпечаток, поэтому панель ключ не покажет.',
+    net_add_2:'На любом устройстве этой сети открой программу: профиль сервера → «Сеть устройств» → «Ключ сети» → «Скопировать».',
+    net_add_3:'На новом устройстве вставь ключ туда же — в «Сеть устройств» → «Ключ сети» — и включи сеть устройств.',
+    net_add_warn:'Настройки, которые панель выдаёт новому устройству («Устройства» → «Добавить устройство»), ключа сети не содержат: без вставленного ключа устройство заведёт свою, новую сеть.',
+    relay_title:'через серверы {a} → {b}',
+    acc_on_confirm:'Включить правила доступа? Устройства смогут соединяться только так, как разрешают правила.',
+    acc_off_confirm:'Выключить правила доступа? Все устройства сети смогут соединяться со всеми.',
+    acc_on_yes:'Включить', acc_off_yes:'Выключить',
     srv_remove:'Убрать из сети',
     srv_leave:'Выйти из сети',
     srv_remove_confirm:'Убрать «{n}» из сети? Остальные серверы забудут его и закроют ему вход. Сам он продолжит работать один со своими данными.',
@@ -2127,6 +2190,38 @@ const I18N = {
     srv_waiting_move:'waiting to move',
     srv_synced:'data synced {t}',
     srv_offline:'no connection',
+    srv_stale:'last data — {t}',
+    srv_noview:'old panel there — its devices are not visible',
+    srv_rename:'Rename server', srv_name_ph:'New server name', srv_rename_yes:'Rename',
+    srv_rename_confirm:'Rename server «{a}» to «{b}»? All servers of the network, the map and the devices will see the new name.',
+    srv_renamed:'Server renamed — the other servers get it within half a minute',
+    srv_hostbad:'address unusable for devices',
+    srv_hostbad_note:'Server «{s}» has the address {h} — it exists only inside the device network, it cannot be reached from outside, and devices will not add this server by themselves. Update the panel on «{s}»: the new one gives the network its public address.',
+    srv_sshhost_inside:'The panel runs with -ssh-host {h} — this address cannot be reached from outside the device network. Other servers and devices got this server\'s public address instead: {x}.',
+    srv_tile_reach:'reachable',
+    ago_back:'{t} ago',
+    dev_conns:'Connected via', dev_conns_none:'not connected', dev_conn_stale:'data {t}',
+    dev_why_head:'Why not connected',
+    why_server_down:'{s}: the server is not reachable now',
+    why_old_meshd:'{s}: old meshd on server {b} — update it',
+    why_bad_host:'{s}: the server has no address devices can reach ({h})',
+    why_no_account:'{s}: the account on {s} is not created',
+    why_profile_off:'{s}: the device has a {s} profile, but the device network is off in it',
+    why_old_app:'{s}: old program on the device (v1.10.1 needed)',
+    why_phone:'{s}: a phone adds servers only by hand',
+    why_unknown:'{s}: unknown — the device did not report',
+    why_here:'The device has no profile of this server — the program v1.10.1 on a PC adds it by itself, on a phone it is added by hand.',
+    copied_short:'Copied', copy_failed_short:'Not copied', copy_hint:'Click to copy',
+    net_devs_head:'Devices', net_srvs_head:'Servers it works through', net_no_devs:'No devices yet.',
+    net_add_head:'How to add a device to this network',
+    net_add_1:'The network key exists only on devices: the server keeps only its fingerprint, so the panel cannot show the key.',
+    net_add_2:'On any device of this network open the program: server profile → «Device network» → «Network key» → «Copy».',
+    net_add_3:'On the new device paste the key into the same place — «Device network» → «Network key» — and turn the device network on.',
+    net_add_warn:'The settings the panel gives a new device («Devices» → «Add device») carry no network key: without a pasted key the device makes its own new network.',
+    relay_title:'via servers {a} → {b}',
+    acc_on_confirm:'Turn the access rules on? Devices will only connect the way the rules allow.',
+    acc_off_confirm:'Turn the access rules off? All devices of the network will be able to connect to all.',
+    acc_on_yes:'Turn on', acc_off_yes:'Turn off',
     srv_remove:'Remove from the network',
     srv_leave:'Leave the network',
     srv_remove_confirm:'Remove “{n}” from the network? The other servers forget it and close its access. It keeps working alone with its own data.',
@@ -2735,7 +2830,7 @@ function renderDevList(){
     if (hb){ hb.style.margin = '0 6px 0 0'; sub.prepend(hb); }
     nm.appendChild(sub);
     row.appendChild(nm);
-    row.appendChild(el('span', 'c-ip', (it.mesh && it.mesh.ip) || '—'));
+    row.appendChild(copyable(el('span', 'c-ip', (it.mesh && it.mesh.ip) || '—'), it.mesh && it.mesh.ip));
     row.appendChild(el('span', 'c-sys', itemSystem(it) || '—'));
     const ms = el('span', 'c-ms');
     if (it.mesh && it.mesh.online){
@@ -2803,7 +2898,9 @@ function renderDetail(){
   const hb = holdBadge(d);
   if (hb){ hb.style.marginLeft = '8px'; nn.appendChild(hb); }
   nm.appendChild(nn);
-  nm.appendChild(el('div', 'h', d ? d.host + '.mesh' : (c.username || '')));
+  const hh = el('div', 'h');
+  hh.appendChild(d ? copyable(el('span', '', d.host + '.mesh'), d.host + '.mesh') : document.createTextNode(c.username || ''));
+  nm.appendChild(hh);
   top.appendChild(nm);
   if (d){
     const pencil = el('button', 'icon-btn');
@@ -2820,7 +2917,7 @@ function renderDetail(){
     const part = el('div', 'dpart');
     part.appendChild(el('h2', '', t('dev_part_mesh')));
     const idrow = el('div', 'idrow');
-    idrow.appendChild(el('span', 'ip', d.ip || '—'));
+    idrow.appendChild(copyable(el('span', 'ip', d.ip || '—'), d.ip));
     const sys = systemText(d);
     if (sys) idrow.appendChild(el('span', 'sys', sys));
     part.appendChild(idrow);
@@ -2832,13 +2929,14 @@ function renderDetail(){
     const modeText = d.mode ? t('mode_' + d.mode) : '—';
     fact(facts, t('dev_mode'), modeText.startsWith('mode_') ? d.mode : modeText);
     if (d.nat) fact(facts, t('dev_nat'), natLabel(d.nat));
-    fact(facts, t('dev_via'), serverName(d.server));
+    fact(facts, t('dev_conns'), connText(d));
     if (d.online && d.direct && d.direct.length) fact(facts, t('dev_direct'), directText(d));
     fact(facts, t('dev_traffic'), '↑' + fmtBytes(d.bytesUp) + ' ↓' + fmtBytes(d.bytesDown));
     fact(facts, d.online ? t('dev_since') : t('dev_last'), d.online ? fmtAgo(d.connectedAt) : fmtClock(d.lastSeen));
     if (d.app) fact(facts, t('dev_app'), d.app);
     fact(facts, t('dev_sessions'), String(d.sessions || 0));
     part.appendChild(facts);
+    renderDevConns(part, d);
     renderDevHold(part, d);
     const acts = el('div', 'dacts');
     if (d.alias){
@@ -2906,6 +3004,35 @@ function renderDetail(){
   btn('danger', 'delete_client', () => deleteClient(c.id));
   part.appendChild(acts);
   box.appendChild(part);
+}
+
+// renderDevConns — связь с каждым сервером сети: на связи (с задержкой) или
+// нет и почему (ТЗ 24, п. 4 и 13).
+function renderDevConns(part, d){
+  const conns = devConns(d), miss = d.missing || [];
+  if (!miss.length && !conns.some(c => !c.online && c.stale)) return;
+  const box = el('div', 'dconns');
+  // С кем на связи — уже в «На связи через»; здесь — только без связи:
+  // старая картина сервера и почему нет связи с остальными.
+  conns.filter(c => !c.online).forEach(c => {
+    const r = el('div', 'dconn');
+    r.appendChild(el('span', 'dot' + (c.online ? ' on' : '')));
+    const txt = serverName(c.server) + ' — ' + (c.online ? t('sec_connected') + (c.rttMs ? ' · ' + fmtMs(c.rttMs) : '') : t('dev_conns_none')) +
+      (c.stale ? ' · ' + fill('dev_conn_stale', {t: ageText(c.age || 0)}) : '');
+    r.appendChild(el('span', '', txt));
+    box.appendChild(r);
+  });
+  if (miss.length){
+    box.appendChild(el('div', 'k', t('dev_why_head')));
+    miss.forEach(m => {
+      const r = el('div', 'dconn');
+      r.appendChild(el('span', 'dot'));
+      r.appendChild(el('span', '', whyText(m)));
+      box.appendChild(r);
+    });
+    if (d.online && !d.here && miss.some(m => m.server === 'main')) box.appendChild(el('p', 'note', t('why_here')));
+  }
+  part.appendChild(box);
 }
 
 async function clientAction(action, id){
@@ -3018,6 +3145,9 @@ $('accAddRuleBtn').addEventListener('click', () => {
 });
 $('accSaveBtn').addEventListener('click', async () => {
   showMsg($('accessMsg'), '', '');
+  // Включение и выключение правил — только с подтверждения (ТЗ 24).
+  if (!!ACCESS.enabled !== !!(ACCESS_RAW && ACCESS_RAW.enabled) &&
+      !await appConfirm(t(ACCESS.enabled ? 'acc_on_confirm' : 'acc_off_confirm'), t(ACCESS.enabled ? 'acc_on_yes' : 'acc_off_yes'))) return;
   const {ok, data} = await api('/api/access', ACCESS);
   if (!ok){ showMsg($('accessMsg'), errText(data.error, data), 'err'); return; }
   showMsg($('accessMsg'), data.warning || t('acc_saved'), data.warning ? 'err' : 'ok');
@@ -4004,9 +4134,12 @@ let MESH = null, MESH_TIMER = null, MESH_FILTER = 'all', MESH_NET = null;
 let MESH_EDIT = null;      // id устройства, которое сейчас переименовывают
 let SRV_CODE = '';         // код «Добавить сервер», пока он показан
 
+let MESH_FRESH = true; // страницу открыли: попросить свежие картины других серверов
 async function loadMesh(){
   clearTimeout(MESH_TIMER);
-  const {ok, data} = await api('/api/mesh/state');
+  const fresh = MESH_FRESH;
+  MESH_FRESH = false;
+  const {ok, data} = await api('/api/mesh/state' + (fresh ? '?fresh=1' : ''));
   if (ok){
     MESH = data;
     renderMesh();
@@ -4022,6 +4155,45 @@ function scheduleMesh(){
     if (document.hidden){ scheduleMesh(); return; }
     loadMesh();
   }, fast ? 1500 : 5000);
+}
+// Вернулись на вкладку — снова свежие картины (сервер сам не чаще раза в 5 с).
+document.addEventListener('visibilitychange', () => { if (!document.hidden) MESH_FRESH = true; });
+
+/* ---------- одна картина сети на всех серверах (ТЗ 24) ---------- */
+function srvById(id){ return ((MESH && MESH.servers) || []).find(s => s.id === id); }
+// devConns — связь устройства с каждым сервером сети (старая панель без
+// conns — одна связь с тем сервером, через который оно пришло).
+function devConns(d){
+  if (d.conns && d.conns.length) return d.conns;
+  return [{server: d.server, online: d.online, rttMs: d.rttMs, rttAvgMs: d.rttAvgMs, quality: d.quality,
+           bytesUp: d.bytesUp, bytesDown: d.bytesDown}];
+}
+function ageText(sec){ return sec < 60 ? t('ago_now') : fill('ago_back', {t: fmtAgo(Date.now() / 1000 - sec)}); }
+function qOfMs(v){ return !v ? 'unknown' : v < 60 ? 'good' : v < 150 ? 'fair' : 'poor'; }
+// connText — «Германия · 5 мс, London · 30 мс» (только те, с кем на связи).
+function connText(d){
+  const on = devConns(d).filter(c => c.online);
+  if (!on.length) return t('dev_conns_none');
+  return on.map(c => serverName(c.server) + (c.rttMs ? ' · ' + fmtMs(c.rttMs) : '')).join(', ');
+}
+function whyText(m){
+  const key = 'why_' + String(m.code || 'unknown').replace(/-/g, '_');
+  return fill(I18N[LANG][key] ? key : 'why_unknown', {s: serverName(m.server), b: serverName(m.by || ''), h: m.host || ''});
+}
+// copyable — щелчок по node копирует text, рядом на миг «Скопировано».
+function copyable(node, text){
+  if (!text || text === '—') return node;
+  node.classList.add('copy');
+  node.title = t('copy_hint');
+  node.addEventListener('click', async e => {
+    e.stopPropagation();
+    e.preventDefault();
+    const ok = await copyText(text);
+    const tip = el('span', 'copied' + (ok ? '' : ' fail'), ok ? t('copied_short') : t('copy_failed_short'));
+    node.after(tip);
+    setTimeout(() => tip.remove(), 1400);
+  });
+  return node;
 }
 
 function meshDevices(){
@@ -4139,14 +4311,17 @@ function renderMeshMain(){
   const online = devices.filter(d => d.online);
   animateNum($('tileDevices'), online.length, v => Math.round(v));
   $('tileDevicesSub').textContent = t('tile_online') + ' · ' + t('tile_of') + ' ' + devices.length;
+  // Счётчики — по всей сети (ТЗ 24): серверы сети, задержка и трафик со
+  // всех серверов.
   const servers = m.servers || [];
   animateNum($('tileServers'), servers.filter(s => s.online).length, v => Math.round(v));
-  $('tileServersSub').textContent = t('tile_online') + ' · ' + t('tile_of') + ' ' + servers.length;
-  const rtts = online.map(d => d.rttAvgMs).filter(Boolean);
+  $('tileServersSub').textContent = t('srv_tile_reach') + ' · ' + t('tile_of') + ' ' + servers.length;
+  const rtts = [];
+  devices.forEach(d => devConns(d).forEach(c => { if (c.online && (c.rttAvgMs || c.rttMs)) rtts.push(c.rttAvgMs || c.rttMs); }));
   const avg = rtts.length ? rtts.reduce((a, b) => a + b, 0) / rtts.length : 0;
   if (avg) animateNum($('tileLatency'), avg, fmtMs); else $('tileLatency').textContent = '—';
   $('tileLatencySub').textContent = avg ? t('tile_avg') : t('tile_no_data');
-  const traffic = devices.reduce((a, d) => a + (d.bytesUp || 0), 0);
+  const traffic = devices.reduce((a, d) => a + devConns(d).reduce((x, c) => x + (c.bytesUp || 0), 0), 0);
   animateNum($('tileTraffic'), traffic, fmtBytes);
   $('tileTrafficSub').textContent = t('tile_traffic_sub');
 
@@ -4200,7 +4375,8 @@ function edgeMs(v){
 // mapEdge — линия схемы между узлами a и b. Она из двух половинок, чтобы
 // посередине оставить окно под цифры задержки.
 function mapEdge(sim, a, b, kind, labelOn){
-  const cls = kind === 'srv' ? 'edge srv' : kind === 'p2p' ? 'edge p2p' : 'edge';
+  const cls = kind === 'srv' ? 'edge srv' : kind === 'p2p' ? 'edge p2p' : kind === 'relay' ? 'edge relay' : 'edge';
+  if (kind === 'relay') kind = 'p2p'; // раскладка — как у прямого соединения: слабая пружина
   const g = svgEl('g', {class: cls}, kind === 'p2p' ? sim.gDirect : sim.gEdges);
   const e = {a, b, kind, g, labelOn, text: '', w: 0,
     bend: 0,
@@ -4661,14 +4837,23 @@ function dragNode(sim, n){
 }
 
 function qClass(online, q){ return online ? 'on q-' + (q || 'unknown') : 'off'; }
+// mapServersOf — к каким серверам на схеме тянуть линии от устройства: с
+// кем на связи; ни с кем — к тому, через который его знаем.
+function mapServersOf(d){
+  const on = devConns(d).filter(c => c.online).map(c => c.server);
+  return on.length ? [...new Set(on)] : [d.server];
+}
 
 function renderMap(servers, devices){
   const svg = $('meshMap');
   const W = Math.round(svg.clientWidth) || 720, H = Math.round(svg.clientHeight) || 420;
   // Раскладка меняется только от состава сети; качество связи и «в сети»
   // обновляются на месте — иначе схема мигала бы при каждом опросе.
+  const links = (MESH && MESH.serverLinks) || [];
+  const relays = ((MESH && MESH.relays) || []).filter(r => r.net === MESH_NET);
   const sig = [W, H, LANG, servers.map(s => s.id + '/' + s.name).join(','),
-    devices.map(d => d.id + '/' + d.server + '/' + d.display + '/' + d.platform).join(',')].join('|');
+    devices.map(d => d.id + '/' + mapServersOf(d).join('+') + '/' + d.display + '/' + d.platform).join(','),
+    links.map(l => l.a + '-' + l.b).join(','), relays.map(r => r.from + '>' + r.to).join(',')].join('|');
   if (sig !== MAP_SIG){
     const first = !MAP_SIG;
     MAP_SIG = sig;
@@ -4677,20 +4862,27 @@ function renderMap(servers, devices){
   servers.forEach(s => {
     const r = MAP_REFS['s:' + s.id];
     if (!r) return;
-    const q = s.main ? 'excellent' : (s.link && s.link.quality);
-    if (r.edge){
-      r.edge.g.setAttribute('class', 'edge srv ' + qClass(s.online, q));
-      setEdgeText(r.edge, s.online && s.link ? edgeMs(s.link.rttMs) : '', qColor(s.online, q));
-    }
     r.node.classList.toggle('offline', !s.online);
+    r.node.classList.toggle('stale', !!s.stale);
     r.halo.style.display = s.online ? '' : 'none';
     r.data = s;
+  });
+  // Линии между серверами: цвет — по задержке связи сервер—сервер.
+  links.forEach(l => {
+    const e = MAP_REFS['l:' + l.a + '|' + l.b];
+    if (!e) return;
+    const q = l.rttMs ? qOfMs(l.rttMs) : (l.online ? 'excellent' : 'unknown');
+    e.g.setAttribute('class', 'edge srv ' + qClass(l.online, q));
+    setEdgeText(e, l.online ? edgeMs(l.rttMs) : '', qColor(l.online, q));
   });
   devices.forEach(d => {
     const r = MAP_REFS['d:' + d.id];
     if (!r) return;
-    r.edge.g.setAttribute('class', 'edge ' + qClass(d.online, d.quality));
-    setEdgeText(r.edge, d.online ? edgeMs(d.rttMs) : '', qColor(d.online, d.quality));
+    (r.edges || []).forEach(({e, srv}) => {
+      const c = devConns(d).find(x => x.server === srv) || {};
+      e.g.setAttribute('class', 'edge ' + qClass(c.online, c.quality));
+      setEdgeText(e, c.online ? edgeMs(c.rttMs) : '', qColor(c.online, c.quality));
+    });
     r.node.classList.toggle('offline', !d.online);
     r.halo.style.display = d.online ? '' : 'none';
     r.disc.setAttribute('stroke', qColor(d.online, d.quality));
@@ -4831,18 +5023,39 @@ function buildMap(svg, W, H, servers, devices, animate){
   }
   secs.forEach((s, i) => {
     const a = i * 2 * Math.PI / secs.length;
-    const r = node('s:' + s.id, {x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a)}, 17, GLYPH.server, s.name,
-      s.meshHost ? s.meshHost + '.mesh' : (s.host || ''), s, true, false);
-    if (main) r.edge = mapEdge(sim, sim.byKey['s:' + main.id], r.n, 'srv', true);
+    node('s:' + s.id, {x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a)}, 17, GLYPH.server, s.name,
+      s.stale ? ageText(s.age || 0) : (s.meshHost ? s.meshHost + '.mesh' : (s.host || '')), s, true, false);
   });
+  // Линии между серверами — из MESH.serverLinks (ТЗ 24); старая панель без
+  // них — как раньше, от этого сервера к каждому.
+  const links = (MESH && MESH.serverLinks) || [];
+  if (links.length){
+    links.forEach(l => {
+      const a = sim.byKey['s:' + l.a], b = sim.byKey['s:' + l.b];
+      if (a && b) MAP_REFS['l:' + l.a + '|' + l.b] = mapEdge(sim, a, b, 'srv', true);
+    });
+  } else if (main){
+    secs.forEach(s => { MAP_REFS['l:' + main.id + '|' + s.id] = mapEdge(sim, sim.byKey['s:' + main.id], sim.byKey['s:' + s.id], 'srv', true); });
+  }
   devices.forEach((d, j) => {
-    const sref = MAP_REFS['s:' + d.server] || (main && MAP_REFS['s:' + main.id]);
-    if (!sref) return;
-    const sp = sref.n, a = j * 2.4 + 0.7; // золотой угол — соседи не друг на друге
+    const ids = mapServersOf(d).filter(id => MAP_REFS['s:' + id]);
+    if (!ids.length && main) ids.push(main.id);
+    if (!ids.length) return;
+    const sp = MAP_REFS['s:' + ids[0]].n, a = j * 2.4 + 0.7; // золотой угол — соседи не друг на друге
     const rr = narrow ? 80 : 115;
     const r = node('d:' + d.id, {x: sp.x + rr * Math.cos(a), y: sp.y + rr * 0.8 * Math.sin(a)}, narrow ? 10.5 : 12.5,
       glyphOf(d.platform), d.display, d.host + '.mesh', d, false, false);
-    r.edge = mapEdge(sim, r.n, sp, 'dev', !many);
+    // Линия к каждому серверу, с которым устройство на связи (ТЗ 24).
+    r.edges = ids.map(id => ({e: mapEdge(sim, r.n, MAP_REFS['s:' + id].n, 'dev', !many), srv: id}));
+    r.edge = r.edges[0].e;
+  });
+  // Соединения, пересланные между серверами (meshd 7): пунктир.
+  ((MESH && MESH.relays) || []).filter(x => x.net === MESH_NET).forEach(x => {
+    const a = sim.byKey['d:' + x.from];
+    const b = sim.byKey[x.to.startsWith('srv:') ? 's:' + x.to.slice(4) : 'd:' + x.to];
+    if (!a || !b) return;
+    const e = mapEdge(sim, a, b, 'relay', false);
+    svgEl('title', {}, e.g).textContent = fill('relay_title', {a: serverName(x.a), b: serverName(x.b)});
   });
   if (!servers.length){
     const tx = svgEl('text', {x: cx, y: cy, 'text-anchor': 'middle', fill: 'var(--dim)'}, view);
@@ -4875,7 +5088,7 @@ function devicePop(d){
     [t('dev_platform'), systemText(d)],
     [t('dev_mode'), d.mode ? t('mode_' + d.mode) : ''],
     [t('dev_latency'), d.online && d.rttMs ? fmtMs(d.rttMs) + ' · ' + t('q_' + d.quality) : ''],
-    [t('dev_via'), serverName(d.server)],
+    [t('dev_conns'), connText(d)],
     [t('dev_direct'), d.online ? directText(d) : ''],
     [d.online ? t('dev_since') : t('dev_last'), d.online ? fmtAgo(d.connectedAt) : fmtClock(d.lastSeen)],
   ]);
@@ -4885,8 +5098,9 @@ function serverPop(s){
   return popBox(s.name, [
     ['host', s.host],
     ['.mesh', s.meshHost ? s.meshHost + '.mesh · ' + s.meshIp : ''],
-    [t('status_label'), s.online ? t('sec_connected') : t('srv_waiting')],
-    [t('dev_latency'), l && l.rttMs ? fmtMs(l.rttMs) + ' · ' + t('q_' + l.quality) : ''],
+    [t('status_label'), s.online ? t('sec_connected') : (s.stale ? fill('srv_stale', {t: ageText(s.age || 0)}) : t('srv_offline'))],
+    [t('dev_latency'), l && l.rttMs ? fmtMs(l.rttMs) + ' · ' + t('q_' + l.quality) : (s.rttMs ? fmtMs(s.rttMs) : '')],
+    [t('nav_devices'), s.noView ? t('srv_noview') : ''],
     [t('dev_since'), l ? fmtAgo(l.connectedAt) : ''],
   ]);
 }
@@ -5025,9 +5239,19 @@ function renderMeshServers(){
   $('srvAddBtn').hidden = !!sn.legacy;
   $('srvRemoved').hidden = !sn.removed || !!sn.net;
   $('srvRemoved').textContent = sn.removed ? t('srv_removed_note').replace('{n}', sn.removed) : '';
+  const bad = (sn.servers || []).filter(s => s.hostBad && !s.self);
+  const notes = [];
+  if (sn.sshHostInside){
+    const me = (sn.servers || []).find(s => s.self);
+    notes.push(fill('srv_sshhost_inside', {h: sn.sshHostInside, x: (me && me.host) || '—'}));
+  }
+  bad.forEach(s => notes.push(fill('srv_hostbad_note', {s: s.name || s.host, h: s.host})));
+  $('srvHostNote').hidden = !notes.length;
+  $('srvHostNote').textContent = notes.join('\n\n');
   const box = $('meshServers');
-  const sig = LANG + '|' + JSON.stringify(sn.servers) + '|' + (sn.net || '');
-  if (box.dataset.sig === sig) return;
+  const sig = LANG + '|' + JSON.stringify(sn.servers) + '|' + (sn.net || '') + '|' +
+    ((MESH && MESH.servers) || []).map(s => s.id + (s.stale ? ':' + Math.floor((s.age || 0) / 60) : '')).join(',');
+  if (box.dataset.sig === sig || SRV_EDIT) return;
   box.dataset.sig = sig;
   box.innerHTML = '';
   (sn.servers || []).forEach(s => {
@@ -5037,10 +5261,21 @@ function renderMeshServers(){
     const n = el('div', 'n', s.name || s.host);
     if (s.self) n.appendChild(el('span', 'badge dim', t('srv_main'))).style.marginLeft = '8px';
     if (s.waiting) n.appendChild(el('span', 'badge warn', t('srv_waiting_move'))).style.marginLeft = '8px';
+    if (s.hostBad) n.appendChild(el('span', 'badge warn', t('srv_hostbad'))).style.marginLeft = '8px';
+    const pencil = el('button', 'icon-btn');
+    pencil.type = 'button';
+    pencil.title = t('srv_rename');
+    pencil.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>';
+    pencil.addEventListener('click', () => startSrvRename(s, n));
+    n.appendChild(pencil);
     nm.appendChild(n);
     const sub = [(s.host || '') + (s.port && s.port !== 22 ? ':' + s.port : '')];
     if (!s.self && !s.waiting){
       sub.push(s.online ? (s.lastSync ? t('srv_synced').replace('{t}', fmtAgo(s.lastSync)) : '') : (s.error || t('srv_offline')));
+      const ms = srvById(s.id);
+      if (ms && ms.stale) sub.push(fill('srv_stale', {t: ageText(ms.age || 0)}));
+      if (ms && ms.noView && s.online) sub.push(t('srv_noview'));
+      if (s.online && s.rttMs) sub.push(fmtMs(s.rttMs));
     }
     nm.appendChild(el('div', 'h', sub.filter(Boolean).join(' · ')));
     row.appendChild(nm);
@@ -5058,6 +5293,39 @@ function renderMeshServers(){
     box.appendChild(row);
   });
 }
+// Переименование сервера сети (ТЗ 24): имя общее — побеждает последнее.
+let SRV_EDIT = null;
+function startSrvRename(s, holder){
+  SRV_EDIT = s.id;
+  holder.innerHTML = '';
+  const inp = el('input', 'net-name');
+  inp.type = 'text';
+  inp.maxLength = 48;
+  inp.value = s.name || '';
+  inp.placeholder = t('srv_name_ph');
+  holder.appendChild(inp);
+  inp.focus();
+  inp.select();
+  let done = false;
+  const finish = async save => {
+    if (done) return;
+    done = true;
+    const v = inp.value.trim();
+    if (save && v && v !== s.name && await appConfirm(fill('srv_rename_confirm', {a: s.name || s.host, b: v}), t('srv_rename_yes'))){
+      const {ok, data} = await api('/api/mesh/servers/rename', {id: s.self ? 'main' : s.id, name: v});
+      if (!ok) toast(data.error || t('err_internal'), 'err'); else toast(t('srv_renamed'));
+    }
+    SRV_EDIT = null;
+    $('meshServers').dataset.sig = '';
+    loadMesh();
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); finish(true); }
+    if (e.key === 'Escape'){ e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+}
+
 $('srvAddBtn').addEventListener('click', async () => {
   const btn = $('srvAddBtn');
   btn.disabled = true;
@@ -5979,6 +6247,7 @@ function renderNets(){
     if (!devs.length && n.emptySince) kv(t('net_autoremove'), fmtDay(n.emptySince + NET_TTL));
     kv(t('net_id'), n.id.length > 16 ? n.id.slice(0, 16) + '…' : n.id);
     if (!devs.length) card.appendChild(el('p', 'note net-note', t(n.emptySince ? 'net_empty_note' : 'net_empty_note_old')));
+    renderNetMembers(card, n);
     renderNetApproval(card, n);
 
     const acts = el('div', 'dacts');
@@ -5993,6 +6262,43 @@ function renderNets(){
     card.appendChild(acts);
     box.appendChild(card);
   });
+}
+
+// renderNetMembers — устройства сети, серверы, через которые она работает,
+// и как добавить в неё устройство (ТЗ 24, п. 7).
+function renderNetMembers(card, n){
+  const devs = (n.devices || []).slice().sort((a, b) => (b.online - a.online) || String(a.display).localeCompare(b.display));
+  const sec = el('div', 'net-sec');
+  sec.appendChild(el('div', 'k', t('net_devs_head')));
+  if (!devs.length) sec.appendChild(el('p', 'note', t('net_no_devs')));
+  devs.forEach(d => {
+    const r = el('div', 'net-dev');
+    r.appendChild(el('span', 'dot' + (d.online ? ' on' : '')));
+    const nm = el('span', 'nm', d.display);
+    r.appendChild(nm);
+    r.appendChild(el('span', 'h', d.host + '.mesh'));
+    r.appendChild(el('span', 'v', connText(d)));
+    r.addEventListener('click', () => focusDevice(d.id));
+    sec.appendChild(r);
+  });
+  card.appendChild(sec);
+  const ids = new Set();
+  devs.forEach(d => devConns(d).forEach(c => ids.add(c.server)));
+  if (n.devices && n.devices.some(d => d.here) || !ids.size) ids.add('main');
+  const srv = el('div', 'net-sec');
+  srv.appendChild(el('div', 'k', t('net_srvs_head')));
+  srv.appendChild(el('div', 'v', [...ids].map(id => {
+    const s = srvById(id);
+    return serverName(id) + (s && !s.online ? ' (' + t('srv_offline') + ')' : '');
+  }).join(', ')));
+  card.appendChild(srv);
+  const how = el('details', 'net-add');
+  how.appendChild(el('summary', '', t('net_add_head')));
+  const ol = el('ol');
+  ['net_add_1', 'net_add_2', 'net_add_3'].forEach(k => ol.appendChild(el('li', '', t(k))));
+  how.appendChild(ol);
+  how.appendChild(el('p', 'note', t('net_add_warn')));
+  card.appendChild(how);
 }
 
 function startNetRename(n, i, h){
@@ -6568,7 +6874,9 @@ function renderSimple(){
 
 async function smSetEnabled(){
   const on = !ACCESS_RAW.enabled;
-  if (on && !(ACCESS_RAW.rules || []).length && !await appConfirm(t('sm_enable_norules'), t('sm_turn_on'))) return;
+  if (on && !(ACCESS_RAW.rules || []).length){
+    if (!await appConfirm(t('sm_enable_norules'), t('sm_turn_on'))) return;
+  } else if (!await appConfirm(t(on ? 'acc_on_confirm' : 'acc_off_confirm'), t(on ? 'acc_on_yes' : 'acc_off_yes'))) return;
   const {ok, data} = await api('/api/access', {enabled: on, groups: ACCESS_RAW.groups || [], rules: ACCESS_RAW.rules || []});
   if (!ok){ smMsg(errOf(data), 'err'); return; }
   await loadAccess();

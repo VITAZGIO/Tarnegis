@@ -68,6 +68,57 @@ not come back by itself.
 An old version of the program cannot do this and works with one server, as
 before.
 
+## One picture on every server
+
+Any server of the network shows the whole network, not only its own devices.
+«Overview», «Devices» and «Networks» are the same on every server: the same
+devices, the same numbers, the same map. The panels take each other's live
+picture every 30 seconds and right away when you open the page.
+
+- **Map.** It shows every server of the network. A line between servers is
+  the link between them: green, yellow or red by latency, grey — no link. A
+  device has a line to each server it is connected to.
+- **Counters.** «Devices» — how many devices are connected to at least one
+  server. «Servers» — how many servers the network has and how many are
+  reachable now. Latency and traffic come from all servers.
+- **Device.** The side panel says «Connected via: Germany · 5 ms, London ·
+  30 ms». Below it — which servers the device is not connected to and why:
+  old program, old `meshd` on the server, no account, profile turned off, a
+  phone adds servers only by hand.
+- **Actions.** Rename, approve, freeze, remove and the exit chain work from
+  any server, even when the device is connected to another one.
+
+**What grey means.** A server without a link stays on the map with its last
+picture: grey, signed «last data — 7 min ago». Its devices are not counted as
+online until the link is back. The picture is kept on disk, so the map is not
+empty after a panel restart.
+
+If a server runs an old panel, its devices are not visible: it is marked
+«old panel there». Update the panel on it.
+
+## Rename a server
+
+**Networks** → **Servers** → the pencil next to any server's name → new name →
+**Enter** → confirm. The name is shared: all panels, the map and the devices
+see it. The name in the device network (`name.mesh`) changes by the same rules
+as before.
+
+## Connection through another server
+
+A device connected only to Germany reaches a device of London and London
+itself (`london.mesh` and its allowed ports). The connection goes through both
+servers over their link; the map draws it dashed. Access rules are checked on
+both servers. Both servers need `meshd` version 7 and a fresh panel; with an
+old `meshd` everything works as before, just without this connection.
+
+## Server address for devices
+
+The panel gives the server network an address that can be reached from
+outside. A `.mesh` name or a device network address does not work for that.
+If the panel runs with `-ssh-host london.mesh`, it says so and gives the
+server's public address instead. A server with such an address is marked
+«address unusable for devices» in the list.
+
 ## Remove a server
 
 **Servers of the network** → **Remove from the network** at the server. On the

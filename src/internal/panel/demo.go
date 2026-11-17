@@ -59,6 +59,12 @@ type demoBackend struct {
 	srvnet   demoSrvNet            // сеть серверов (ТЗ 22)
 	capacity int
 
+	// Одна картина сети (ТЗ 24, demo_view.go): «этот» сервер, имена
+	// серверов из панели, какие устройства на каких серверах.
+	demoSelf string
+	srvName  map[string]string
+	devOn    map[string][]string
+
 	meshdStarted int64
 	events       []meshsvc.Event
 	seq          int64
@@ -217,11 +223,17 @@ func (d *demoBackend) seed() {
 	vm := dev("55aa01", "vm", "windows", "198.19.0.5", 5, true, 48, "main")
 	gst := dev("c4f0e2", "planshet-gostya", "android", "198.19.0.6", 6, false, 0, "london")
 	frn := dev("0d0d77", "druga-noutbuk", "windows", "198.19.0.8", 0, true, 35, "london")
+	// Устройства Амстердама — в его последней картине (связи с ним нет).
+	nas := dev("ams0n1", "ams-nas", "linux", "198.19.0.11", 4, true, 18, "main")
+	atv := dev("ams0t2", "ams-tv", "android", "198.19.0.12", 3, false, 0, "main")
+	for _, x := range []*MeshDevice{&pc, &wsl, &nb, &ph, &srv, &gst, &frn, &nas, &atv} {
+		x.App = "1.10.1"
+	}
 	pc.Direct = []meshsvc.DirectLink{{IP: nb.IP, RTTMs: 1.4}, {IP: srv.IP, RTTMs: 0.9}}
 	nb.Direct = []meshsvc.DirectLink{{IP: pc.IP, RTTMs: 1.4}}
 	srv.Direct = []meshsvc.DirectLink{{IP: pc.IP, RTTMs: 0.9}}
 	wsl.Alias, wsl.Display = "", "rabochiy-pk-wsl"
-	home.Devices = []MeshDevice{pc, wsl, nb, ph, srv, vm, gst, frn}
+	home.Devices = []MeshDevice{pc, wsl, nb, ph, srv, vm, gst, frn, nas, atv}
 
 	dacha := &MeshNetwork{ID: "41be09c7aa13f2d0", Created: unix - 30*day}
 	dacha.Devices = []MeshDevice{
@@ -231,14 +243,12 @@ func (d *demoBackend) seed() {
 	test := &MeshNetwork{ID: "d2c8e4f6b1a39057", Name: "Проба", Created: unix - 12*day, EmptySince: unix - 2*day - 3600}
 	d.nets = []*MeshNetwork{home, dacha, test}
 
+	// Серверы сети — в сети серверов (demo_view.go), старого способа нет.
 	d.servers = []MeshServer{
 		{ID: "main", Name: "Франкфурт", Host: "demo.example", Main: true, Online: true, Known: true,
 			MeshIP: "198.18.0.1", MeshHost: "frankfurt"},
-		{ID: "london", Name: "Лондон", Host: "london.demo.example", Online: true, Known: true,
-			Added: now.Add(-60 * 24 * time.Hour), MeshIP: "198.18.0.2", MeshHost: "london",
-			Link: &meshsvc.Server{ID: "london", Name: "Лондон", Host: "london.demo.example", ConnectedAt: unix - 5*3600,
-				RTTMs: 31, RTTAvgMs: 30, Quality: "good"}},
 	}
+	d.demoSeedOn()
 	d.self = meshsvc.Self{Name: "Франкфурт", Host: "frankfurt", IP: "198.18.0.1", Enabled: true}
 	d.meshdStarted = unix - 3*day
 	d.setPolicyPreset("simple")
@@ -374,7 +384,7 @@ func (d *demoBackend) simulate() {
 	// Каждое третье событие — попытка соединения, остальные — устройства
 	// приходят и уходят, изредка пропадает побочный сервер.
 	switch {
-	case d.step%11 == 0:
+	case d.step%11 == 0 && len(d.servers) > 1:
 		s := &d.servers[1]
 		s.Online = !s.Online
 		typ := "server-down"
@@ -1163,6 +1173,7 @@ func (d *demoBackend) routes() http.Handler {
 	})
 	d.deviceRoutes(h)
 	d.srvnetRoutes(h)
+	d.demoViewRoutes(h)
 	h("/api/mesh/check", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Net  string `json:"net"`
@@ -1571,5 +1582,6 @@ func (d *demoBackend) state() MeshState {
 	}
 	sort.SliceStable(st.Networks, func(i, j int) bool { return st.Networks[i].Created < st.Networks[j].Created })
 	st.ServerNet = d.srvnetState()
+	d.demoMerge(&st)
 	return st
 }
