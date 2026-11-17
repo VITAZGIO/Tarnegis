@@ -709,10 +709,29 @@ func (s *server) peersLocked(n *network, me *device) []peer {
 		for _, d := range n.Devices {
 			taken[d.IP], taken["h:"+d.Host] = true, true
 		}
+		// Сервер, что был здесь на связи раньше (старый способ подключения) и
+		// сейчас не на связи, место не занимает: тот же сервер есть в сети
+		// серверов на связи — показываем его, иначе он серый и недоступен.
 		for _, p := range s.serverPeersLocked(n) {
-			taken[p.IP], taken["h:"+p.Host] = true, true
+			if p.Online {
+				taken[p.IP], taken["h:"+p.Host] = true, true
+			}
 		}
-		out = append(out, s.remotePeersLocked(n, s.netIDLocked(n), me, taken)...)
+		remote := s.remotePeersLocked(n, s.netIDLocked(n), me, taken)
+		if len(remote) > 0 {
+			busy := map[string]bool{}
+			for _, r := range remote {
+				busy[r.IP], busy["h:"+r.Host] = true, true
+			}
+			kept := out[:0]
+			for _, p := range out {
+				if p.Platform == "server" && !p.Online && (busy[p.IP] || busy["h:"+p.Host]) {
+					continue
+				}
+				kept = append(kept, p)
+			}
+			out = append(kept, remote...)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
 	return out

@@ -26,6 +26,7 @@ type fakeRelay struct {
 	fails  chan string   // отказ, отданный meshd
 	in     func(q meshsvc.RelayAsk) (net.Conn, error)
 	got    []meshsvc.RelayAsk
+	sets   int // сколько раз отдали список чужих устройств
 }
 
 func newFakeRelay(a *memAdmin) *fakeRelay {
@@ -35,6 +36,7 @@ func newFakeRelay(a *memAdmin) *fakeRelay {
 func (f *fakeRelay) SetRemote(_ context.Context, nets map[string][]meshsvc.RemotePeer) error {
 	f.mu.Lock()
 	f.remote = nets
+	f.sets++
 	f.mu.Unlock()
 	return nil
 }
@@ -178,4 +180,34 @@ func TestПустойСерверВиденУстройствамДругих(t 
 		}
 	}
 	t.Fatalf("сервера London нет в сети N у Германии: %+v", list)
+}
+
+// meshd перезапустили (обновили) — у него пустые списки. Панель отдаёт их
+// сразу, а не через пять минут (у Виталия после «Обновить meshd» не было
+// ни London, ни Amsterdam).
+func TestПослеПерезапускаMeshdСписокСразу(t *testing.T) {
+	_, de, lon := twoServers(t)
+	fde := newFakeRelay(de.adm)
+	de.mesh.admin = fde
+	settle(de, lon)
+	fde.mu.Lock()
+	before := fde.sets
+	fde.mu.Unlock()
+	de.n.reconcile(context.Background())
+	fde.mu.Lock()
+	same := fde.sets
+	fde.mu.Unlock()
+	if same != before {
+		t.Fatalf("без перемен список отдан ещё раз: %d → %d", before, same)
+	}
+	de.adm.mu.Lock()
+	de.adm.started = 12345
+	de.adm.mu.Unlock()
+	de.n.reconcile(context.Background())
+	fde.mu.Lock()
+	after := fde.sets
+	fde.mu.Unlock()
+	if after != same+1 {
+		t.Fatalf("после перезапуска meshd список не отдан: %d → %d", same, after)
+	}
 }

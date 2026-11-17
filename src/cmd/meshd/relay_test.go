@@ -358,3 +358,38 @@ func TestПересылкаКПустомуСерверу(t *testing.T) {
 		t.Fatalf("устройство пустого сервера: %d %q", code, text)
 	}
 }
+
+// На Германии осталась запись сервера London от старого способа (не на
+// связи, адрес 198.19.255.253). Она не должна прятать London из сети
+// серверов (на связи, другой адрес): так у Виталия London был серым.
+func TestСтараяЗаписьСервераНеПрячетНастоящий(t *testing.T) {
+	de := relayServer(t, "de", "198.18.0.1")
+	lon := relayServer(t, "lon", "198.18.0.2")
+	echoDevice(t, de, "pc")
+	nid := netID("k")
+	de.s.mu.Lock()
+	if de.s.relayRecs == nil {
+		de.s.relayRecs = map[string]*relayRecord{}
+	}
+	de.s.relayRecs["old-london"] = &relayRecord{Name: "London", IP: "198.19.255.253", LastSeen: time.Now().Add(-72 * time.Hour)}
+	de.s.mu.Unlock()
+	de.s.setRemote(remoteOf(nid,
+		remotePeer{IP: "198.19.255.31", Host: "london", Name: "London", Server: true, Srv: "lon", SrvName: "London", Online: true}))
+	bridge(t, de, map[string]*relaySide{"lon": lon})
+	de.s.mu.Lock()
+	n := de.s.nets[nid]
+	peers := de.s.peersLocked(n, n.Devices["pc"])
+	de.s.mu.Unlock()
+	londons := 0
+	for _, p := range peers {
+		if p.Host == "london" || p.Name == "London" {
+			londons++
+			if !p.Online || p.IP != "198.19.255.31" {
+				t.Fatalf("London не тот: %+v", p)
+			}
+		}
+	}
+	if londons != 1 {
+		t.Fatalf("London в списке %d раз: %+v", londons, peers)
+	}
+}

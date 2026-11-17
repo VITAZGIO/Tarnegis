@@ -94,6 +94,24 @@ func (n *ServerNet) noteNetDelete(netID string) {
 
 // ---------- сверка ----------
 
+// forgetIfMeshdRestarted — meshd перезапущен (обновили, упал и поднялся):
+// списки серверов и чужих устройств у него пустые, а панель помнит, что уже
+// отдавала их, и пять минут не повторила бы. Забываем — отдадим сразу.
+func (n *ServerNet) forgetIfMeshdRestarted(ctx context.Context) {
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	st, err := n.mesh.admin.State(cctx)
+	cancel()
+	if err != nil {
+		return
+	}
+	n.mu.Lock()
+	if st.StartedAt != n.meshdStart {
+		n.meshdStart = st.StartedAt
+		n.lastRemote, n.lastKnwn = "", ""
+	}
+	n.mu.Unlock()
+}
+
 // reconcile приводит этот сервер к общим данным.
 func (n *ServerNet) reconcile(ctx context.Context) {
 	n.reconMu.Lock()
@@ -117,6 +135,7 @@ func (n *ServerNet) reconcile(ctx context.Context) {
 	n.mu.Unlock()
 
 	n.syncLinkKeys()
+	n.forgetIfMeshdRestarted(ctx)
 	n.pushRemote(ctx)
 	if !inNet {
 		n.pushKnown(ctx, nil, "")

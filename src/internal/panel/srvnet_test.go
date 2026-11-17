@@ -38,6 +38,8 @@ type memAdmin struct {
 	shared []string
 	policy meshsvc.Policy
 	selfIP string // адрес сервера в сети устройств (пусто — не задан)
+	// started — когда «запущен» meshd (меняется — как будто перезапустили).
+	started int64
 }
 
 func newMemAdmin(id string) *memAdmin { return &memAdmin{id: id, nets: map[string]*memNet{}} }
@@ -77,7 +79,7 @@ func (a *memAdmin) net(netID string) (memNet, bool) {
 func (a *memAdmin) State(context.Context) (meshsvc.State, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	st := meshsvc.State{Version: "6", Self: meshsvc.Self{ID: a.id, Name: "x", IP: a.selfIP}}
+	st := meshsvc.State{Version: "6", Self: meshsvc.Self{ID: a.id, Name: "x", IP: a.selfIP}, StartedAt: a.started}
 	for id, n := range a.nets {
 		nw := meshsvc.Network{ID: id, Name: n.name, Approval: n.approval}
 		for _, d := range n.devs {
