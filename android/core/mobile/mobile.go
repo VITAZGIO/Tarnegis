@@ -125,7 +125,9 @@ type Tunnel struct {
 	extras    []config.Profile
 	// netServers — последний список сети серверов (ТЗ 22), см. ApplyNetServers.
 	netServers *mesh.NetServers
-	exit      []tunnel.Hop
+	// netListener — кому сказать, что пришёл новый список (ТЗ 26).
+	netListener NetServersListener
+	exit        []tunnel.Hop
 
 	// localOnly — туннель поднят без сервера ради сети устройств (сервер не
 	// ответил на первом подключении и ищется в фоне); serverErr — почему не

@@ -1451,6 +1451,9 @@ func (c *Client) Status() Status {
 	if st.State != "online" && direct > 0 {
 		st.State = "local"
 	}
+	// Порядок для экрана (ТЗ 26): серверы, потом устройства; на связи первыми.
+	// Прямой путь выше мог сделать устройство «на связи» — сортируем после.
+	SortForList(st.Peers)
 	return st
 }
 

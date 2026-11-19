@@ -31,6 +31,7 @@ import (
 
 	"sshtunnel/internal/config"
 	core2 "sshtunnel/internal/core"
+	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/mesh"
 	"sshtunnel/internal/tunnel"
 )
@@ -165,12 +166,35 @@ func (t *Tunnel) ExitJSON() string {
 
 // ---------- сеть серверов (ТЗ 22) ----------
 
+// NetServersListener — приложению: сервер прислал список сети серверов
+// (op servers). Приложение зовёт ApplyNetServers и сохраняет ответ (ТЗ 26).
+// Зовётся в своей горутине, не под замком.
+type NetServersListener interface {
+	OnNetServers()
+}
+
+// SetNetServersListener — nil снимает. Если список уже пришёл раньше, чем
+// приложение подписалось, слушатель зовётся сразу.
+func (t *Tunnel) SetNetServersListener(l NetServersListener) {
+	t.mu.Lock()
+	t.netListener = l
+	had := t.netServers != nil
+	t.mu.Unlock()
+	if l != nil && had {
+		go l.OnNetServers()
+	}
+}
+
 // onNetServers запоминает последний список сети серверов от сервера на
-// связи: приложение заберёт его через ApplyNetServers.
+// связи и говорит приложению: оно заберёт его через ApplyNetServers.
 func (t *Tunnel) onNetServers(ns mesh.NetServers) {
 	t.mu.Lock()
 	t.netServers = &ns
+	l := t.netListener
 	t.mu.Unlock()
+	if l != nil {
+		l.OnNetServers()
+	}
 }
 
 // ApplyNetServers — то же, что на ПК (config.Config.ApplyNetServers):
@@ -203,18 +227,31 @@ func (t *Tunnel) ApplyNetServers(profilesJSON, seenJSON string) (string, error) 
 			HostKey: s.HostKey, Net: s.Net, Acct: s.Acct, Via: s.Via})
 	}
 	res := cfg.ApplyNetServers(list, ns.Nets)
-	if len(res.Added) == 0 && len(res.Off) == 0 && len(cfg.MeshAutoSeen) == seenBefore {
+	if len(res.Added) == 0 && len(res.Off) == 0 && len(res.MeshOn) == 0 && len(cfg.MeshAutoSeen) == seenBefore {
 		return "", nil
 	}
 	added := []string{}
 	for _, p := range res.Added {
 		added = append(added, p.Name)
+		// Как на ПК: ключ сервера пришёл от сервера сети по SSH — сразу в
+		// known_hosts, первое соединение ему уже не «верит на слово».
+		for _, s := range list {
+			if s.AutoKey() == p.MeshAuto && s.HostKey != "" {
+				hostkey.Pin(t.cfg.KnownHostsPath, p.Host, p.SSHPort, s.HostKey)
+			}
+		}
 	}
 	off := res.Off
 	if off == nil {
 		off = []string{}
 	}
+	// meshOn (v1.10.5): в профиле, заведённом человеком раньше, программа
+	// включила сеть устройств — приложение сохраняет и это.
+	meshOn := res.MeshOn
+	if meshOn == nil {
+		meshOn = []string{}
+	}
 	out, err := json.Marshal(map[string]any{"profiles": cfg.Profiles, "seen": cfg.MeshAutoSeen,
-		"added": added, "off": off})
+		"added": added, "off": off, "meshOn": meshOn})
 	return string(out), err
 }
