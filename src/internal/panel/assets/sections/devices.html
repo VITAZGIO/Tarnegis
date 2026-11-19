@@ -1,0 +1,121 @@
+<!-- ======== УСТРОЙСТВА ======== -->
+<section id="tabDevices" hidden>
+  <div class="sec-head">
+    <h1 class="page-title"><span data-i18n="nav_devices">Устройства</span><button class="hint" data-hint="hint_devices_list">?</button></h1>
+    <p class="page-sub" data-i18n="devices_sub">У каждого устройства свой ключ и своя системная
+      учётная запись на сервере — панель заводит и удаляет их сама, без консоли.</p>
+  </div>
+
+  <!-- Список | карточка выбранного | (от 1700 px) схема. На узком
+       экране — список, а по нажатию карточка во весь экран с «Назад». -->
+  <div class="devs" id="devsBox">
+    <div class="card dlist">
+      <div class="toolbar">
+        <input type="text" id="meshSearch" data-i18n-ph="dev_search_ph" placeholder="Поиск по имени или адресу…">
+        <button class="btn small" id="addClientBtn" data-i18n="add_client">+ Добавить устройство</button>
+      </div>
+      <div class="chips" id="meshFilter" style="margin-bottom:10px">
+        <button data-f="all" class="on" data-i18n="f_all">Все</button>
+        <button data-f="on" data-i18n="f_on">В сети</button>
+        <button data-f="off" data-i18n="f_off">Не в сети</button>
+      </div>
+      <div class="drow head" id="devRowsHead">
+        <span></span><span data-i18n="col_device">Устройство</span><span class="c-ip" data-i18n="dev_ip">Адрес</span>
+        <span class="c-sys" data-i18n="dev_platform">Система</span><span class="c-ms" data-i18n="dev_latency">Задержка</span>
+      </div>
+      <div id="devRows"></div>
+      <div class="empty" id="devRowsEmpty" hidden></div>
+    </div>
+
+    <div class="ddetail" id="devDetail">
+      <button class="btn ghost small back" id="devBackBtn" type="button" data-i18n="back">← Назад</button>
+      <div id="devicesMsg"></div>
+
+      <!-- добавить устройство -->
+      <div class="card" id="addClientForm" hidden>
+        <h1 data-i18n="add_device_title">Добавить устройство</h1>
+        <p class="note" data-i18n="add_device_note">Выбери, на чём стоит программа, и придумай имя,
+          по которому потом узнаешь это устройство в списке. Сразу после создания панель один раз
+          покажет готовые настройки вместе с ключом: для телефона — QR-кодом, для компьютера —
+          кнопкой «Скопировать» или файлом.</p>
+        <div id="addClientMsg"></div>
+        <div class="field">
+          <label for="newClientName" data-i18n="client_name_label">Имя устройства</label>
+          <input type="text" id="newClientName" placeholder="Ноутбук, Телефон…">
+        </div>
+        <div class="field">
+          <label for="newClientType" data-i18n="client_type_label">Тип устройства</label>
+          <select id="newClientType" style="width:100%">
+            <option value="windows">Windows</option>
+            <option value="linux">Linux</option>
+            <option value="android">Android</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="createClientBtn" data-i18n="create_client">Создать</button>
+          <button class="btn ghost" id="cancelClientBtn" data-i18n="cancel">Отмена</button>
+        </div>
+      </div>
+
+      <!-- настройки клиента: QR и ссылка (только сразу после создания), буфер, файл -->
+      <div class="card" id="clientConfigCard" hidden>
+        <h1 id="clientConfigTitle" data-i18n="client_key_title">Ключ клиента готов</h1>
+        <p class="note" id="clientConfigNote" data-i18n="client_key_note">Это единственный раз, когда
+          панель показывает приватный ключ сам, без нажатия «Показать настройки» в списке.
+          Сохрани его сейчас — он понадобится, чтобы подключить устройство.</p>
+        <div id="clientConfigMsg"></div>
+
+        <div id="clientConfigQRBox" style="text-align:center;margin-bottom:14px">
+          <img id="qrThumb" alt="QR">
+          <p class="note" style="margin:8px auto 0" data-i18n="qr_hint">Нажми на код, чтобы открыть
+            во весь экран — так его проще отсканировать телефоном.</p>
+          <button class="btn" id="copyClientLinkBtn" style="margin-top:10px"
+            data-i18n="copy_link">Скопировать ссылку</button>
+        </div>
+
+        <div class="row-inline" style="margin-bottom:14px">
+          <button class="btn" id="copyClientConfigBtn" data-i18n="copy_config">Скопировать</button>
+          <button class="btn ghost" id="downloadClientConfigBtn" data-i18n="download_config">Скачать файл</button>
+        </div>
+
+        <h2 data-i18n="manual_entry_title">Или впиши руками</h2>
+        <div class="field"><label data-i18n="host_label">Адрес сервера</label>
+          <input type="text" id="clientConfigHost" readonly></div>
+        <div class="field"><label data-i18n="port_label">Порт</label>
+          <input type="text" id="clientConfigPort" readonly></div>
+        <div class="field"><label data-i18n="user_label">Пользователь</label>
+          <input type="text" id="clientConfigUser" readonly></div>
+        <div class="field">
+          <label data-i18n="private_key_label">Приватный ключ</label>
+          <textarea id="clientConfigKey" readonly rows="6"
+            style="font-family:var(--mono);font-size:11.5px;resize:vertical"></textarea>
+        </div>
+        <button class="btn ghost" id="closeClientConfigBtn" data-i18n="close">Закрыть</button>
+      </div>
+
+      <!-- карточка выбранного устройства; перерисовывается при каждом опросе -->
+      <div class="card" id="devInfoCard"><div id="devInfo"></div></div>
+
+      <!-- права одного клиента: группы и право создавать пользователей.
+           Отдельной карточкой: карточка устройства перерисовывается при
+           каждом опросе и смахнула бы открытую форму. -->
+      <div class="card" id="clientAccessCard" hidden>
+        <h1 id="clientAccessTitle"></h1>
+        <div id="clientAccessMsg"></div>
+        <h2><span data-i18n="acc_groups">Группы</span><button class="hint" data-hint="hint_acc_client_groups">?</button></h2>
+        <div id="clientAccessGroups" class="acc-checks"></div>
+        <h2><span data-i18n="acc_creator">Создание пользователей</span><button class="hint" data-hint="hint_acc_creator">?</button></h2>
+        <label class="acc-line"><input type="checkbox" id="clientCanCreate"> <span data-i18n="acc_can_create">Может создавать пользователей</span></label>
+        <div class="field">
+          <input type="password" id="clientCreatorPass" autocomplete="new-password" data-i18n-ph="acc_pass_ph" placeholder="Пароль для создания (от 8 символов)">
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="saveClientAccessBtn" data-i18n="save">Сохранить</button>
+          <button class="btn ghost" id="closeClientAccessBtn" data-i18n="close">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dmap" id="devMapSlot" hidden></div>
+  </div>
+</section>

@@ -1,0 +1,231 @@
+<!-- ======== НАСТРОЙКИ ======== -->
+<section id="tabSettings" hidden>
+  <div class="sec-head">
+    <h1 class="page-title" data-i18n="nav_settings">Настройки</h1>
+    <p class="page-sub" data-i18n="settings_sub">Роль сервера в сети устройств, службы и сама панель.</p>
+  </div>
+  <div class="subtabs" data-tab="Settings">
+    <button type="button" data-sub="net" data-i18n="sub_set_net">Сеть устройств</button>
+    <button type="button" data-sub="egress" data-i18n="sub_set_egress">Выход сервера</button>
+    <button type="button" data-sub="panel" data-i18n="sub_set_panel">Панель</button>
+    <button type="button" data-sub="look" data-i18n="sub_set_look">Вид</button>
+    <button type="button" data-sub="book" data-i18n="sub_set_book">Книга</button>
+  </div>
+  <div class="sub" data-sub="net">
+    <!-- сеть устройств на этом сервере (ТЗ 22: ролей нет) -->
+    <div class="card" id="meshRoleCard" hidden>
+      <h1><span data-i18n="srv_dn_title">Сеть устройств на этом сервере</span><button class="hint" data-hint="hint_srv_dn">?</button></h1>
+      <div id="srvDnOff">
+        <p class="note" data-i18n="srv_dn_off_note">Выключена. Включи — поставится служба сети, и устройства этого сервера окажутся в одной сети. Связать с другими серверами — «Сети» → «Серверы сети».</p>
+        <div class="field">
+          <label for="meshName"><span data-i18n="mesh_name_label">Как назвать этот сервер</span><button class="hint" data-hint="hint_mesh_name">?</button></label>
+          <input type="text" id="meshName" data-i18n-ph="mesh_name_ph" placeholder="Москва, Германия…">
+        </div>
+        <button class="btn" id="meshMakeMainBtn" data-i18n="srv_dn_on">Включить</button>
+      </div>
+      <div id="srvDnOn" hidden>
+        <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="srvDnState">—</span></div>
+        <div class="kv"><span class="k" data-i18n="srv_dn_name">Имя сервера</span><span class="v" id="srvDnName">—</span></div>
+      </div>
+      <div id="meshRoleMsg" style="margin-top:12px"></div>
+    </div>
+
+    <!-- сервер, подключённый старым способом (проброс): одна кнопка «Перейти» -->
+    <div class="card" id="meshSecView" hidden>
+      <div class="msg warn" style="margin:0"><b data-i18n="srv_legacy_title">Этот сервер подключён старым способом</b>
+        <span data-i18n="srv_legacy_note">— через проброс к другому серверу. Нажми «Перейти»: у него появится своя служба сети (адрес в сети останется прежним), и он войдёт в сеть серверов того, к которому подключён.</span></div>
+      <div class="kv" style="margin-top:12px"><span class="k" data-i18n="srv_legacy_to">Подключён к</span><span class="v" id="secMainHost">—</span></div>
+      <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="secState">—</span></div>
+      <div class="msg err" id="secErr" hidden style="margin-top:12px"></div>
+      <div class="row-inline" style="margin-top:12px">
+        <button class="btn" id="secToMainBtn" data-i18n="srv_legacy_go">Перейти</button>
+        <button class="btn danger" id="secOffBtn" data-i18n="mesh_off">Выключить сеть на сервере</button>
+      </div>
+    </div>
+
+    <!-- установка -->
+    <div class="card" id="meshJobCard" hidden>
+      <h1 id="meshJobTitle"></h1>
+      <div class="console" id="meshJobLog"></div>
+    </div>
+
+    <!-- служба сети (главный сервер) -->
+    <div class="card" id="meshServiceCard" hidden>
+      <h1><span data-i18n="mesh_service_title">Служба сети</span><button class="hint" data-hint="hint_service">?</button></h1>
+      <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="meshSvcState">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mesh_version">Версия meshd</span><span class="v" id="meshSvcVersion">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mesh_since">Работает с</span><span class="v" id="meshSvcSince">—</span></div>
+      <div class="kv"><span class="k" data-i18n="udprelay_label">Ретранслятор UDP</span><span class="v" id="udpRelayState">—</span></div>
+      <div class="row-inline" style="margin-top:12px">
+        <button class="btn ghost" id="meshReinstallBtn" data-i18n="mesh_reinstall">Обновить meshd</button>
+        <button class="btn ghost" id="udpRelayBtn" data-i18n="udprelay_install">Поставить ретранслятор UDP</button>
+        <button class="btn danger" id="meshOffBtn" data-i18n="mesh_off">Выключить сеть на сервере</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1><span data-i18n="cap_title">Ёмкость сервера</span><button class="hint" data-hint="hint_capacity">?</button></h1>
+      <p class="note" data-i18n="cap_note">Сколько устройств могут подключаться к серверу одновременно. Меняет настройку
+        защиты sshd от наплыва соединений — уже подключённые устройства это не затронет.</p>
+      <div id="capMsg"></div>
+      <div class="cap-row">
+        <input type="range" id="capRange" min="1" max="250" value="30">
+        <input type="number" id="capNum" min="1" max="250" value="30">
+      </div>
+      <div class="kv" style="margin-top:8px"><span class="k"><span data-i18n="cap_wanted">Будет выставлено</span><button class="hint" data-hint="hint_maxstartups">?</button></span>
+        <span class="v" id="capWanted">—</span></div>
+      <div class="kv"><span class="k" data-i18n="cap_effective">Действует сейчас (sshd -T)</span>
+        <span class="v" id="capEffective">—</span></div>
+      <button class="btn" id="capSaveBtn" style="margin-top:12px" data-i18n="cap_save">Применить</button>
+    </div>
+  </div>
+  <div class="sub" data-sub="egress" hidden>
+    <!-- выход самого сервера через другой сервер (ТЗ 10) -->
+    <div class="card" id="egressCard" hidden>
+      <h1><span data-i18n="egress_title">Выход сервера → через сервер Б</span><button class="hint" data-hint="hint_egress">?</button></h1>
+      <p class="note" data-i18n="egress_note">Собственный трафик этого сервера (обновления, контейнеры, пользователи туннеля,
+        выходящие здесь) пойдёт через другой сервер ssh_tunnel. Вход снаружи (SSH, эта панель, устройства) не затрагивается.</p>
+
+      <div id="egressOffForm">
+        <div class="field">
+          <label for="egressLink" data-i18n="egress_link_label">Ссылка клиента с панели сервера Б</label>
+          <textarea id="egressLink" rows="3" placeholder="sshtunnel://import?..." data-i18n-ph="egress_link_ph"></textarea>
+          <p class="note" style="margin:6px 0 0" data-i18n="egress_link_note">Заведи обычного клиента в панели сервера Б («Устройства → Добавить») и вставь сюда его ссылку —
+            её показывают один раз сразу после создания.</p>
+        </div>
+        <div class="field">
+          <label data-i18n="egress_mode_label">Если сервер Б недоступен</label>
+          <select id="egressMode">
+            <option value="block" data-i18n="egress_mode_block">Сервер без интернета (по умолчанию)</option>
+            <option value="direct" data-i18n="egress_mode_direct">Выход напрямую</option>
+          </select>
+        </div>
+        <div id="egressMsg"></div>
+        <button class="btn" id="egressApplyBtn" data-i18n="egress_apply">Включить</button>
+      </div>
+
+      <div id="egressOnView" hidden>
+        <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="egressPhase">—</span></div>
+        <div class="kv"><span class="k" data-i18n="egress_target">Сервер Б</span><span class="v" id="egressTargetName">—</span></div>
+        <div class="kv" id="egressExitRow" hidden><span class="k" data-i18n="egress_exit_ip">Снаружи виден как</span><span class="v" id="egressExitIp">—</span></div>
+        <div class="kv" id="egressRollbackRow" hidden><span class="k" data-i18n="egress_rolled_back">Последний откат</span><span class="v" id="egressRolledBack">—</span></div>
+        <div class="field" id="egressModeOnRow">
+          <label data-i18n="egress_mode_label">Если сервер Б недоступен</label>
+          <select id="egressModeOn">
+            <option value="block" data-i18n="egress_mode_block">Сервер без интернета (по умолчанию)</option>
+            <option value="direct" data-i18n="egress_mode_direct">Выход напрямую</option>
+          </select>
+        </div>
+
+        <div id="egressApplyingBox" hidden style="margin-top:12px">
+          <p class="note" id="egressApplyingNote"></p>
+          <button class="btn" id="egressConfirmBtn" data-i18n="egress_confirm">Подтвердить: панель доступна</button>
+        </div>
+        <div id="egressJobLog" class="console" hidden style="margin-top:12px"></div>
+        <div id="egressMsg2" style="margin-top:12px"></div>
+        <div class="row-inline" style="margin-top:12px">
+          <button class="btn danger" id="egressOffBtn" data-i18n="egress_off">Выключить</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="sub" data-sub="panel" hidden>
+    <div class="card">
+      <h1 data-i18n="version_label">Версия панели</h1>
+      <div class="kv"><span class="k" data-i18n="version_installed">Установлена</span>
+        <span class="v" id="setVersion">—</span></div>
+      <button class="btn" id="updateCheckBtn" style="margin-top:12px"
+        data-i18n="update_check">Проверить обновления</button>
+      <div id="updateMsg" style="margin-top:12px"></div>
+      <!-- Обновление прямо отсюда: панель скачает свой файл, сверит
+           контрольную сумму, подменит себя и перезапустится. -->
+      <div id="updateHow" hidden style="margin-top:12px">
+        <button class="btn" id="updateInstallBtn"></button>
+        <div class="upd-bar" id="updateBar" hidden><i></i></div>
+        <p class="note" id="updateStage" style="margin:8px 0 0"></p>
+        <p class="note" style="margin:6px 0 0">
+          <a id="updateLink" href="#" target="_blank" rel="noopener"
+             data-i18n="update_open_release">Открыть страницу релиза</a></p>
+      </div>
+    </div>
+    <div class="card">
+      <h1><span data-i18n="autostart_title">Автозапуск</span><button class="hint" data-hint="hint_autostart">?</button></h1>
+      <p class="note" id="autostartNote" hidden data-i18n="autostart_note">Включено — панель поднимется сама после
+        перезагрузки сервера. Снятая галочка не выключает панель прямо сейчас, а только не даёт
+        ей стартовать в следующий раз.</p>
+      <div id="autostartMsg"></div>
+      <label class="chk" id="autostartRow" hidden>
+        <input type="checkbox" id="autostartCheck">
+        <span data-i18n="autostart_label">Запускать при старте системы</span>
+      </label>
+      <p class="note" id="autostartUnsupported" hidden style="margin:0"
+         data-i18n="autostart_unsupported">Панель запущена не через systemd — управлять
+        автозапуском отсюда нечем.</p>
+    </div>
+    <div class="card">
+      <h1 data-i18n="account_title">Учётная запись</h1>
+      <div id="accountMsg"></div>
+      <div class="row-inline">
+        <button class="btn ghost" id="showPassFormBtn" data-i18n="change_password">Сменить пароль</button>
+        <button class="btn danger" id="logoutBtn" data-i18n="sign_out">Выйти</button>
+      </div>
+      <div id="passForm" hidden style="margin-top:14px">
+        <div class="field">
+          <label for="curPass2" data-i18n="current_password_label">Текущий пароль</label>
+          <input type="password" id="curPass2" autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label for="newPass21" data-i18n="new_password_label">Новый пароль</label>
+          <input type="password" id="newPass21" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="newPass22" data-i18n="repeat_password_label">Повтори новый пароль</label>
+          <input type="password" id="newPass22" autocomplete="new-password">
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="accountChangeBtn" data-i18n="set_password">Задать пароль</button>
+          <button class="btn ghost" id="cancelPassBtn" data-i18n="cancel">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Вид (ТЗ 25): тот же выбор темы и фона, что в программе. -->
+  <div class="sub" data-sub="look" hidden>
+    <div class="card" id="lookCard">
+      <h1 data-i18n="look_title">Тема и фон</h1>
+      <p class="note" data-i18n="look_note">Как в программе на компьютере и на телефоне. Меняется сразу; запоминается в этом браузере и на сервере для твоего логина — в другом браузере панель откроется так же.</p>
+      <div class="look-row"><div class="look-k" data-i18n="theme">Тема</div>
+        <div class="seg" id="themeSeg">
+          <button type="button" data-v="" data-i18n="theme_orig">Оригинал</button>
+          <button type="button" data-v="dark" data-i18n="theme_dark">Тёмная</button>
+          <button type="button" data-v="light" data-i18n="theme_light">Светлая</button>
+          <button type="button" data-v="console" data-i18n="theme_console">Консоль</button>
+        </div></div>
+      <div class="look-row"><div class="look-k" data-i18n="background">Фон</div>
+        <div class="seg" id="bgSeg">
+          <button type="button" data-v="" data-i18n="bg_color">Цвет</button>
+          <button type="button" data-v="code" data-i18n="bg_code">Код</button>
+          <button type="button" data-v="author" data-i18n="bg_author">Автор</button>
+        </div></div>
+      <div id="lookMsg"></div>
+    </div>
+  </div>
+  <div class="sub" data-sub="book" hidden>
+    <div class="card" id="bookCard">
+      <h1 data-i18n="book_title">Книга</h1>
+      <p class="note" data-i18n="book_note">Справка по панели: что где, как сделать и что делать, если что-то не работает. Работает без интернета.</p>
+      <div class="bk" id="bk">
+        <div class="bk-list">
+          <input type="search" id="bkQ" autocomplete="off" spellcheck="false" data-i18n-ph="book_search_ph" placeholder="Поиск по Книге">
+          <div class="bk-found" id="bkFound" hidden></div>
+          <div class="bk-toc" id="bkToc"></div>
+        </div>
+        <div class="bk-read" id="bkRead">
+          <button class="btn ghost bk-back" id="bkBack" type="button" data-i18n="book_back">Назад</button>
+          <article class="bk-text" id="bkText"></article>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

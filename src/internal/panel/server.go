@@ -61,6 +61,10 @@ type Server struct {
 	dataDir string
 	update  selfUpdate
 
+	// stats — замеры сервера для «Мониторинга» (stats.go); nil — ещё не
+	// запущены (запускаются при первом запросе или StartStats).
+	stats *StatsSampler
+
 	// connUID узнаёт uid звонящего на входе создания пользователей
 	// (selfservice.go); nil — по /proc/net/tcp. Подменяется в тестах.
 	connUID func(*http.Request) (int, bool)
@@ -104,7 +108,7 @@ func (s *Server) WithClientDefaults(sshHost string, sshPort int, panelURL string
 // его подавать: напрямую (autocert) или за обратным прокси.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/", servePage)
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/session", s.handleSessionInfo)
@@ -123,26 +127,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/update/install", s.requireAuth(s.handleUpdateInstall))
 	mux.HandleFunc("/api/update/progress", s.requireAuth(s.handleUpdateProgress))
 	mux.HandleFunc("/api/book", s.requireAuth(s.handleBook))
+	mux.HandleFunc("/api/server/stats", s.requireAuth(s.handleServerStats))
+	mux.HandleFunc("/api/settings/look", s.requireAuth(s.handleLook))
 	s.meshRoutes(mux)
 	s.nodeRoutes(mux)
 	s.egressRoutes(mux)
 	s.diagRoutes(mux)
 	return mux
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	data, err := assets.ReadFile("assets/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(data)
 }
 
 // currentSession достаёт сессию текущего запроса, если она есть и не

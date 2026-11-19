@@ -49,6 +49,10 @@ type demoBackend struct {
 	version string
 	started time.Time
 	rnd     *rand.Rand
+	// look — тема и фон («Настройки» → «Вид»); stats — выдуманные показания
+	// «Мониторинга» (demo_stats.go).
+	look  PanelLook
+	stats *demoStats
 
 	clients  []Client
 	access   AccessSettings
@@ -658,21 +662,7 @@ func (d *demoBackend) seedBackups() {
 func (d *demoBackend) routes() http.Handler {
 	mux := http.NewServeMux()
 	ok := map[string]bool{"ok": true}
-	page := func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		data, err := assets.ReadFile("assets/index.html")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(data)
-	}
-	mux.HandleFunc("/", page)
+	mux.HandleFunc("/", servePage)
 	// Каждая ручка — под общим замком и после шага «жизни» сети.
 	h := func(path string, fn func(w http.ResponseWriter, r *http.Request)) {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
@@ -932,8 +922,10 @@ func (d *demoBackend) routes() http.Handler {
 	// «Обновить meshd» в показе лечит «старую версию» — чтобы было видно,
 	// как страница возвращается к полной работе.
 	h("/api/mesh/reinstall", func(w http.ResponseWriter, r *http.Request) {
+		// Старый meshd — «обновляется», свежий — «уже последняя» (ТЗ 25).
+		latest := !d.oldMeshd
 		d.oldMeshd = false
-		writeJSON(w, http.StatusOK, ok)
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "latest": latest})
 	})
 	h("/api/udprelay/install", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, ok) })
 	h("/api/egress", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, d.egressStatus()) })
@@ -1469,6 +1461,26 @@ func (d *demoBackend) routes() http.Handler {
 	h("/api/demo/policy", func(w http.ResponseWriter, r *http.Request) {
 		replyErr(w, d.setPolicyPreset(r.URL.Query().Get("preset")), ok)
 	})
+	// --- «Мониторинг» и «Вид» (ТЗ 25) ---
+	h("/api/server/stats", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, d.serverStats(time.Now()))
+	})
+	h("/api/settings/look", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			writeJSON(w, http.StatusOK, d.look)
+			return
+		}
+		var req PanelLook
+		if !decodePost(w, r, &req) {
+			return
+		}
+		if !lookThemes[req.Theme] || !lookBgs[req.Bg] {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "нет такой темы или фона"})
+			return
+		}
+		d.look = req
+		writeJSON(w, http.StatusOK, req)
+	})
 	h("/api/demo/burst", func(w http.ResponseWriter, r *http.Request) {
 		n, _ := strconv.Atoi(r.URL.Query().Get("n"))
 		for i := 0; i < n && i < 1000; i++ {
@@ -1553,11 +1565,11 @@ func (d *demoBackend) state() MeshState {
 		UDPRelay: UnitState{Installed: true, Active: true, Enabled: true},
 		SSHHost:  "demo.example", SSHPort: 22,
 		ServerAccess: d.self.Enabled, ServerPorts: d.self.Ports,
-		Version: "demo", StartedAt: d.meshdStarted,
+		Version: meshdVersion, StartedAt: d.meshdStarted, Release: d.version,
 		Servers: append([]MeshServer{}, d.servers...), Networks: []MeshNetwork{},
 	}
 	if d.oldMeshd {
-		st.Version = "1.6.0 (старая)"
+		st.Version, st.Release = "1.6.0 (старая)", ""
 	}
 	// Другие серверы сети по рассказам устройств: у Амстердама правила
 	// доступа другие — панель должна это сказать.

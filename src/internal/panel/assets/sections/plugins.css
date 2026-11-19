@@ -1,0 +1,12 @@
+/* Плагины сервера: строки папок и копий — в столбик на узком экране. */
+.nrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.nrow:last-child{border-bottom:0}
+.nrow .grow{flex:1;min-width:150px}
+.nrow .sub{color:var(--dim);font-size:12px;font-family:var(--mono)}
+.nrow input[type=number]{width:96px}
+.accbox{display:flex;flex-direction:column;gap:2px;padding:4px 0 8px 12px;border-bottom:1px solid var(--line)}
+.acchk{display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0;cursor:pointer}
+.acchk input{width:18px;height:18px;margin:0;flex:none}
+.nsec{margin-top:12px;font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.card.gone{border-color:var(--warn)}
+.acts{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--dim);margin:2px 0 4px}

@@ -164,11 +164,16 @@ type KnownServer struct {
 
 // State — ответ meshd на /v1/state.
 type State struct {
-	Version   string    `json:"version"`
-	StartedAt int64     `json:"startedAt"`
-	Networks  []Network `json:"networks"`
-	Servers   []Server  `json:"servers"`
-	Self      Self      `json:"self"`
+	Version   string `json:"version"`
+	StartedAt int64  `json:"startedAt"`
+	// Release — из какого релиза собран meshd ("v1.10.5"; пусто — собран
+	// руками или на сервере), Built — время его файла (ТЗ 25; у старого
+	// meshd обоих нет).
+	Release  string    `json:"release,omitempty"`
+	Built    int64     `json:"built,omitempty"`
+	Networks []Network `json:"networks"`
+	Servers  []Server  `json:"servers"`
+	Self     Self      `json:"self"`
 	// Peers и Known — несколько серверов без главного (meshd 4+; у старого
 	// пусто).
 	Peers []SeenServer  `json:"peers"`

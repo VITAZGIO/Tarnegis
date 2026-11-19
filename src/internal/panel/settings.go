@@ -23,6 +23,17 @@ type Settings struct {
 
 	// Access — права доступа устройств в сети устройств (access.go).
 	Access AccessSettings `json:"access"`
+
+	// Looks — тема и фон панели по логину (ТЗ 25, «Настройки» → «Вид»):
+	// выбор переезжает в другой браузер вместе со входом.
+	Looks map[string]PanelLook `json:"looks,omitempty"`
+}
+
+// PanelLook — тема и фон, как в программе: theme "" (как у системы), dark,
+// light, console; bg "" (цвет), code, author.
+type PanelLook struct {
+	Theme string `json:"theme"`
+	Bg    string `json:"bg"`
 }
 
 // Роли сервера в сети устройств.
@@ -106,6 +117,7 @@ func (st *SettingsStore) Get() Settings {
 	defer st.mu.Unlock()
 	s := st.s
 	s.Mesh.Links = append([]MeshLink(nil), st.s.Mesh.Links...)
+	s.Looks = copyLooks(st.s.Looks)
 	return s
 }
 
@@ -116,6 +128,7 @@ func (st *SettingsStore) Update(fn func(*Settings) error) error {
 	defer st.mu.Unlock()
 	next := st.s
 	next.Mesh.Links = append([]MeshLink(nil), st.s.Mesh.Links...)
+	next.Looks = copyLooks(st.s.Looks)
 	if err := fn(&next); err != nil {
 		return err
 	}
@@ -132,4 +145,15 @@ func (st *SettingsStore) Update(fn func(*Settings) error) error {
 	}
 	st.s = next
 	return nil
+}
+
+func copyLooks(m map[string]PanelLook) map[string]PanelLook {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]PanelLook, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

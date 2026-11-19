@@ -168,6 +168,8 @@ func main() {
 		WithNode(node).
 		WithEgress(egress).
 		WithDataDir(*dataDir)
+	// Замеры для «Мониторинга» — с запуска, чтобы был график за последний час.
+	srv.StartStats()
 	handler := srv.Handler()
 	go srv.SyncAccess()
 	go srv.WatchNodeAccess(ctx)

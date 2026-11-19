@@ -253,16 +253,24 @@ func (n *ServerNet) pullView(ctx context.Context, id string, rec srvRec) {
 	if err := n.call(ctx, rec, signer, true, netID, "/srv/v1/view", struct{}{}, &v); err != nil {
 		return
 	}
-	if v.Net != netID || v.From != id {
-		return
+	n.takeView(id, netID, v)
+}
+
+// takeView — запомнить картину сервера id, если она той сети и от него
+// самого. false — не подошла.
+func (n *ServerNet) takeView(id, netID string, v srvView) bool {
+	if netID == "" || v.Net != netID || v.From != id {
+		return false
 	}
 	cleanView(&v)
 	n.mu.Lock()
-	if _, live := n.serversLocked()[id]; live && n.f.Net == netID {
-		n.views[id] = peerView{View: v, Got: n.now().Unix()}
-		n.saveViewsLocked()
+	defer n.mu.Unlock()
+	if _, live := n.serversLocked()[id]; !live || n.f.Net != netID {
+		return false
 	}
-	n.mu.Unlock()
+	n.views[id] = peerView{View: v, Got: n.now().Unix()}
+	n.saveViewsLocked()
+	return true
 }
 
 // cleanView — чужая картина не больше разумного.

@@ -1,0 +1,77 @@
+<!-- ======== МОНИТОРИНГ (ТЗ 25) ======== -->
+<!-- Всё о самой машине: процессор, память, диски, сеть, процессы, службы.
+     Данные — GET /api/server/stats, раз в 10 с, пока раздел открыт. -->
+<section id="tabMonitor" class="mon" hidden>
+  <div class="sec-head">
+    <h1 class="page-title" data-i18n="nav_monitor">Мониторинг</h1>
+    <p class="page-sub" data-i18n="mon_sub">Как себя чувствует сам сервер: процессор, память, диски, сеть, процессы и службы. Обновляется раз в 10 секунд.</p>
+  </div>
+  <div class="msg err" id="monErr" hidden></div>
+
+  <div class="mon-grid">
+    <div class="mon-tile" id="monTileCpu"><div class="k" data-i18n="mon_cpu">Процессор</div>
+      <div class="v">—</div><div class="bar"><i></i></div><div class="s"></div></div>
+    <div class="mon-tile" id="monTileMem"><div class="k" data-i18n="mon_mem">Оперативная память</div>
+      <div class="v">—</div><div class="bar"><i></i></div><div class="s"></div></div>
+    <div class="mon-tile" id="monTileDisk"><div class="k" data-i18n="mon_disk">Диск</div>
+      <div class="v">—</div><div class="bar"><i></i></div><div class="s"></div></div>
+    <div class="mon-tile net" id="monTileNet"><div class="k" data-i18n="mon_net_now">Сеть сейчас</div>
+      <div class="v">—</div><div class="s"></div></div>
+
+    <div class="card mon-chart" id="monChartCpu"><h1 data-i18n="mon_chart_cpu">Процессор за час</h1>
+      <div class="mon-plot"></div></div>
+    <div class="card mon-chart" id="monChartMem"><h1 data-i18n="mon_chart_mem">Память за час</h1>
+      <div class="mon-plot"></div></div>
+    <div class="card mon-chart wide" id="monChartNet"><h1 data-i18n="mon_chart_net">Сеть за час</h1>
+      <div class="mon-legend">
+        <span><i class="l-rx"></i><span data-i18n="mon_rx">принято</span></span>
+        <span><i class="l-tx"></i><span data-i18n="mon_tx">отдано</span></span>
+      </div>
+      <div class="mon-plot"></div></div>
+
+    <div class="card mon-third">
+      <h1 data-i18n="mon_cpu">Процессор</h1>
+      <div class="kv"><span class="k" data-i18n="mon_cores">Ядер</span><span class="v" id="monCores">—</span></div>
+      <div class="kv"><span class="k"><span data-i18n="mon_load">Средняя нагрузка 1 / 5 / 15 мин</span><button class="hint" data-hint="hint_mon_load">?</button></span>
+        <span class="v" id="monLoad">—</span></div>
+      <div class="mon-cores" id="monCoreBars"></div>
+    </div>
+    <div class="card mon-third">
+      <h1 data-i18n="mon_mem">Оперативная память</h1>
+      <div class="mon-meter" id="monRam"></div>
+      <div class="mon-meter" id="monSwap"></div>
+    </div>
+    <div class="card mon-third">
+      <h1 data-i18n="mon_disks">Диски</h1>
+      <div id="monDisks"></div>
+    </div>
+
+    <div class="card mon-third">
+      <h1 data-i18n="mon_net">Сеть</h1>
+      <div class="kv"><span class="k" data-i18n="mon_rx_now">Принимает сейчас</span><span class="v" id="monRxNow">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mon_tx_now">Отдаёт сейчас</span><span class="v" id="monTxNow">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mon_rx_total">Принято с загрузки</span><span class="v" id="monRxTotal">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mon_tx_total">Отдано с загрузки</span><span class="v" id="monTxTotal">—</span></div>
+    </div>
+    <div class="card mon-third">
+      <h1 data-i18n="mon_system">Система</h1>
+      <div class="kv"><span class="k" data-i18n="mon_host">Имя машины</span><span class="v" id="monHost">—</span></div>
+      <div class="kv"><span class="k" data-i18n="os_label">Система</span><span class="v" id="monOS">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mon_kernel">Ядро</span><span class="v" id="monKernel">—</span></div>
+      <div class="kv"><span class="k" data-i18n="mon_uptime">Работает без перезагрузки</span><span class="v" id="monUptime">—</span></div>
+    </div>
+    <div class="card mon-third">
+      <h1 data-i18n="mon_services">Службы ssh_tunnel</h1>
+      <div id="monServices"></div>
+    </div>
+
+    <div class="card mon-half">
+      <h1 data-i18n="mon_top_cpu">Больше всех занимают процессор</h1>
+      <div class="scroll-x"><table class="list" id="monTopCpu"></table></div>
+    </div>
+    <div class="card mon-half">
+      <h1 data-i18n="mon_top_mem">Больше всех занимают память</h1>
+      <div class="scroll-x"><table class="list" id="monTopMem"></table></div>
+    </div>
+  </div>
+</section>

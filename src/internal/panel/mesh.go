@@ -305,10 +305,45 @@ func (m *MeshManager) keepSelfIP(ip string, onLine func(string)) {
 
 // Reinstall — обновить meshd до версии из релиза.
 func (m *MeshManager) Reinstall() error {
+	_, err := m.ReinstallIfNeeded()
+	return err
+}
+
+// ReinstallIfNeeded — «Обновить meshd»: если стоит meshd того же релиза, что
+// и панель, ничего не ставит и отвечает latest = true («уже последняя»,
+// ТЗ 25). Иначе — как Reinstall.
+func (m *MeshManager) ReinstallIfNeeded() (latest bool, err error) {
 	if m.settings.Get().Mesh.Role != MeshRoleMain && !m.sys.UnitState(meshdUnit).Installed {
-		return errors.New("сначала включи сеть устройств на этом сервере")
+		return false, errors.New("сначала включи сеть устройств на этом сервере")
 	}
-	return m.runJob("install", m.installMain)
+	if m.meshdIsLatest() {
+		return true, nil
+	}
+	return false, m.runJob("install", m.installMain)
+}
+
+// meshdIsLatest — служба работает, протокол не старше нужного и собрана из
+// того же релиза, что и панель. Собранную руками (релиз пустой) или панель
+// без версии ("dev") считаем «не знаю» — тогда ставим.
+func (m *MeshManager) meshdIsLatest() bool {
+	if m.admin == nil || m.version == "" || m.version == "dev" || !m.sys.UnitState(meshdUnit).Active {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	st, err := m.admin.State(ctx)
+	cancel()
+	if err != nil {
+		return false
+	}
+	return meshdSame(st.Version, st.Release, m.version)
+}
+
+// meshdSame — meshd с номером have и релизом release — тот, что ставит
+// панель версии panel.
+func meshdSame(have, release, panel string) bool {
+	h, _ := strconv.Atoi(have)
+	w, _ := strconv.Atoi(meshdVersion)
+	return release != "" && release == panel && h >= w
 }
 
 // InstallUDPRelay ставит или обновляет ретранслятор UDP. Без него у
@@ -859,11 +894,15 @@ type MeshState struct {
 	Self         *meshsvc.Self `json:"self,omitempty"`
 
 	// Главный.
-	Version   string        `json:"version,omitempty"`
-	StartedAt int64         `json:"startedAt,omitempty"`
-	Servers   []MeshServer  `json:"servers"`
-	Networks  []MeshNetwork `json:"networks"`
-	AdminErr  string        `json:"adminError,omitempty"`
+	Version   string `json:"version,omitempty"`
+	StartedAt int64  `json:"startedAt,omitempty"`
+	// Release и Built — из какого релиза собран meshd и время его файла
+	// (ТЗ 25): панель пишет «7 · v1.10.5» или «7 · файл от …».
+	Release  string        `json:"release,omitempty"`
+	Built    int64         `json:"built,omitempty"`
+	Servers  []MeshServer  `json:"servers"`
+	Networks []MeshNetwork `json:"networks"`
+	AdminErr string        `json:"adminError,omitempty"`
 
 	// Несколько серверов без главного (ТЗ 12). Peers — другие серверы
 	// сети, о которых рассказали устройства (с правилами доступа: такие же
@@ -975,6 +1014,7 @@ func (m *MeshManager) fillMain(ctx context.Context, st *MeshState, s MeshSetting
 		st.Servers[0].MeshIP, st.Servers[0].MeshHost = self.IP, self.Host
 	}
 	st.Version, st.StartedAt = ms.Version, ms.StartedAt
+	st.Release, st.Built = ms.Release, ms.Built
 	st.localRelays = ms.Relays
 	if ms.Peers != nil {
 		st.Peers = ms.Peers
