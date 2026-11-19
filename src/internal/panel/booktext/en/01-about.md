@@ -21,17 +21,24 @@ internet without a domain and a certificate. More in the chapter "First login".
 
 ## Sections
 
-The panel has five main sections, plus the "Plugins" section:
+The panel has five main sections, plus "Plugins" and "Monitoring":
 
 - **Overview** — the main screen: the state of the server and the network journal.
 - **Devices** — everyone who may connect to the server. An SSH client and a
   network device that belong to the same person are shown in one row.
 - **Access** — who may go where inside the device network.
 - **Networks** — device networks, servers of the network, the network map.
-- **Settings** — password, autostart, server capacity, updates and exit through
-  another server.
+- **Settings** — password, autostart, server capacity, updates, exit through
+  another server and the **Look** tab: theme and background, as in the program.
+  The choice is kept for your login, so another browser opens the panel the
+  same way.
 - **Plugins** — what runs on the server itself: mirrored folders, clipboard,
   backups and the rest.
+- **Monitoring** — at the bottom of the side menu: how the server itself is
+  doing. CPU, memory, disks, network, graphs for the last hour, the five
+  hungriest processes and the ssh_tunnel services (panel, meshd, UDP relay,
+  plugin host) — running or not, version, since when. Refreshes every 10
+  seconds. Green is fine, yellow is from 70 %, red is from 90 %.
 
 Each section has its own chapter. For the first step, see "First login".
 
