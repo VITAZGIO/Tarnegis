@@ -31,6 +31,17 @@ not affected.
 If the server has no internet access, the update check does not work. The panel
 writes that it cannot reach GitHub.
 
+## meshd
+
+**Settings** → **Device network** → **Update meshd**. The meshd version is shown
+there too: "7 · v1.10.6" — the protocol number and the release meshd was built
+from. A hand-built one shows "7 · file from …". If it is the same release as the
+panel, the button answers "meshd is already the latest: … Nothing to install".
+
+While meshd restarts, the device network on this server is gone for a few
+seconds. If the panel is open through the device network of this same server, the
+page reconnects by itself.
+
 ## Versions before 1.7.3
 
 Old versions of the panel have no update button. They are updated once with a

@@ -140,3 +140,17 @@ func TestViaБезПорта(t *testing.T) {
 		t.Fatalf("Лондон %+v", c.Profiles[1])
 	}
 }
+
+// Список серверов пришёл через дополнительное соединение (второй сервер):
+// его Via — id профиля. Профиль находится, сервер добавляется.
+func TestViaIDПрофиля(t *testing.T) {
+	c := Config{Profiles: []Profile{
+		{ID: "de", Name: "Германия", Host: "89.125.168.26", User: "tun_x", KeyPath: "/k", MeshEnabled: true, MeshKey: "K"},
+		{ID: "lonp", Name: "London", Host: "87.120.219.28", User: "tun_x", KeyPath: "/k", MeshEnabled: true, MeshKey: "K"},
+	}}
+	ads := []NetServerAd{{ID: "ams", Name: "Amsterdam", Host: "vitazgio.ru", Port: 22, Net: "N", Acct: true, Via: "lonp"}}
+	res := c.ApplyNetServers(ads, []string{"N"})
+	if len(res.Added) != 1 || res.Added[0].Host != "vitazgio.ru" {
+		t.Fatalf("через второй сервер не добавлен: %+v", res)
+	}
+}

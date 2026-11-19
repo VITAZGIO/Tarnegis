@@ -147,6 +147,13 @@ func (c *Config) profileByKey(key string) (Profile, bool) {
 	if key == "" {
 		return Profile{}, false
 	}
+	// Дополнительное соединение сети устройств ключуется id профиля: список
+	// серверов, пришедший через второй сервер, тоже находит свой профиль.
+	for _, p := range c.Profiles {
+		if p.ID != "" && p.ID == key {
+			return p, true
+		}
+	}
 	// Ключ соединения сети устройств (Via) — адрес профиля без порта: ищем
 	// по адресу, сначала профиль с включённой сетью устройств.
 	if _, _, err := net.SplitHostPort(key); err != nil {
