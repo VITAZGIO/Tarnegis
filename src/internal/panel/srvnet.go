@@ -725,11 +725,17 @@ func (c *sshConn) Close() error {
 
 type exchangeReq struct {
 	Items map[string]srvItem `json:"items"`
+	// View — живая картина звонящего (ТЗ 25): если до него самого не
+	// достучаться, картина всё равно приходит с его обменом. Старая панель
+	// её не шлёт и не читает.
+	View *srvView `json:"view,omitempty"`
 }
 
 type exchangeResp struct {
 	Net   string             `json:"net"`
 	Items map[string]srvItem `json:"items"`
+	// View — живая картина отвечающего: отдельный /srv/v1/view не нужен.
+	View *srvView `json:"view,omitempty"`
 }
 
 // syncPeer — обмен с одним сервером.
@@ -744,7 +750,8 @@ func (n *ServerNet) syncPeer(ctx context.Context, id string, rec srvRec) {
 	}
 	var resp exchangeResp
 	var rtt time.Duration
-	err = n.callTimed(ctx, rec, signer, true, netID, "/srv/v1/exchange", exchangeReq{Items: items}, &resp, &rtt)
+	mine := n.buildView(ctx)
+	err = n.callTimed(ctx, rec, signer, true, netID, "/srv/v1/exchange", exchangeReq{Items: items, View: &mine}, &resp, &rtt)
 	var ce *callError
 	if errors.As(err, &ce) && ce.Status == http.StatusGone {
 		// Нас убрали из сети: работаем дальше одни.
@@ -772,8 +779,11 @@ func (n *ServerNet) syncPeer(ctx context.Context, id string, rec srvRec) {
 	}
 	n.mu.Unlock()
 	n.afterMerge(ctx, changed)
-	// Живая картина того сервера — тем же заходом (ТЗ 24).
-	n.pullView(ctx, id, rec)
+	// Живая картина того сервера — в ответе на обмен (ТЗ 25); старая панель
+	// её не присылает — тогда отдельным запросом, как раньше (ТЗ 24).
+	if resp.View == nil || !n.takeView(id, netID, *resp.View) {
+		n.pullView(ctx, id, rec)
+	}
 }
 
 // syncAll — обмен со всеми серверами сети сразу.
@@ -920,7 +930,16 @@ func (n *ServerNet) handleExchange(w http.ResponseWriter, r *http.Request) {
 	changed := n.mergeLocked(req.Items)
 	n.markPeerLocked(from)
 	resp := exchangeResp{Net: n.f.Net, Items: n.snapshotLocked()}
+	netID := n.f.Net
 	n.mu.Unlock()
+	// Звонящий на связи — значит, и его картина свежая (ТЗ 25, п. 7: раньше
+	// «сверено» ставилось и от его звонка, а картину брали только своим
+	// запросом к нему, который мог не проходить).
+	if req.View != nil {
+		n.takeView(from, netID, *req.View)
+	}
+	mine := n.buildView(r.Context())
+	resp.View = &mine
 	writeJSON(w, http.StatusOK, resp)
 	go n.afterMerge(context.Background(), changed)
 }

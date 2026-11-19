@@ -1,3 +1,4 @@
+// Книга панели («Настройки» → «Книга») и таблица «? → глава» (BOOK_HELP).
 /* ---------- Книга: Markdown → безопасный HTML ---------- */
 /* Текст глав — свои файлы, но и он проходит через экранирование: сырой HTML
    из Markdown не попадает на страницу, ссылки — только http(s) и главы Книги.
@@ -362,3 +363,11 @@ function bkGoto(id){
   showTab('Settings');
   bkShow().then(() => { if (!bkNarrow()) $('bookCard').scrollIntoView({block: 'start'}); });
 }
+
+/* ---------- события каркаса ---------- */
+onPanel('lang', () => {
+  if (BK.chapters.length && BK.lang !== LANG) bkShow(true);
+  else if (BK.chapters.length) bkRenderToc();
+});
+onPanel('sub:Settings', sub => { if (sub === 'book') bkShow(); });
+onPanel('show:Settings', () => { if (SUB.Settings === 'book') bkShow(); });

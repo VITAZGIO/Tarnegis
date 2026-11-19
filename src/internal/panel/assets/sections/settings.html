@@ -8,6 +8,7 @@
     <button type="button" data-sub="net" data-i18n="sub_set_net">Сеть устройств</button>
     <button type="button" data-sub="egress" data-i18n="sub_set_egress">Выход сервера</button>
     <button type="button" data-sub="panel" data-i18n="sub_set_panel">Панель</button>
+    <button type="button" data-sub="look" data-i18n="sub_set_look">Вид</button>
     <button type="button" data-sub="book" data-i18n="sub_set_book">Книга</button>
   </div>
   <div class="sub" data-sub="net">
@@ -187,6 +188,27 @@
           <button class="btn ghost" id="cancelPassBtn" data-i18n="cancel">Отмена</button>
         </div>
       </div>
+    </div>
+  </div>
+  <!-- Вид (ТЗ 25): тот же выбор темы и фона, что в программе. -->
+  <div class="sub" data-sub="look" hidden>
+    <div class="card" id="lookCard">
+      <h1 data-i18n="look_title">Тема и фон</h1>
+      <p class="note" data-i18n="look_note">Как в программе на компьютере и на телефоне. Меняется сразу; запоминается в этом браузере и на сервере для твоего логина — в другом браузере панель откроется так же.</p>
+      <div class="look-row"><div class="look-k" data-i18n="theme">Тема</div>
+        <div class="seg" id="themeSeg">
+          <button type="button" data-v="" data-i18n="theme_orig">Оригинал</button>
+          <button type="button" data-v="dark" data-i18n="theme_dark">Тёмная</button>
+          <button type="button" data-v="light" data-i18n="theme_light">Светлая</button>
+          <button type="button" data-v="console" data-i18n="theme_console">Консоль</button>
+        </div></div>
+      <div class="look-row"><div class="look-k" data-i18n="background">Фон</div>
+        <div class="seg" id="bgSeg">
+          <button type="button" data-v="" data-i18n="bg_color">Цвет</button>
+          <button type="button" data-v="code" data-i18n="bg_code">Код</button>
+          <button type="button" data-v="author" data-i18n="bg_author">Автор</button>
+        </div></div>
+      <div id="lookMsg"></div>
     </div>
   </div>
   <div class="sub" data-sub="book" hidden>

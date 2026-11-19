@@ -1,5 +1,10 @@
 // Переводы: settings (en). Ключи ru и en совпадают (layout_test.go).
 Object.assign(I18N.en, {
+  password_changed:'Password changed',
+  udprelay_install:'Install UDP relay',
+  meshd_latest:'meshd is already the latest: {v}. Nothing to install.',
+  udprelay_update:'Update UDP relay',
+  udprelay_none:'not installed',
   settings_sub:'The device network on this server, server exit, the panel itself and the Book.',
   book_title:'Book',
   book_note:'Help for the panel: what is where, how to do things and what to do when something does not work. Works offline.',
@@ -81,4 +86,14 @@ Object.assign(I18N.en, {
   sub_set_egress:'Server exit',
   sub_set_panel:'Panel',
   sub_set_book:'Book',
+  sub_set_look:'Look',
+  look_title:'Theme and background',
+  look_note:'Same as in the app on the computer and the phone. Applies at once; remembered in this browser and on the server for your login — another browser opens the panel the same way.',
+  theme_orig:'Original',
+  theme_dark:'Dark',
+  theme_light:'Light',
+  theme_console:'Console',
+  bg_color:'Colour',
+  bg_code:'Code',
+  bg_author:'Author',
 });

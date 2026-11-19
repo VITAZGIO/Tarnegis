@@ -1,12 +1,6 @@
+// Раздел «Сети»: сети устройств, серверы сети, соединения и прогноз
+// прямых соединений.
 /* ---------- проверка NAT и прогноз прямых соединений ---------- */
-function natLabel(n){
-  if (!n) return t('nat_unknown');
-  if (!n.udp) return t('nat_udp_blocked');
-  let s = n.mapping === 'independent' ? t('nat_easy') : n.mapping === 'dependent' ? t('nat_hard') : t('nat_unknown');
-  if (n.filtering === 'open') s += ', ' + t('nat_open');
-  if (n.ipv6) s += ', IPv6';
-  return s;
-}
 // natForecast — сможет ли пара устройств соединиться напрямую.
 function natForecast(a, b){
   if (!a.udp || !b.udp) return {lvl: 'no', cls: 'err', why: t('fcw_udp')};
@@ -380,7 +374,7 @@ async function saveNetName(n, name){
   if (!ok){ toast(meshErr(data), 'err'); renderNets(); return; }
   toast(name ? t('net_renamed') : t('net_name_cleared'));
   loadMesh();
-  loadJournal();
+  refreshJournal();
 }
 
 async function deleteNet(n, i){
@@ -395,9 +389,10 @@ async function deleteNet(n, i){
   toast(t('net_deleted'));
   if (MESH_NET === n.id) MESH_NET = null;
   loadMesh();
-  loadJournal();
+  refreshJournal();
 }
 
+// renderNetApproval — переключатель одобрения у сети в «Сетях».
 function renderNetApproval(card, n){
   const devs = n.devices || [];
   const waiting = devs.filter(d => d.pending).length;
@@ -423,7 +418,21 @@ function renderNetApproval(card, n){
     if (!ok){ cb.checked = !want; toast(meshErr(data), 'err'); return; }
     toast(t(want ? 'net_approval_on' : 'net_approval_off'));
     loadMesh();
-    loadJournal();
+    refreshJournal();
   });
   card.appendChild(lab);
 }
+
+/* ---------- события каркаса ---------- */
+onPanel('sub:Mesh', () => remesh());
+onPanel('mesh', (m, role) => {
+  const isMain = role === 'main';
+  $('meshForecastCard').hidden = !isMain;
+  $('netsNone').hidden = isMain;
+  $('netsNoneText').textContent = isMain ? '' : t(role === 'secondary' ? 'nets_secondary' : 'nets_off');
+  renderSelfCard(m, role);
+  renderNets();
+  if (isMain) renderForecast(meshDevices());
+  $('meshServersCard').hidden = false;
+  renderMeshServers();
+});

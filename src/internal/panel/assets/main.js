@@ -1,3 +1,4 @@
+// main.js — последним: все разделы уже подписались на события каркаса.
 applyI18N();
 loadSession();
 // Трафик и число сессий на сервере пересчитываются раз в 15 секунд
@@ -6,5 +7,5 @@ setInterval(() => {
   if ($('viewMain').hidden) return;
   loadStatus();
   loadClients();
-  loadTraffic();
+  emitPanel('refresh');
 }, 15000);

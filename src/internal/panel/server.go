@@ -61,6 +61,10 @@ type Server struct {
 	dataDir string
 	update  selfUpdate
 
+	// stats — замеры сервера для «Мониторинга» (stats.go); nil — ещё не
+	// запущены (запускаются при первом запросе или StartStats).
+	stats *StatsSampler
+
 	// connUID узнаёт uid звонящего на входе создания пользователей
 	// (selfservice.go); nil — по /proc/net/tcp. Подменяется в тестах.
 	connUID func(*http.Request) (int, bool)
@@ -123,6 +127,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/update/install", s.requireAuth(s.handleUpdateInstall))
 	mux.HandleFunc("/api/update/progress", s.requireAuth(s.handleUpdateProgress))
 	mux.HandleFunc("/api/book", s.requireAuth(s.handleBook))
+	mux.HandleFunc("/api/server/stats", s.requireAuth(s.handleServerStats))
+	mux.HandleFunc("/api/settings/look", s.requireAuth(s.handleLook))
 	s.meshRoutes(mux)
 	s.nodeRoutes(mux)
 	s.egressRoutes(mux)

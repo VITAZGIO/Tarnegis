@@ -1,3 +1,5 @@
+// Раздел «Настройки»: сеть устройств на этом сервере, выход сервера, панель,
+// вид (тема и фон), Книга (book.js).
 /* ---------- настройки: автозапуск ---------- */
 async function loadAutostart(){
   const {ok, data} = await api('/api/autostart');
@@ -223,7 +225,7 @@ function renderDnCard(m){
   if (!on) return;
   const st = $('srvDnState');
   st.innerHTML = '';
-  st.appendChild(el('span', 'badge ' + (m.meshd && m.meshd.active ? 'ok' : 'warn'), svcText(m.meshd) + (m.version ? ' · meshd ' + m.version : '')));
+  st.appendChild(el('span', 'badge ' + (m.meshd && m.meshd.active ? 'ok' : 'warn'), svcText(m.meshd) + (m.version ? ' · meshd ' + meshdLabel(m) : '')));
   $('srvDnName').textContent = m.name || m.sshHost || '—';
 }
 $('meshMakeMainBtn').addEventListener('click', async () => {
@@ -265,6 +267,8 @@ $('meshReinstallBtn').addEventListener('click', async () => {
   // status 0 — связь оборвалась (панель открыта через сеть устройств, а
   // meshd перезапускается): работа на сервере идёт дальше, опрос покажет.
   if (!ok && status !== 0){ toast(data.error || t('err_internal'), 'err'); return; }
+  // Стоит meshd того же релиза, что и панель, — ставить нечего (ТЗ 25).
+  if (data.latest) toast(fill('meshd_latest', {v: MESH ? meshdLabel(MESH) : ''}));
   loadMesh();
 });
 
@@ -308,4 +312,59 @@ $('capSaveBtn').addEventListener('click', async () => {
   if (!ok){ showMsg($('capMsg'), data.error || t('err_internal'), 'err'); return; }
   $('capEffective').textContent = data.effective ? 'MaxStartups ' + data.effective : '—';
   toast(t('cap_saved').replace('{n}', data.maxDevices));
+});
+
+// renderMeshService — служба сети и ретранслятор UDP (карточка «Служба сети»).
+function renderMeshService(m){
+  $('meshSvcState').innerHTML = '';
+  const b = el('span', 'badge ' + (m.meshd.active ? 'ok' : 'warn'), svcText(m.meshd));
+  $('meshSvcState').appendChild(b);
+  $('meshSvcVersion').textContent = m.version ? meshdLabel(m) : '—';
+  $('meshSvcSince').textContent = m.startedAt ? fmtClock(m.startedAt) : '—';
+  $('meshReinstallBtn').disabled = !!(m.job && m.job.running);
+  // Ретранслятор UDP: без него у клиентов с «Пробрасывать UDP» не работают
+  // звонки, игры и QUIC (видео YouTube подолгу стоит).
+  const relay = m.udprelay || {};
+  $('udpRelayState').innerHTML = '';
+  $('udpRelayState').appendChild(el('span', 'badge ' + (relay.active ? 'ok' : 'warn'),
+    relay.installed ? svcText(relay) : t('udprelay_none')));
+  $('udpRelayBtn').textContent = t(relay.installed ? 'udprelay_update' : 'udprelay_install');
+  $('udpRelayBtn').disabled = !!(m.job && m.job.running);
+}
+
+/* ---------- учётная запись панели: пароль, выход ---------- */
+$('showPassFormBtn').addEventListener('click', () => {
+  $('passForm').hidden = false;
+  $('showPassFormBtn').hidden = true;
+  $('curPass2').focus();
+});
+$('cancelPassBtn').addEventListener('click', () => {
+  $('passForm').hidden = true;
+  $('showPassFormBtn').hidden = false;
+  showMsg($('accountMsg'), '', '');
+});
+$('accountChangeBtn').addEventListener('click', () => doChangePassword(
+  'curPass2','newPass21','newPass22', $('accountMsg'), $('accountChangeBtn'),
+  () => {
+    $('passForm').hidden = true;
+    $('showPassFormBtn').hidden = false;
+    showMsg($('accountMsg'), t('password_changed'), 'ok');
+  }));
+
+$('logoutBtn').addEventListener('click', async () => {
+  await api('/api/logout', {});
+  loadSession();
+});
+
+/* ---------- события каркаса ---------- */
+onPanel('show:Settings', () => { loadAutostart(); loadCapacity(); loadEgress(); });
+onPanel('status', st => { $('setVersion').textContent = st.version; });
+onPanel('mesh', (m, role) => {
+  const isMain = role === 'main';
+  renderJob(m.job);
+  $('meshServiceCard').hidden = !isMain;
+  $('meshSecView').hidden = role !== 'secondary';
+  if (isMain) renderMeshService(m);
+  if (role === 'secondary') renderMeshSecondary();
+  renderDnCard(m);
 });

@@ -107,6 +107,25 @@ import (
 	"unicode"
 )
 
+// release — из какого релиза собран этот файл ("v1.10.5"); задаёт сборка
+// релиза (build.sh: -ldflags "-X main.release=…"). Пусто — собран руками или
+// на самом сервере из исходника: тогда панель показывает дату файла (ТЗ 25).
+// Номер version от этого не зависит — это версия протокола для панели.
+var release = ""
+
+// binTime — когда записан сам файл meshd (unix, 0 — не узнать).
+func binTime() int64 {
+	exe, err := os.Executable()
+	if err != nil {
+		return 0
+	}
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return 0
+	}
+	return fi.ModTime().Unix()
+}
+
 const (
 	protoVersion = 2
 	// version — версия самого meshd, её видно в панели.
@@ -512,6 +531,7 @@ type server struct {
 	saveMu    sync.Mutex
 	dirty     chan struct{}
 	started   time.Time
+	built     int64 // время файла meshd (binTime), раз при запуске
 	// now — часы; в тестах подменяются.
 	now func() time.Time
 	// events — журнал событий (кольцо на maxEvents), evSeq — номер последнего.
@@ -547,6 +567,7 @@ func newServer(path string) *server {
 		sameOwner: procSameOwner,
 		dirty:     make(chan struct{}, 1),
 		started:   time.Now(),
+		built:     binTime(),
 		now:       time.Now,
 	}
 	s.load()
@@ -1523,11 +1544,15 @@ type adminSeen struct {
 }
 
 type adminState struct {
-	Version   string         `json:"version"`
-	StartedAt int64          `json:"startedAt"`
-	Networks  []adminNetwork `json:"networks"`
-	Servers   []adminServer  `json:"servers"`
-	Self      adminSelf      `json:"self"`
+	Version   string `json:"version"`
+	StartedAt int64  `json:"startedAt"`
+	// Release и Built — из какого релиза собран meshd и когда записан его
+	// файл (ТЗ 25); старый meshd их не присылает.
+	Release  string         `json:"release,omitempty"`
+	Built    int64          `json:"built,omitempty"`
+	Networks []adminNetwork `json:"networks"`
+	Servers  []adminServer  `json:"servers"`
+	Self     adminSelf      `json:"self"`
 	// Peers — другие серверы сети по рассказам устройств; Known — серверы,
 	// которые советует панель (ТЗ 12).
 	Peers []adminSeen `json:"peers"`
@@ -1550,7 +1575,8 @@ func round1(v float64) float64 { return math.Round(v*10) / 10 }
 func (s *server) adminState() adminState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := adminState{Version: version, StartedAt: s.started.Unix(), Networks: []adminNetwork{}}
+	st := adminState{Version: version, StartedAt: s.started.Unix(), Release: release, Built: s.built,
+		Networks: []adminNetwork{}}
 	for id, n := range s.nets {
 		an := adminNetwork{ID: id, Name: n.Name, Created: n.Created, EmptySince: n.EmptySince, Approval: n.Approval}
 		for _, d := range n.Devices {
@@ -3802,7 +3828,15 @@ func main() {
 	showVersion := flag.Bool("version", false, "напечатать версию и выйти")
 	flag.Parse()
 	if *showVersion {
-		os.Stdout.WriteString(version + "\n")
+		// Первое слово — номер для панели и скрипта установки, дальше — релиз
+		// или дата файла, чтобы было видно, какой meshd стоит.
+		v := version
+		if release != "" {
+			v += " " + release
+		} else if bt := binTime(); bt > 0 {
+			v += " (файл от " + time.Unix(bt, 0).UTC().Format("2006-01-02 15:04") + " UTC)"
+		}
+		os.Stdout.WriteString(v + "\n")
 		return
 	}
 

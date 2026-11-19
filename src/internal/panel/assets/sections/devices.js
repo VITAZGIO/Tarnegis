@@ -1,3 +1,5 @@
+// Раздел «Устройства»: один список клиентов и устройств сети, карточка
+// устройства справа, добавление, права, настройки клиента.
 /* ---------- устройства: один список на клиентов и устройства сети ---------- */
 /* Клиент — учётная запись SSH на этом сервере (ключ, заморозка, удаление);
    устройство сети — то, что знает meshd (адрес .mesh, связь, имя). Обычно
@@ -203,7 +205,7 @@ function renderDetail(){
   }
 
   // --- доступ: роль и «куда может ходить» ---
-  renderDevAccess(box, d);
+  emitPanel('deviceCard', box, d); // «Куда может ходить» — раздел «Доступ»
 
   // --- вход на сервер (клиент SSH) ---
   const part = el('div', 'dpart');
@@ -332,7 +334,7 @@ async function deleteClient(id){
   if (ACCESS_CLIENT === id) $('clientAccessCard').hidden = true;
   if (CONFIG_FOR === id) closeClientConfig();
   loadClients();
-  loadTraffic();
+  emitPanel('refresh');
 }
 
 $('addClientBtn').addEventListener('click', () => {
@@ -456,71 +458,11 @@ document.querySelectorAll('#meshFilter button').forEach(b => b.addEventListener(
   document.querySelectorAll('#meshFilter button').forEach(x => x.classList.toggle('on', x === b));
   renderDevList();
 }));
-/* ---------- «Куда может ходить» в карточке устройства ---------- */
-function renderDevAccess(box, d){
-  if (!d || !(MESH && MESH.effectiveRole === 'main')) return;
-  const by = smClients();
-  const part = el('div', 'dpart');
-  const h = el('h2');
-  h.appendChild(el('span', '', t('dev_part_access')));
-  part.appendChild(h);
-  if (!d.user){ part.appendChild(el('p', 'note', t('old_meshd'))); box.appendChild(part); return; }
-  if (!by[d.user]){ part.appendChild(el('p', 'note', t('sm_locked_foreign'))); box.appendChild(part); return; }
-  if (!smActive()){
-    part.appendChild(el('p', 'note', t('sm_dev_inactive')));
-    const go = el('button', 'btn ghost small', t('sm_open_access'));
-    go.addEventListener('click', () => showTab('Access'));
-    part.appendChild(go);
-    box.appendChild(part);
-    return;
-  }
-  const w = smCur(), a = d.user;
-  if (!ACCESS_RAW.enabled) part.appendChild(el('p', 'msg err', t('sm_off_d')));
-  const mates = meshDevices().filter(x => x.user === a && x.id !== d.id);
-  if (mates.length) part.appendChild(el('p', 'note', fill('sm_dev_shared', {list: mates.map(x => x.display).join(', ')})));
-
-  part.appendChild(el('div', 'k sm-k', t('sm_role')));
-  const seg = el('div', 'seg');
-  SM_ROLES.forEach(R => {
-    const b = el('button', w.roles[a] === R ? 'on' : '', t('sm_role_' + R));
-    b.type = 'button';
-    b.title = t('sm_role_' + R + '_d');
-    b.addEventListener('click', () => smSetRole(a, R));
-    seg.appendChild(b);
-  });
-  part.appendChild(seg);
-
-  const kh = el('div', 'k sm-k');
-  kh.appendChild(el('span', '', t('sm_where')));
-  const all = el('button', 'btn ghost small', t('sm_to_all'));
-  all.addEventListener('click', () => smRow(a, true));
-  const none = el('button', 'btn ghost small', t('sm_to_none'));
-  none.addEventListener('click', () => smRow(a, false));
-  kh.appendChild(all);
-  kh.appendChild(none);
-  part.appendChild(kh);
-  const checks = el('div', 'sm-checks');
-  const lines = smLines().filter(l => l.client);
-  const targets = lines.map(l => ({b: l.user, name: l.user === a ? t('sm_self') : l.name, self: l.user === a}))
-    .filter(x => !x.self || mates.length).concat([{b: SRV, name: t('sm_servers')}]);
-  targets.forEach(x => {
-    const lock = smLock(a, x.b);
-    const lab = el('label', lock ? 'lock' : '');
-    const cb = el('input');
-    cb.type = 'checkbox';
-    cb.checked = !!(w.M[a] && w.M[a][x.b]);
-    cb.disabled = !!lock;
-    cb.title = lock ? fill('sm_locked', {r: lock.slice(5)}) : '';
-    cb.addEventListener('change', () => smToggle(a, x.b));
-    lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(' ' + x.name));
-    checks.appendChild(lab);
-  });
-  part.appendChild(checks);
-  box.appendChild(part);
-}
-
-
+/* ---------- профиль устройства в панели (ТЗ 16) ----------
+   Одобрение новых устройств и заморозка (meshd 5+, у каждого сервера
+   свои), цепочка выхода, которую панель советует устройству (оно может её
+   поменять — показываем значение устройства и что оно другое), и записи
+   журнала об этом. */
 // holdBadge — значок «ждёт одобрения» / «заморожено» у устройства сети.
 function holdBadge(d){
   if (!d || !(d.pending || d.frozen)) return null;
@@ -562,10 +504,9 @@ async function devHoldCall(path, body, okKey){
   if (!ok){ toast(meshErr(data), 'err'); return; }
   toast(t(okKey));
   loadMesh();
-  loadJournal();
+  refreshJournal();
 }
 
-// renderNetApproval — переключатель одобрения у сети в «Сетях».
 /* Цепочка выхода. Сервер называется ключом «адрес:порт» (id профилей у
    каждого устройства свои). EX_DRAFT — что выбрано в полях, пока их не
    отправили: опрос состояния перерисовывает карточку и не должен сбросить
@@ -644,10 +585,79 @@ function renderDevExit(part, d){
     EX_DRAFT = null;
     toast(t('ex_sent'));
     loadMesh();
-    loadJournal();
+    refreshJournal();
   });
   const acts = el('div', 'dacts');
   acts.appendChild(send);
   box.appendChild(acts);
   box.appendChild(el('p', 'note', t('ex_hint')));
 }
+
+/* ---------- имя устройства, переход к устройству ---------- */
+// focusDeviceNow — открыть устройство в «Устройствах» (со схемы, из «Сетей»:
+// они зовут focusDevice из core.js).
+function focusDeviceNow(id){
+  MESH_FILTER = 'all';
+  $('meshSearch').value = '';
+  document.querySelectorAll('#meshFilter button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+  const it = devItems().find(i => i.mesh && i.mesh.id === id);
+  if (!it) return;
+  if (TAB !== 'Devices') showTab('Devices');
+  renderDevList();
+  selectDev(it.key, true);
+  const row = document.querySelector('.drow[data-key="' + CSS.escape(it.key) + '"]');
+  if (!row || !row.getClientRects().length) return;
+  row.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  row.classList.remove('flash');
+  void row.offsetWidth;
+  row.classList.add('flash');
+}
+
+// startRename — имя прямо в шапке карточки: Enter или уход с поля —
+// сохранить, Esc — отменить.
+function startRename(nm, d){
+  MESH_EDIT = d.id;
+  nm.innerHTML = '';
+  const input = el('input');
+  input.type = 'text';
+  input.maxLength = 64;
+  input.value = d.alias || d.display;
+  nm.appendChild(input);
+  nm.appendChild(el('div', 'h', d.host + '.mesh'));
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = save => {
+    if (done) return;
+    done = true;
+    MESH_EDIT = null;
+    const v = input.value.trim();
+    if (save && v && v !== d.display) renameDevice(d, v);
+    else renderDetail();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') finish(true);
+    if (e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+async function renameDevice(d, alias){
+  const {ok, data} = await api('/api/mesh/rename', {net: MESH_NET, device: d.id, alias});
+  if (!ok){ toast(data.error || t('err_internal'), 'err'); loadMesh(); return; }
+  toast(t('renamed'));
+  loadMesh();
+}
+
+/* ---------- события каркаса ---------- */
+// Группы нужны форме прав клиента — грузим при каждом открытии раздела.
+onPanel('show:Devices', () => loadAccess());
+onPanel('clients', () => { renderDevList(); renderDetail(); });
+onPanel('access', () => renderDetail());
+onPanel('detail', () => renderDetail());
+onPanel('focusDevice', id => focusDeviceNow(id));
+onPanel('mesh', (m, role) => {
+  $('devsBox').classList.toggle('withmap', role === 'main');
+  renderDevList();
+  renderDetail();
+});

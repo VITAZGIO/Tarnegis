@@ -2,7 +2,6 @@
 Object.assign(I18N.en, {
   home_sub:'How the server is doing and who goes through it.',
   server_status:'Server status',
-  os_label:'OS',
   uptime_label:'Uptime',
   repo_label:'Source code',
   clients_title:'Connected clients',
@@ -41,10 +40,6 @@ Object.assign(I18N.en, {
   legend_off:'offline',
   srv_tile_reach:'reachable',
   relay_title:'via servers {a} → {b}',
-  udprelay_update:'Update UDP relay',
-  udprelay_none:'not installed',
-  mesh_admin_err:'The network service does not answer the panel: {e}. Press "Update meshd" — the panel installs a fresh version.',
-  renamed:'Name changed',
   hint_tile_latency:'<p>Round-trip time from this server to the device (<b>RTT</b>), measured every 15 seconds.</p><p>Up to 60 ms is excellent, up to 150 good, over 400 poor.</p>',
   hint_tile_traffic:'How much data devices sent each other through the network (not all internet traffic, only connections between devices).',
   hint_traffic:'Traffic is counted by nftables rules on the server itself, separately for each client.',

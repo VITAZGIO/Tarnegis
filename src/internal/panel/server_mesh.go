@@ -151,7 +151,8 @@ func (s *Server) handleMeshReinstall(w http.ResponseWriter, r *http.Request) {
 	if !decodePost(w, r, &req) {
 		return
 	}
-	replyErr(w, s.mesh.Reinstall(), map[string]bool{"ok": true})
+	latest, err := s.mesh.ReinstallIfNeeded()
+	replyErr(w, err, map[string]bool{"ok": true, "latest": latest})
 }
 
 func (s *Server) handleUDPRelayInstall(w http.ResponseWriter, r *http.Request) {

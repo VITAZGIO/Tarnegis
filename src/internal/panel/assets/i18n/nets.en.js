@@ -1,15 +1,12 @@
 // Переводы: nets (en). Ключи ru и en совпадают (layout_test.go).
 Object.assign(I18N.en, {
+  nets_secondary:'This server is connected the old way — through a forward to another server. Press “Move” in “Settings”: it gets its own network service and joins the network of servers.',
+  nets_off:'The device network is not enabled on this server. Turn it on in “Settings” or join another server\'s network: “Networks” → “Servers of the network” → “Join a network”.',
   net_devices:'Devices',
   net_show:'Show',
   net_shown:'shown',
   net_id:'ID',
   net_empty:'empty',
-  nat_easy:'easy NAT',
-  nat_hard:'hard NAT',
-  nat_open:'open',
-  nat_udp_blocked:'UDP blocked',
-  nat_unknown:'not checked',
   fc_title:'Direct connections: forecast',
   fc_pairs:'Device pairs',
   fc_note:'A NAT check runs by itself every time a device connects. From it — whether devices could ever connect directly, bypassing the server.',

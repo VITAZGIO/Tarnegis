@@ -8,6 +8,7 @@
      стили и скрипт ниже вставляется в ответ как есть, по порядку. Порядок
      скриптов — единственный «загрузчик»: core.js и переводы раньше разделов,
      main.js — последним. Тема и фон — общий theme.css программы (uiassets). -->
+<script src="look-boot.js"></script>
 <link rel="stylesheet" href="ui/theme.css">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="book.css">
@@ -20,6 +21,8 @@
 <link rel="stylesheet" href="sections/monitor.css">
 </head>
 <body>
+<!-- Фон «Код» / «Автор» (Настройки → Вид), под всем остальным. -->
+<div id="backdrop" aria-hidden="true"></div>
 
 <header class="topbar">
   <div class="inner">
@@ -124,6 +127,15 @@
         <path d="M9 14.5v2.5a2 2 0 1 0 4 0v-.5"/><path d="M11 21v-3.5"/></svg>
       <span data-i18n="nav_plugins">Плагины</span>
     </button>
+    <!-- «Мониторинг» — отдельный раздел внизу меню (ТЗ 25): все показания
+         машины на своей странице, а не полосой на каждой. -->
+    <span class="side-sp"></span>
+    <span class="side-sep"></span>
+    <button data-tab="Monitor" data-i18n-title="nav_monitor">
+      <svg viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="13" rx="1.8"/><path d="M8 20.5h8M12 16.5v4"/>
+        <path d="M5.5 12.5l3-3.2 2.6 2.2 3.4-4.3 2.5 2.6"/></svg>
+      <span data-i18n="nav_monitor">Мониторинг</span>
+    </button>
   </nav>
 
   <main>
@@ -131,7 +143,8 @@
     <div class="msg err" id="meshAdminErr" hidden></div>
     <!-- Режим показа (ssh_tunnel_panel -demo): данные выдуманы. -->
     <div class="demo-banner" id="demoBanner" hidden><b data-i18n="demo_title">Режим показа</b>
-      <span data-i18n="demo_text">Данные выдуманы и живут только в памяти — на сервере ничего не меняется.</span></div>
+      <span data-i18n="demo_text">Данные выдуманы и живут только в памяти — на сервере ничего не меняется.</span>
+      <a href="#brandtest" data-i18n="brand_test_link">Фирменный фон</a></div>
 
     <!--#include sections/overview.html-->
     <!--#include sections/devices.html-->
@@ -163,6 +176,10 @@
 
 <!-- Подсказка к «?» — одна на страницу: так она не обрезается краем карточки
      или таблицы, в которой стоит знак вопроса. -->
+<!-- Знак VG — общий файл программы (internal/uiassets/logo.svg): из него
+     look.js рисует фон «Автор» и фирменный фон. -->
+<template id="vgLogo"><!--#include ui/logo.svg--></template>
+
 <div id="hintPop" role="tooltip"></div>
 <div id="toasts" aria-live="polite"></div>
 

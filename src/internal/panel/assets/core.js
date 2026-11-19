@@ -1,4 +1,19 @@
+// core.js — общее для всех разделов панели: запросы, переводы, каркас
+// (разделы, вкладки, адрес), подсказки «?», данные сети и клиентов.
+// Разделы лежат в sections/<имя>.js и не зовут друг друга: каркас сообщает
+// события (emitPanel), разделы на них подписываются (onPanel).
 const $ = id => document.getElementById(id);
+
+/* ---------- события каркаса ---------- */
+// lang — сменили язык (перерисовать тексты, собранные кодом);
+// show / show:<Раздел> — открыли раздел; sub:<Раздел> — вкладку в нём;
+// status — пришло /api/status; clients — список клиентов (first — впервые);
+// access — правила доступа (сырые, как на сервере); mesh — картина сети
+// (m, роль); meshLoaded — после каждого опроса сети; remap — схему надо
+// пересчитать; start — вход выполнен, данные грузятся; refresh — раз в 15 с.
+const PANEL_HOOKS = {};
+function onPanel(ev, fn){ (PANEL_HOOKS[ev] = PANEL_HOOKS[ev] || []).push(fn); }
+function emitPanel(ev, ...args){ (PANEL_HOOKS[ev] || []).forEach(fn => fn(...args)); }
 // api — запрос к панели. Связь с панелью может идти через сеть устройств
 // этого же сервера: пока meshd перезапускается (кнопка «Обновить meshd»),
 // соединение рвётся или повисает без ответа. Поэтому — ограничение по
@@ -49,15 +64,10 @@ function applyI18N(){
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   $('lang').value = LANG;
   // Списки собираются кодом, поэтому их надо перерисовать целиком.
-  // Справка в «Доступе» — те же тексты, что в «?» (свои строки, не ввод людей).
-  $('accHelp').innerHTML = t('hint_acc') + t('hint_acc_rules');
-  $('smRolesHelp').innerHTML = t('sm_roles_help');
-  if (BK.chapters.length && BK.lang !== LANG) bkShow(true);
-  else if (BK.chapters.length) bkRenderToc();
+  emitPanel('lang');
   if (!$('viewMain').hidden){
-    renderAll();
-    if (MESH){ MAP_SIG = ''; $('netChips').dataset.sig = ''; $('ckFrom').dataset.sig = ''; renderMesh(); }
-    renderJournal();
+    emitPanel('clients', false);
+    if (MESH){ $('netChips').dataset.sig = ''; renderMesh(); }
   }
 }
 $('lang').addEventListener('change', e => {
@@ -85,12 +95,11 @@ function showView(name){
   ['Login','MustChange','Main'].forEach(v => { $('view'+v).hidden = (v !== name); });
 }
 
-const TABS = ['Home','Devices','Access','Mesh','Settings','Plugins'];
+const TABS = ['Home','Devices','Access','Mesh','Settings','Plugins','Monitor'];
 // Раздел и вкладка — в адресе (#nets/servers): ссылка и перезагрузка ведут
 // на тот же экран (ТЗ 23).
-const TAB_SLUG = {Home:'home', Devices:'devices', Access:'access', Mesh:'nets', Settings:'settings', Plugins:'plugins'};
-// Узкие экраны-формы: вкладки, которые читаются сверху вниз.
-const NARROW_SUBS = {Settings:['net','egress','panel'], Plugins:['host','ad','site']};
+const TAB_SLUG = {Home:'home', Devices:'devices', Access:'access', Mesh:'nets', Settings:'settings', Plugins:'plugins',
+                  Monitor:'monitor'};
 function subsOf(tab){
   const bar = document.querySelector('.subtabs[data-tab="' + tab + '"]');
   return bar ? [...bar.querySelectorAll('button')].map(b => b.dataset.sub) : [];
@@ -126,10 +135,14 @@ function showSub(tab, sub){
   sec.querySelectorAll(':scope > .sub').forEach(d => { d.hidden = d.dataset.sub !== sub; });
   sec.querySelectorAll(':scope > .subtabs button').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
   refreshSubtabs(tab);
-  sec.classList.toggle('narrow', (NARROW_SUBS[tab] || []).includes(sub));
   if (tab === TAB) writeHash();
-  if (tab === 'Settings' && sub === 'book') bkShow();
-  if (tab === 'Mesh' || tab === 'Access') { MAP_SIG = ''; if (MESH) renderMesh(); }
+  emitPanel('sub:' + tab, sub);
+}
+// remesh — перерисовать всё, что нарисовано по картине сети, со схемой
+// заново (раздел или вкладка стали видны, сменили сеть или язык).
+function remesh(){
+  emitPanel('remap');
+  if (MESH) renderMesh();
 }
 document.querySelectorAll('.subtabs').forEach(bar => {
   bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -171,13 +184,9 @@ function showTab(name){
   });
   hidePop();
   if (changed) scrollTo(0, 0);
-  if (name === 'Settings'){ loadAutostart(); loadCapacity(); loadEgress(); if (SUB.Settings === 'book') bkShow(); }
-  if (name === 'Plugins') loadNode();
-  // Группы нужны и редактору правил, и форме прав клиента в «Устройствах».
-  if (name === 'Devices' || name === 'Access') loadAccess();
-  placeMap();
-  MAP_SIG = '';
-  if (MESH) renderMesh();
+  emitPanel('show:' + name);
+  emitPanel('show', name);
+  remesh();
 }
 document.querySelectorAll('.side button').forEach(b => {
   b.addEventListener('click', () => showTab(b.dataset.tab));
@@ -246,16 +255,16 @@ async function loadSession(){
   loadMesh();
   loadStatus();
   await loadClients();
-  loadTraffic();
+  emitPanel('start');
 }
 
+// STATUS — последний ответ /api/status (версия панели нужна нескольким разделам).
+let STATUS = null;
 async function loadStatus(){
   const {ok, data} = await api('/api/status');
   if (!ok) return;
-  $('stOS').textContent = data.os;
-  $('stUptime').textContent = fmtUptime(data.uptimeSeconds);
-  $('stVersion').textContent = data.version;
-  $('setVersion').textContent = data.version;
+  STATUS = data;
+  emitPanel('status', data);
 }
 
 async function loadClients(){
@@ -264,18 +273,7 @@ async function loadClients(){
   CLIENTS = data.clients || [];
   const first = !CLIENTS_READY;
   CLIENTS_READY = true;
-  renderHomeClients();
-  renderDevList();
-  renderDetail();
-  if (first) renderSimple();
-}
-
-
-function renderAll(){
-  renderHomeClients();
-  renderDevList();
-  renderDetail();
-  renderTraffic();
+  emitPanel('clients', first);
 }
 
 /* ---------- права доступа в сети устройств ---------- */
@@ -286,17 +284,18 @@ async function loadAccess(){
   ACCESS = data.access || {};
   // Как на сервере — для простого режима; ACCESS ниже получает заготовку
   // «все → все» для редактора.
-  ACCESS_RAW = JSON.parse(JSON.stringify(ACCESS));
-  ACCESS_RAW.groups = ACCESS_RAW.groups || [];
-  ACCESS_RAW.rules = ACCESS_RAW.rules || [];
+  const raw = JSON.parse(JSON.stringify(ACCESS));
+  raw.groups = raw.groups || [];
+  raw.rules = raw.rules || [];
   ACCESS.groups = ACCESS.groups || [];
   ACCESS.rules = ACCESS.rules || [];
   // Первое включение: начинаем с «все → все», чтобы ничего не отвалилось.
   if (!ACCESS.rules.length && !ACCESS.enabled) ACCESS.rules = [{from:'*', to:'*', ports:''}];
-  renderAccess();
-  renderSimple();
-  renderDetail();
+  emitPanel('access', raw);
 }
+// Группы простого режима доступа (sections/access.js) — нужны и подписям групп.
+const SM_ROLE_OF = {'~mine': 'mine', '~server': 'server', '~guest': 'guest'};
+const SM_PERSONAL = /^~tun_[0-9a-f]{16}$/;
 function groupLabel(g){
   if (g === '*') return t('acc_all');
   if (g === '@servers') return t('acc_servers');
@@ -369,30 +368,6 @@ async function doChangePassword(curId, p1Id, p2Id, msgEl, btn, onDone){
 
 $('changeBtn').addEventListener('click', () => doChangePassword(
   'curPass','newPass1','newPass2', $('changeMsg'), $('changeBtn'), loadSession));
-
-$('showPassFormBtn').addEventListener('click', () => {
-  $('passForm').hidden = false;
-  $('showPassFormBtn').hidden = true;
-  $('curPass2').focus();
-});
-$('cancelPassBtn').addEventListener('click', () => {
-  $('passForm').hidden = true;
-  $('showPassFormBtn').hidden = false;
-  showMsg($('accountMsg'), '', '');
-});
-$('accountChangeBtn').addEventListener('click', () => doChangePassword(
-  'curPass2','newPass21','newPass22', $('accountMsg'), $('accountChangeBtn'),
-  () => {
-    $('passForm').hidden = true;
-    $('showPassFormBtn').hidden = false;
-    showMsg($('accountMsg'), t('password_changed'), 'ok');
-  }));
-
-$('logoutBtn').addEventListener('click', async () => {
-  await api('/api/logout', {});
-  loadSession();
-});
-
 
 /* ---------- подсказки «?» ---------- */
 /* Одно всплывающее окно на страницу. На компьютере — по наведению и фокусу,
@@ -580,7 +555,7 @@ async function loadMesh(){
     if (ok){
       MESH = data;
       renderMesh();
-      if (!JR.timer && !JR.busy) loadJournal();
+      emitPanel('meshLoaded');
     }
   } finally {
     scheduleMesh();
@@ -650,38 +625,23 @@ function svcText(u){
   return u.active ? t('svc_active') : t('svc_stopped') + (u.detail ? ' (' + u.detail + ')' : '');
 }
 
+// renderMesh — картина сети пришла или поменялась: каркас рисует общее
+// (ошибка службы, выбор сети), разделы — своё по событию «mesh».
 function renderMesh(){
   const m = MESH;
   if (!m) return;
   const role = m.effectiveRole;
-
-  renderJob(m.job);
-  renderSelfCard(m, role);
-  // Что видно на главном, на побочном и без сети.
-  const isMain = role === 'main';
-  ['meshTiles', 'mapCard', 'meshForecastCard', 'meshServiceCard']
-    .forEach(id => { $(id).hidden = !isMain; });
-  $('meshSecView').hidden = role !== 'secondary';
-  $('tabHome').classList.toggle('nomap', !isMain);
-  $('devsBox').classList.toggle('withmap', isMain);
-  $('netsNone').hidden = isMain;
-  $('netsNoneText').textContent = isMain ? '' : t(role === 'secondary' ? 'nets_secondary' : 'nets_off');
+  const err = $('meshAdminErr');
+  err.hidden = role !== 'main' || !m.adminError || (m.job && m.job.running);
+  err.textContent = t('mesh_admin_err').replace('{e}', m.adminError || '');
   renderNetChips();
-  renderNets();
-  if (isMain){ fillCheckSelects(); renderSimple(); }
-  if (isMain) renderMeshMain(); else $('meshAdminErr').hidden = true;
-  if (role === 'secondary') renderMeshSecondary();
-  $('meshServersCard').hidden = false;
-  renderMeshServers();
-  renderDnCard(m);
-  renderDevList();
-  renderDetail();
+  emitPanel('mesh', m, role);
 }
 
 /* ---------- выбор сети (вверху) и раздел «Сети» ---------- */
 function netLabel(n, i){ return n.name || t('net_n').replace('{n}', i + 1); }
 function mainNets(){ return (MESH && MESH.effectiveRole === 'main' && MESH.networks) || []; }
-function pickNet(id){ MESH_NET = id; MAP_SIG = ''; renderMesh(); }
+function pickNet(id){ MESH_NET = id; remesh(); }
 function renderNetChips(){
   const box = $('netChips');
   const nets = mainNets();
@@ -744,4 +704,52 @@ function fill(key, vals){
 function fmtDay(unix){
   if (!unix) return '—';
   return new Date(unix * 1000).toLocaleDateString(LANG === 'ru' ? 'ru-RU' : 'en-US', {day:'numeric', month:'long', year:'numeric'});
+}
+
+/* ---------- общее для разделов про устройства ---------- */
+// directText — с кем у устройства прямое соединение, одной строкой.
+function directText(d){
+  const list = (d.direct || []).map(l => {
+    const o = meshDevices().find(x => x.ip === l.ip);
+    return (o ? o.display : l.ip) + (l.rttMs ? ' · ' + fmtMs(l.rttMs) : '');
+  });
+  return list.join(', ');
+}
+
+function natLabel(n){
+  if (!n) return t('nat_unknown');
+  if (!n.udp) return t('nat_udp_blocked');
+  let s = n.mapping === 'independent' ? t('nat_easy') : n.mapping === 'dependent' ? t('nat_hard') : t('nat_unknown');
+  if (n.filtering === 'open') s += ', ' + t('nat_open');
+  if (n.ipv6) s += ', IPv6';
+  return s;
+}
+// focusDevice — открыть устройство в «Устройствах» (схема, «Сети»).
+function focusDevice(id){ emitPanel('focusDevice', id); }
+// refreshJournal — после действия, которое пишет в журнал сети.
+function refreshJournal(){ emitPanel('journal'); }
+// systemText — «Windows 10 Pro», «Android 14»: название системы один раз,
+// даже если устройство само прислало его в версии («Windows Windows 10…»).
+function systemText(d){
+  const name = PLATFORM_NAME[d.platform] || d.platform || '';
+  const os = (d.os || '').trim();
+  if (!os) return name;
+  if (!name) return os;
+  return os.toLowerCase().includes(name.toLowerCase()) ? os : name + ' ' + os;
+}
+
+// meshdLabel — какой meshd стоит: «7 · v1.10.5»; собранный руками — «7 · файл
+// от 19 ноября 2026 г.» (ТЗ 25: по одному номеру протокола не видно, обновился ли).
+function meshdLabel(m){
+  if (!m || !m.version) return '—';
+  if (m.release) return m.version + ' · ' + m.release;
+  if (m.built) return m.version + ' · ' + fill('meshd_file', {d: fmtDay(m.built)});
+  return m.version;
+}
+// svgEl — элемент SVG с атрибутами (схема, графики «Мониторинга»).
+function svgEl(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
 }

@@ -1,3 +1,4 @@
+// Раздел «Обзор»: плитки сети, схема, клиенты, трафик, состояние сервера.
 let TRAFFIC = null;
 let PERIOD = localStorage.getItem('panelPeriod') || 'month';
 async function loadTraffic(){
@@ -104,12 +105,8 @@ function placeMap(){
 }
 function mapVisible(){ return $('meshMap').getClientRects().length > 0; }
 
-function renderMeshMain(){
-  const m = MESH;
-  const err = $('meshAdminErr');
-  err.hidden = !m.adminError || (m.job && m.job.running);
-  err.textContent = t('mesh_admin_err').replace('{e}', m.adminError || '');
-
+// renderOverviewMesh — плитки и схема (только когда сеть устройств есть).
+function renderOverviewMesh(m){
   const devices = meshDevices();
 
   // Плитки.
@@ -132,31 +129,9 @@ function renderMeshMain(){
 
   // Невидимую схему не считаем: у неё нет размера, и она тратила бы кадры.
   if (mapVisible()) renderMap(servers, devices);
-  renderForecast(devices);
-
-  $('meshSvcState').innerHTML = '';
-  const b = el('span', 'badge ' + (m.meshd.active ? 'ok' : 'warn'), svcText(m.meshd));
-  $('meshSvcState').appendChild(b);
-  $('meshSvcVersion').textContent = m.version || '—';
-  $('meshSvcSince').textContent = m.startedAt ? fmtClock(m.startedAt) : '—';
-  $('meshReinstallBtn').disabled = !!(m.job && m.job.running);
-  // Ретранслятор UDP: без него у клиентов с «Пробрасывать UDP» не работают
-  // звонки, игры и QUIC (видео YouTube подолгу стоит).
-  const relay = m.udprelay || {};
-  $('udpRelayState').innerHTML = '';
-  $('udpRelayState').appendChild(el('span', 'badge ' + (relay.active ? 'ok' : 'warn'),
-    relay.installed ? svcText(relay) : t('udprelay_none')));
-  $('udpRelayBtn').textContent = t(relay.installed ? 'udprelay_update' : 'udprelay_install');
-  $('udpRelayBtn').disabled = !!(m.job && m.job.running);
 }
 
 /* ---------- схема сети ---------- */
-function svgEl(tag, attrs, parent){
-  const e = document.createElementNS(NS, tag);
-  for (const k in attrs) e.setAttribute(k, attrs[k]);
-  if (parent) parent.appendChild(e);
-  return e;
-}
 let MAP_SIG = '', MAP_REFS = {}, MAP_SIM = null;
 // Масштаб и сдвиг карты (как у обычной карты): k — во сколько раз
 // приближено, x/y — сдвиг. Переживает перестройку схемы.
@@ -737,15 +712,6 @@ function drawDirect(devices){
   else if (!sim.raf) simDraw(sim);
 }
 
-// directText — с кем у устройства прямое соединение, одной строкой.
-function directText(d){
-  const list = (d.direct || []).map(l => {
-    const o = meshDevices().find(x => x.ip === l.ip);
-    return (o ? o.display : l.ip) + (l.rttMs ? ' · ' + fmtMs(l.rttMs) : '');
-  });
-  return list.join(', ');
-}
-
 function qColor(online, q){
   if (!online) return 'var(--dim)';
   return {excellent:'var(--ok)', good:'var(--ok)', fair:'var(--warn)', poor:'var(--err)'}[q] || 'var(--accent)';
@@ -909,71 +875,28 @@ function serverPop(s){
     [t('dev_since'), l ? fmtAgo(l.connectedAt) : ''],
   ]);
 }
-function focusDevice(id){
-  MESH_FILTER = 'all';
-  $('meshSearch').value = '';
-  document.querySelectorAll('#meshFilter button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
-  const it = devItems().find(i => i.mesh && i.mesh.id === id);
-  if (!it) return;
-  if (TAB !== 'Devices') showTab('Devices');
-  renderDevList();
-  selectDev(it.key, true);
-  const row = document.querySelector('.drow[data-key="' + CSS.escape(it.key) + '"]');
-  if (!row || !row.getClientRects().length) return;
-  row.scrollIntoView({behavior: 'smooth', block: 'nearest'});
-  row.classList.remove('flash');
-  void row.offsetWidth;
-  row.classList.add('flash');
-}
-
-// systemText — «Windows 10 Pro», «Android 14»: название системы один раз,
-// даже если устройство само прислало его в версии («Windows Windows 10…»).
-function systemText(d){
-  const name = PLATFORM_NAME[d.platform] || d.platform || '';
-  const os = (d.os || '').trim();
-  if (!os) return name;
-  if (!name) return os;
-  return os.toLowerCase().includes(name.toLowerCase()) ? os : name + ' ' + os;
-}
-
-// startRename — имя прямо в шапке карточки: Enter или уход с поля —
-// сохранить, Esc — отменить.
-function startRename(nm, d){
-  MESH_EDIT = d.id;
-  nm.innerHTML = '';
-  const input = el('input');
-  input.type = 'text';
-  input.maxLength = 64;
-  input.value = d.alias || d.display;
-  nm.appendChild(input);
-  nm.appendChild(el('div', 'h', d.host + '.mesh'));
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = save => {
-    if (done) return;
-    done = true;
-    MESH_EDIT = null;
-    const v = input.value.trim();
-    if (save && v && v !== d.display) renameDevice(d, v);
-    else renderDetail();
-  };
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') finish(true);
-    if (e.key === 'Escape') finish(false);
-  });
-  input.addEventListener('blur', () => finish(true));
-}
-
-async function renameDevice(d, alias){
-  const {ok, data} = await api('/api/mesh/rename', {net: MESH_NET, device: d.id, alias});
-  if (!ok){ toast(data.error || t('err_internal'), 'err'); loadMesh(); return; }
-  toast(t('renamed'));
-  loadMesh();
-}
-
 let MAP_RESIZE = null;
 addEventListener('resize', () => {
   clearTimeout(MAP_RESIZE);
   MAP_RESIZE = setTimeout(() => { placeMap(); if (MESH) renderMesh(); }, 150);
+});
+
+/* ---------- события каркаса ---------- */
+onPanel('lang', () => { MAP_SIG = ''; renderTraffic(); });
+onPanel('remap', () => { MAP_SIG = ''; });
+onPanel('show', () => placeMap());
+onPanel('start', loadTraffic);
+onPanel('refresh', loadTraffic);
+onPanel('clients', () => renderHomeClients());
+onPanel('status', st => {
+  $('stOS').textContent = st.os;
+  $('stUptime').textContent = fmtUptime(st.uptimeSeconds);
+  $('stVersion').textContent = st.version;
+});
+onPanel('mesh', (m, role) => {
+  const isMain = role === 'main';
+  $('meshTiles').hidden = !isMain;
+  $('mapCard').hidden = !isMain;
+  $('tabHome').classList.toggle('nomap', !isMain);
+  if (isMain) renderOverviewMesh(m);
 });

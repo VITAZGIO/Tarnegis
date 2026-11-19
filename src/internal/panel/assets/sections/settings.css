@@ -1,1 +1,11 @@
 .cap-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:14px;align-items:center}
+/* «Вид»: строки «Тема» / «Фон». */
+.look-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0}
+.look-k{width:70px;color:var(--dim);font-size:13px}
+/* Формы настроек не растягиваются на всю ширину широкого окна: карточки
+   идут двумя столбцами газетой (ширина раздела от этого не меняется). */
+@media (min-width:1500px){
+  #tabSettings > .sub:not([data-sub="book"]){display:block;columns:2;column-gap:14px}
+  #tabSettings > .sub:not([data-sub="book"]) > *{break-inside:avoid;margin-bottom:14px;display:block}
+  #tabSettings > .sub:not([data-sub="book"]) > [hidden]{display:none}
+}

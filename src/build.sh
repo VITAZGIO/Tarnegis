@@ -20,6 +20,10 @@ export CGO_ENABLED=0
 VERSION="${VERSION:-${GITHUB_REF_NAME:-dev}}"
 LDVERSION="-X sshtunnel/internal/updater.Version=${VERSION}"
 echo "Версия сборки: $VERSION"
+# meshd знает, из какого релиза собран (ТЗ 25: панель показывает «7 · v1.10.5»).
+# Сборка руками ("dev") релиза не пишет — панель покажет дату файла.
+MESHD_REL=""
+case "$VERSION" in v*) MESHD_REL="-X main.release=${VERSION}" ;; esac
 
 echo "Проверяю тесты..."
 go test ./...
@@ -77,7 +81,7 @@ for arch in amd64 arm64; do
     -o "$OUT/linux/udprelay$suffix" ./cmd/udprelay
   echo "Linux: сеть устройств meshd ($arch)..."
   GOOS=linux GOARCH="$arch" go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w $MESHD_REL" \
     -o "$OUT/linux/meshd$suffix" ./cmd/meshd
   echo "Linux: хост плагинов сервера ssh_tunnel_node ($arch)..."
   GOOS=linux GOARCH="$arch" go build \

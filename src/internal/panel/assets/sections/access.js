@@ -1,3 +1,5 @@
+// Раздел «Доступ»: простой режим, расширенный (группы и правила, проверка
+// «может ли A к B»), журнал сети.
 function renderAccess(){
   $('accEnabled').checked = !!ACCESS.enabled;
   const box = $('accGroups');
@@ -217,8 +219,6 @@ $('jrFilter').addEventListener('click', e => {
    ничего не сохраняется. */
 const SM_ROLES = ['mine', 'server', 'guest'];
 const SM_GROUP = {mine: '~mine', server: '~server', guest: '~guest'};
-const SM_ROLE_OF = {'~mine': 'mine', '~server': 'server', '~guest': 'guest'};
-const SM_PERSONAL = /^~tun_[0-9a-f]{16}$/;
 const SM_MAX_GROUPS = 64, SM_MAX_RULES = 256;
 const SRV = '@servers';
 let ACCESS_RAW = {enabled: false, groups: [], rules: []}; // как на сервере, без заготовки редактора
@@ -417,7 +417,7 @@ function smEdit(fn){
   fn(SM_WORK);
   SM_REV++;
   renderSimple();
-  renderDetail();
+  emitPanel('detail');
   clearTimeout(SM_TIMER);
   SM_TIMER = setTimeout(smFlush, 500);
 }
@@ -429,7 +429,7 @@ async function smFlush(){
   SM_SAVING = false;
   if (!ok || rev === SM_REV) SM_WORK = null; else { smFlush(); return; }
   renderSimple();
-  renderDetail();
+  emitPanel('detail');
   runCheck();
 }
 function smMsg(text, kind){ showMsg($('smMsg'), text, kind); }
@@ -702,3 +702,91 @@ function evText16(e, d){
   }
   return '';
 }
+
+/* ---------- «Куда может ходить» в карточке устройства ---------- */
+function renderDevAccess(box, d){
+  if (!d || !(MESH && MESH.effectiveRole === 'main')) return;
+  const by = smClients();
+  const part = el('div', 'dpart');
+  const h = el('h2');
+  h.appendChild(el('span', '', t('dev_part_access')));
+  part.appendChild(h);
+  if (!d.user){ part.appendChild(el('p', 'note', t('old_meshd'))); box.appendChild(part); return; }
+  if (!by[d.user]){ part.appendChild(el('p', 'note', t('sm_locked_foreign'))); box.appendChild(part); return; }
+  if (!smActive()){
+    part.appendChild(el('p', 'note', t('sm_dev_inactive')));
+    const go = el('button', 'btn ghost small', t('sm_open_access'));
+    go.addEventListener('click', () => showTab('Access'));
+    part.appendChild(go);
+    box.appendChild(part);
+    return;
+  }
+  const w = smCur(), a = d.user;
+  if (!ACCESS_RAW.enabled) part.appendChild(el('p', 'msg err', t('sm_off_d')));
+  const mates = meshDevices().filter(x => x.user === a && x.id !== d.id);
+  if (mates.length) part.appendChild(el('p', 'note', fill('sm_dev_shared', {list: mates.map(x => x.display).join(', ')})));
+
+  part.appendChild(el('div', 'k sm-k', t('sm_role')));
+  const seg = el('div', 'seg');
+  SM_ROLES.forEach(R => {
+    const b = el('button', w.roles[a] === R ? 'on' : '', t('sm_role_' + R));
+    b.type = 'button';
+    b.title = t('sm_role_' + R + '_d');
+    b.addEventListener('click', () => smSetRole(a, R));
+    seg.appendChild(b);
+  });
+  part.appendChild(seg);
+
+  const kh = el('div', 'k sm-k');
+  kh.appendChild(el('span', '', t('sm_where')));
+  const all = el('button', 'btn ghost small', t('sm_to_all'));
+  all.addEventListener('click', () => smRow(a, true));
+  const none = el('button', 'btn ghost small', t('sm_to_none'));
+  none.addEventListener('click', () => smRow(a, false));
+  kh.appendChild(all);
+  kh.appendChild(none);
+  part.appendChild(kh);
+  const checks = el('div', 'sm-checks');
+  const lines = smLines().filter(l => l.client);
+  const targets = lines.map(l => ({b: l.user, name: l.user === a ? t('sm_self') : l.name, self: l.user === a}))
+    .filter(x => !x.self || mates.length).concat([{b: SRV, name: t('sm_servers')}]);
+  targets.forEach(x => {
+    const lock = smLock(a, x.b);
+    const lab = el('label', lock ? 'lock' : '');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = !!(w.M[a] && w.M[a][x.b]);
+    cb.disabled = !!lock;
+    cb.title = lock ? fill('sm_locked', {r: lock.slice(5)}) : '';
+    cb.addEventListener('change', () => smToggle(a, x.b));
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(' ' + x.name));
+    checks.appendChild(lab);
+  });
+  part.appendChild(checks);
+  box.appendChild(part);
+}
+
+/* ---------- события каркаса ---------- */
+onPanel('lang', () => {
+  // Справка — те же тексты, что в «?» (свои строки, не ввод людей).
+  $('accHelp').innerHTML = t('hint_acc') + t('hint_acc_rules');
+  $('smRolesHelp').innerHTML = t('sm_roles_help');
+  $('ckFrom').dataset.sig = '';
+  if (!$('viewMain').hidden) renderJournal();
+});
+// Группы нужны редактору правил — грузим при каждом открытии раздела.
+onPanel('show:Access', () => loadAccess());
+onPanel('sub:Access', () => remesh());
+onPanel('clients', first => { if (first) renderSimple(); });
+onPanel('access', raw => {
+  ACCESS_RAW = raw;
+  renderAccess();
+  renderSimple();
+});
+onPanel('mesh', (m, role) => {
+  if (role === 'main'){ fillCheckSelects(); renderSimple(); }
+});
+onPanel('meshLoaded', () => { if (!JR.timer && !JR.busy) loadJournal(); });
+onPanel('journal', () => loadJournal());
+onPanel('deviceCard', (box, d) => renderDevAccess(box, d));

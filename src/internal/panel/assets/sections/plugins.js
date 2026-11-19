@@ -1,3 +1,5 @@
+// Раздел «Плагины»: хост плагинов сервера, папки, буфер, копии, блокировка
+// рекламы, проверка сайта.
 /* ---------- плагины сервера (хост ssh_tunnel_node) ---------- */
 let NODE = null, NODE_TIMER = null;
 
@@ -395,7 +397,7 @@ function renderNodeNet(n){
 }
 
 // ---- Общий список блокировки (ТЗ 15) ----
-const lines = v => v.split('\n').map(x => x.trim()).filter(Boolean);
+const adLines = v => v.split('\n').map(x => x.trim()).filter(Boolean);
 function renderNodeAd(st){
   const card = $('nodeAdCard'), ad = st.adblock;
   card.hidden = !st.config.adblock || !ad;
@@ -417,7 +419,7 @@ function renderNodeAd(st){
 }
 $('nodeAdSaveBtn').addEventListener('click', async () => {
   const {ok, data} = await api('/api/node/adblock/set',
-    {sources: lines($('nodeAdSources').value), deny: lines($('nodeAdDeny').value), allow: lines($('nodeAdAllow').value)});
+    {sources: adLines($('nodeAdSources').value), deny: adLines($('nodeAdDeny').value), allow: adLines($('nodeAdAllow').value)});
   if (!ok){ toast(data.error || t('err_internal'), 'err'); return; }
   toast(t('node_ad_saved'), 'ok');
   document.activeElement.blur();
@@ -487,3 +489,6 @@ $('nodeConfigSaveBtn').addEventListener('click', async () => {
   if (!ok){ $('nodeConfigMsg').appendChild(el('div', 'msg err', data.error || t('err_internal'))); return; }
   loadNode();
 });
+
+/* ---------- события каркаса ---------- */
+onPanel('show:Plugins', () => loadNode());
