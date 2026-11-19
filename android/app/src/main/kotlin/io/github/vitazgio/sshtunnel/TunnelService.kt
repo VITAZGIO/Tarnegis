@@ -156,6 +156,9 @@ class TunnelService : VpnService(), Callbacks {
         private const val TAG = "ssh_tunnel"
         private const val CHANNEL = "tunnel"
         private const val NOTIFICATION_ID = 1
+        private const val NET_CHANNEL = "netservers"
+        private const val NET_CHANNEL_NAME = "Сеть серверов"
+        private const val NET_NOTIFICATION_ID = 4017
         private const val MTU = 1500
 
         /**
@@ -467,6 +470,73 @@ class TunnelService : VpnService(), Callbacks {
         current = this
         // Служба файлов и ключ SSH (ТЗ 4) живут в ядре, пока жив процесс.
         DeviceApps.init(this)
+        // Сеть серверов (ТЗ 26): сервер прислал список — добавить серверы сети
+        // сами, как на ПК. Решает Go (mobile.ApplyNetServers).
+        tunnel.setNetServersListener(object : mobile.NetServersListener {
+            override fun onNetServers() = applyNetServers()
+        })
+    }
+
+    private val netServersLock = Any()
+
+    /**
+     * Список сети серверов пришёл (op servers): общий код решает, кого
+     * добавить, кого выключить (выключенный человеком сервер так и остаётся
+     * выключенным — это решает Go), здесь — сохранить, пересобрать серверы
+     * ядра и показать одно уведомление.
+     */
+    private fun applyNetServers() {
+        val change = synchronized(netServersLock) {
+            val s = Settings(this)
+            val out = try {
+                tunnel.applyNetServers(s.coreProfilesJson(), s.meshAutoSeenJson)
+            } catch (e: Exception) {
+                onLog("сеть серверов: ${e.message}")
+                return
+            }
+            val c = try {
+                s.applyNetServers(out)
+            } catch (e: Exception) {
+                onLog("сеть серверов: ответ не сохранился: ${e.message}")
+                return
+            } ?: return
+            // Новые серверы — сразу дополнительными серверами сети устройств.
+            try {
+                tunnel.setProfiles(s.coreProfilesJson(), s.active().id, s.udpRelayEnabled)
+            } catch (e: Exception) {
+                onLog("серверы: ${e.message}")
+            }
+            c
+        }
+        val lines = change.added.map { "В сеть добавлен сервер $it" } +
+            change.meshOn.map { "Сервер $it в сети устройств — в его профиле включена сеть устройств" } +
+            change.off.map { "Сервер $it убран из сети — его профиль выключен" }
+        if (lines.isEmpty()) return
+        lines.forEach { onLog(it) }
+        onApiUpdate?.invoke()
+        netServersNotice(lines.joinToString("\n"))
+    }
+
+    /** Одно уведомление о сети серверов (не постоянное). */
+    private fun netServersNotice(text: String) {
+        val nm = notificationManager()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(NET_CHANNEL, NET_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val n = Notification.Builder(this, NET_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle(NET_CHANNEL_NAME)
+            .setContentText(text.lineSequence().first())
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .build()
+        try {
+            nm.notify(NET_NOTIFICATION_ID, n)
+        } catch (_: SecurityException) {
+            // Нет разрешения на уведомления — строка есть в журнале.
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -934,6 +1004,7 @@ class TunnelService : VpnService(), Callbacks {
 
     override fun onDestroy() {
         current = null
+        tunnel.setNetServersListener(null)
         // Служба умирает — донашивать соединения будет некому.
         draining = false
         ticker.removeCallbacks(drainDeadline)

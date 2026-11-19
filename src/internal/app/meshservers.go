@@ -6,11 +6,8 @@ package app
 // человек видит одно уведомление.
 
 import (
-	"os"
-	"strconv"
-	"strings"
-
 	"sshtunnel/internal/config"
+	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/mesh"
 )
 
@@ -37,7 +34,7 @@ func (a *App) onMeshServers(ns mesh.NetServers) {
 	for _, p := range res.Added {
 		for _, s := range list {
 			if s.AutoKey() == p.MeshAuto && s.HostKey != "" {
-				pinHostKey(config.KnownHostsPath(), p.Host, p.SSHPort, s.HostKey)
+				hostkey.Pin(config.KnownHostsPath(), p.Host, p.SSHPort, s.HostKey)
 			}
 		}
 	}
@@ -56,36 +53,3 @@ func (a *App) onMeshServers(ns mesh.NetServers) {
 	}
 }
 
-// pinHostKey записывает SSH-ключ сервера в known_hosts, если про этот
-// адрес там ещё ничего нет: ключ пришёл от сервера сети по SSH, это
-// надёжнее, чем поверить первому соединению.
-func pinHostKey(path, host string, port int, key string) {
-	f := strings.Fields(key)
-	if len(f) < 2 {
-		return
-	}
-	name := host
-	if port != 22 && port > 0 {
-		name = "[" + host + "]:" + strconv.Itoa(port)
-	}
-	data, _ := os.ReadFile(path)
-	for _, l := range strings.Split(string(data), "\n") {
-		if hosts, _, ok := strings.Cut(strings.TrimSpace(l), " "); ok {
-			for _, h := range strings.Split(hosts, ",") {
-				if h == name {
-					return
-				}
-			}
-		}
-	}
-	line := name + " " + f[0] + " " + f[1] + "\n"
-	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
-		line = "\n" + line
-	}
-	fh, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return
-	}
-	fh.WriteString(line)
-	fh.Close()
-}

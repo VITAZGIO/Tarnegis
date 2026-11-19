@@ -57,6 +57,10 @@ class Settings(context: Context) {
         // «Выход через» (ТЗ 8 на ПК, ТЗ 20 на телефоне): id других серверов по
         // порядку, до двух; в интернет — только через последний.
         var exitVia: MutableList<String> = mutableListOf(),
+        // Профиль добавлен программой сама — сервер из сети серверов
+        // («id сети/id сервера», как Profile.MeshAuto на ПК, ТЗ 26). По нему
+        // общий код узнаёт, что сервер убрали из сети, и выключает профиль.
+        var meshAuto: String = "",
     )
 
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -203,6 +207,7 @@ class Settings(context: Context) {
             o.put("tunnelHosts", p.tunnelHosts)
             o.put("meshOnlyThis", p.meshOnlyThis)
             o.put("exitVia", JSONArray(p.exitVia))
+            o.put("meshAuto", p.meshAuto)
             arr.put(o)
         }
         return arr.toString()
@@ -243,6 +248,7 @@ class Settings(context: Context) {
                         exitVia = o.optJSONArray("exitVia")?.let { a ->
                             (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }.toMutableList()
                         } ?: mutableListOf(),
+                        meshAuto = o.optString("meshAuto", ""),
                     )
                 )
             }
@@ -300,9 +306,85 @@ class Settings(context: Context) {
                     .put("meshEnabled", p.meshEnabled).put("meshKey", p.meshKey)
                     .put("meshOnlyThis", p.meshOnlyThis)
                     .put("exitVia", JSONArray(p.exitVia))
+                    .put("meshAuto", p.meshAuto)
             )
         }
         return arr.toString()
+    }
+
+    /**
+     * Серверы сети, которые программа уже добавляла («id сети/id сервера@адрес»,
+     * как Config.MeshAutoSeen на ПК): удалённый или выключенный человеком
+     * сервер второй раз не добавляется. JSON-массив для mobile.ApplyNetServers.
+     */
+    var meshAutoSeenJson: String
+        get() = prefs.getString("meshAutoSeen", "[]") ?: "[]"
+        private set(v) = prefs.edit().putString("meshAutoSeen", v).apply()
+
+    /** Что поменял ответ mobile.ApplyNetServers — для уведомления. */
+    data class NetServersChange(val added: List<String>, val off: List<String>, val meshOn: List<String>)
+
+    /**
+     * Сохраняет ответ mobile.ApplyNetServers (ТЗ 26). Решал общий код Go
+     * (config.ApplyNetServers) — здесь только перенос в профили телефона:
+     * у знакомых профилей — поля сети устройств, новый профиль — копия того,
+     * через который о сервере узнали (тот же пользователь и ключ, как на
+     * ПК), с адресом и именем нового сервера. Файл ключа копируется: у
+     * каждого профиля на телефоне свой.
+     */
+    fun applyNetServers(json: String): NetServersChange? {
+        if (json.isBlank()) return null
+        val o = JSONObject(json)
+        val arr = o.optJSONArray("profiles") ?: return null
+        val list = profiles
+        for (i in 0 until arr.length()) {
+            val po = arr.getJSONObject(i)
+            val id = po.optString("id")
+            if (id.isBlank()) continue
+            val known = list.find { it.id == id }
+            if (known != null) {
+                known.meshEnabled = po.optBoolean("meshEnabled", known.meshEnabled)
+                known.meshKey = po.optString("meshKey", known.meshKey)
+                known.meshOnlyThis = po.optBoolean("meshOnlyThis", known.meshOnlyThis)
+                known.meshAuto = po.optString("meshAuto", known.meshAuto)
+                continue
+            }
+            // Новый: ищем профиль-образец по его файлу ключа (keyPath в
+            // coreProfilesJson — keyFile(id)). Без образца ключа нет — не
+            // добавляем: подключиться всё равно было бы нечем.
+            val keyPath = po.optString("keyPath")
+            val base = list.find { keyFile(it.id).absolutePath == keyPath } ?: continue
+            val p = base.copy(
+                id = id,
+                name = po.optString("name").ifBlank { po.optString("host") },
+                flag = "",
+                host = po.optString("host"),
+                sshPort = po.optInt("sshPort", 22),
+                user = po.optString("user", base.user),
+                filterApps = base.filterApps.toMutableSet(),
+                panel = "",
+                meshEnabled = true,
+                meshKey = po.optString("meshKey", base.meshKey),
+                meshOnlyThis = false,
+                exitVia = mutableListOf(),
+                meshAuto = po.optString("meshAuto"),
+            )
+            val src = keyFile(base.id)
+            if (src.exists()) {
+                try {
+                    saveKeyFor(id, src.readText())
+                } catch (_: Exception) {
+                    continue
+                }
+            }
+            list.add(p)
+        }
+        saveAll(list, activeProfileId.ifBlank { list.first().id })
+        o.optJSONArray("seen")?.let { meshAutoSeenJson = it.toString() }
+        fun names(key: String): List<String> = o.optJSONArray(key)?.let { a ->
+            (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
+        } ?: emptyList()
+        return NetServersChange(names("added"), names("off"), names("meshOn"))
     }
 
     fun keyFile(profileId: String): File {

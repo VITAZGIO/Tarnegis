@@ -32,3 +32,19 @@
 :root[data-theme="console"] #power{border-style:dashed}
 :root[data-theme="console"] .hexbtn.on{background:#0d3b1b;color:#46ff85}
 
+
+/* ---------- полосы прокрутки (ТЗ 26) ---------- */
+/* Одни на все страницы программы (окно, отдельные окна, плагины, Книга,
+   телефон): тонкие, без рамки и стрелок, бегунок со скруглением цвета
+   акцента темы. Chromium (WebView2 на ПК, WebView на телефоне) берёт
+   ::-webkit-scrollbar; стандартные scrollbar-width/scrollbar-color — только
+   там, где его нет (Firefox у Linux), иначе Chromium 121+ отключил бы им
+   ::-webkit-scrollbar и вернул стрелки. */
+::-webkit-scrollbar{width:6px;height:6px;background:transparent}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent;border:0}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+::-webkit-scrollbar-thumb{background:var(--accent);border:0;border-radius:3px;opacity:.7}
+::-webkit-scrollbar-thumb:hover{background:var(--text)}
+@supports not selector(::-webkit-scrollbar){
+  *{scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
+}
