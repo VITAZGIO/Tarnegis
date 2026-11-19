@@ -34,7 +34,7 @@ func demoCall(t *testing.T, h http.Handler, method, path string, body any) (int,
 // Каждая ручка, которую вызывает страница, в режиме показа отвечает JSON, а
 // не 404: список берётся из самой страницы.
 func TestDemoОтвечаетНаВсеРучкиСтраницы(t *testing.T) {
-	page, err := assets.ReadFile("assets/index.html")
+	page, err := pageHTML()
 	if err != nil {
 		t.Fatal(err)
 	}

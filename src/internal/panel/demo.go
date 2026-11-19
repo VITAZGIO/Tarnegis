@@ -658,21 +658,7 @@ func (d *demoBackend) seedBackups() {
 func (d *demoBackend) routes() http.Handler {
 	mux := http.NewServeMux()
 	ok := map[string]bool{"ok": true}
-	page := func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		data, err := assets.ReadFile("assets/index.html")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(data)
-	}
-	mux.HandleFunc("/", page)
+	mux.HandleFunc("/", servePage)
 	// Каждая ручка — под общим замком и после шага «жизни» сети.
 	h := func(path string, fn func(w http.ResponseWriter, r *http.Request)) {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {

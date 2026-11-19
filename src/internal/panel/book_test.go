@@ -148,7 +148,7 @@ func TestКнигаПанелиТребуетВхода(t *testing.T) {
 // Таблица «? → глава» на странице: ссылается только на имена глав из ТЗ
 // (01-about … 15-update, 90-problems) — иначе опечатка молча прячет ссылку.
 func TestКнигаПанелиТаблицаПодсказок(t *testing.T) {
-	page, err := assets.ReadFile("assets/index.html")
+	page, err := pageHTML()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestКнигаПанелиТаблицаПодсказок(t *testing.T) {
 // Страница читается без сети: ни внешних скриптов, ни стилей, ни запросов на
 // чужие адреса в блоке Книги.
 func TestКнигаПанелиБезСети(t *testing.T) {
-	page, _ := assets.ReadFile("assets/index.html")
+	page, _ := pageHTML()
 	s := string(page)
 	a, b := strings.Index(s, "/* BOOK-RENDER-BEGIN */"), strings.Index(s, "/* BOOK-RENDER-END */")
 	if a < 0 || b < a {
@@ -201,7 +201,7 @@ func TestСтраницаПанелиСинтаксисJS(t *testing.T) {
 	if err != nil {
 		t.Skip("node не найден")
 	}
-	page, _ := assets.ReadFile("assets/index.html")
+	page, _ := pageHTML()
 	var js []string
 	for _, m := range regexp.MustCompile(`(?s)<script>(.*?)</script>`).FindAllStringSubmatch(string(page), -1) {
 		js = append(js, m[1])

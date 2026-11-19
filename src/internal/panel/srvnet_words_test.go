@@ -13,7 +13,7 @@ import (
 var roleWords = regexp.MustCompile(`(?i)главн\S*\s+(\S+\s+)?сервер|побочн|рол\S*\s+(этого\s+)?сервер|main server|secondary (server|one)|"secondary"`)
 
 func TestНетСловОРоляхСерверов(t *testing.T) {
-	raw, err := assets.ReadFile("assets/index.html")
+	raw, err := pageHTML()
 	if err != nil {
 		t.Fatal(err)
 	}

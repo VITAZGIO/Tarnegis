@@ -104,7 +104,7 @@ func (s *Server) WithClientDefaults(sshHost string, sshPort int, panelURL string
 // его подавать: напрямую (autocert) или за обратным прокси.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/", servePage)
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/session", s.handleSessionInfo)
@@ -128,21 +128,6 @@ func (s *Server) Handler() http.Handler {
 	s.egressRoutes(mux)
 	s.diagRoutes(mux)
 	return mux
-}
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	data, err := assets.ReadFile("assets/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(data)
 }
 
 // currentSession достаёт сессию текущего запроса, если она есть и не

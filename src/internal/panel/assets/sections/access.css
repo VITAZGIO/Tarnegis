@@ -1,0 +1,66 @@
+.acc-sec{grid-template-columns:minmax(0,1fr)}
+.acc-checks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.acc-checks .g{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+               border:1px solid var(--line);background:var(--card2);font-size:12.5px}
+.acc-checks .g button{border:0;background:none;color:var(--dim);cursor:pointer;padding:0;font-size:14px}
+.acc-line{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:13px}
+.acc-rule{display:grid;grid-template-columns:1fr auto 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.acc-rule select,.acc-rule input{min-width:0;width:100%}
+@media (max-width:560px){.acc-rule{grid-template-columns:1fr auto 1fr}
+  .acc-rule input{grid-column:1/3}}
+
+/* ---------- журнал ---------- */
+.journal{max-height:440px;overflow-y:auto}
+.jr-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;padding:7px 6px;
+     border-bottom:1px solid var(--line);font-size:13px;border-radius:6px}
+.jr-row:last-child{border-bottom:none}
+.jr-row time{font:12px var(--mono);color:var(--dim);white-space:nowrap;padding-top:1px}
+.jr-row .badge{margin-left:8px;vertical-align:1px}
+.jr-row.denied{background:rgba(229,72,77,.08)}
+.jr-row.denied .tx{color:var(--err);font-weight:600}
+.jr-row.marker .tx{color:var(--dim);font-style:italic}
+/* ---------- доступ: простой режим ---------- */
+.acc-main,.acc-side{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start;min-width:0}
+.sm-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:9px;
+     margin-bottom:12px;font-size:13px}
+.sm-status.on{background:rgba(47,191,113,.10)} .sm-status.on b{color:var(--ok)}
+.sm-status.off{background:rgba(232,179,57,.14)} .sm-status.off b{color:var(--warn)}
+.sm-status span{color:var(--dim);flex:1;min-width:180px}
+.sm-table{border-collapse:collapse;font-size:12.5px}
+.sm-table th{font-size:11px;color:var(--dim);font-weight:600;padding:4px 5px;max-width:92px;
+     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.sm-table th.l,.sm-table td.l{text-align:left}
+.sm-table td{padding:3px 5px;text-align:center;border-top:1px solid var(--line)}
+.sm-table td.l{white-space:nowrap;padding-right:14px}
+.sm-table td.l .nm{font-weight:600;margin-right:4px}
+.sm-table td.l .badge{margin-left:4px}
+.cell{width:34px;height:28px;border-radius:7px;border:1px solid var(--line);background:var(--card2);
+     color:var(--dim);font:inherit;font-weight:700;cursor:pointer}
+.cell:hover{border-color:var(--accent)}
+.cell.y{background:color-mix(in srgb, var(--ok) 20%, var(--card2));
+     border-color:color-mix(in srgb, var(--ok) 50%, var(--line));color:var(--ok)}
+.cell.part{color:var(--warn)}
+.cell.lock{cursor:not-allowed;border-style:dashed;opacity:.8}
+.cell.self{display:inline-block;width:34px;border:0;background:none;line-height:28px;cursor:default}
+#smList{display:none}
+@media (max-width:760px){ #smTable,.sm-tnote{display:none} #smList{display:grid;gap:10px} }
+.sm-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card2)}
+.sm-ih{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.sm-checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.sm-checks label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.sm-checks label.lock{opacity:.7;cursor:not-allowed}
+.sm-checks input{accent-color:var(--accent-muted)}
+.card p.sm-counts{margin:12px 0 0}
+.sm-k{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:12px 0 6px}
+.sm-k > span{margin-right:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;max-width:100%}
+.seg button{padding:6px 12px;border:0;background:var(--card2);color:var(--dim);font:inherit;
+     font-size:12.5px;font-weight:600;cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent-muted);color:#fff}
+.ck-form{display:grid;gap:8px}
+.ck-form select{width:100%;min-width:0}
+.ck-form label{font-size:12px;color:var(--dim)}
+.verdict{margin-top:4px;padding:10px 12px;border-radius:9px;font-size:13px;background:var(--card2);line-height:1.45}
+.verdict.y{background:rgba(47,191,113,.12);color:var(--ok)}
+.verdict.n{background:rgba(229,72,77,.12);color:var(--err)}

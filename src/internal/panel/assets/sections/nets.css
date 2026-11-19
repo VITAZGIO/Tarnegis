@@ -1,0 +1,7 @@
+/* ---------- сети ---------- */
+.net-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.card h1.net-title{display:flex;align-items:center;gap:4px;margin:0;min-width:0}
+.net-name{cursor:text;overflow:hidden;text-overflow:ellipsis}
+.net-name.unnamed{color:var(--dim)}
+input.net-name{font-size:15px;padding:5px 8px;min-width:min(260px,70vw)}
+.net-note{margin:10px 0 0!important}

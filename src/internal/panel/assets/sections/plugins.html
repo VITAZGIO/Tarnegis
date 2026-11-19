@@ -1,0 +1,124 @@
+<!-- ======== ПЛАГИНЫ ======== -->
+<section id="tabPlugins" hidden>
+  <div class="sec-head">
+    <h1 class="page-title"><span data-i18n="nav_plugins">Плагины</span><button class="hint" data-hint="hint_plugins_what">?</button></h1>
+    <p class="page-sub" data-i18n="plugins_sub">Сервер сам становится участником сети устройств: зеркальные папки, общая папка, общий буфер и резервные копии.</p>
+  </div>
+  <div class="subtabs" data-tab="Plugins">
+    <button type="button" data-sub="host" data-i18n="sub_pl_host">Плагины</button>
+    <button type="button" data-sub="ad" data-i18n="sub_pl_ad">Блокировка рекламы</button>
+    <button type="button" data-sub="site" data-i18n="sub_pl_site">Проверка сайта</button>
+    <button type="button" data-sub="nets" data-i18n="sub_pl_nets">Сети на сервере</button>
+  </div>
+  <div class="sub" data-sub="host">
+    <div class="card" id="nodeHostCard">
+      <h1><span data-i18n="node_host_title">Хост плагинов</span><button class="hint" data-hint="hint_node_host">?</button></h1>
+      <div class="kv"><span class="k" data-i18n="status_label">Статус</span><span class="v" id="nodeSvcState">—</span></div>
+      <div class="kv" id="nodeMeshdRow" hidden><span class="k" data-i18n="node_meshd">Опознание устройств</span><span class="v" id="nodeMeshdState">—</span></div>
+      <div class="msg err" id="nodeErr" hidden></div>
+      <div class="row-inline" style="margin-top:12px">
+        <button class="btn" id="nodeInstallBtn" data-i18n="node_install">Поставить хост плагинов</button>
+        <button class="btn ghost" id="nodeReinstallBtn" hidden data-i18n="node_reinstall">Обновить</button>
+        <button class="btn danger" id="nodeRemoveBtn" hidden data-i18n="node_remove">Снять</button>
+      </div>
+      <label class="chk" id="nodeDeleteDataRow" hidden style="margin-top:8px"><input type="checkbox" id="nodeDeleteData">
+        <span data-i18n="node_delete_data">Удалить и данные плагинов (папки, буфер)</span></label>
+    </div>
+
+    <div class="card" id="nodeWarnCard" hidden>
+      <h1 data-i18n="node_warn_title">Что мешает плагинам</h1>
+      <div id="nodeWarns"></div>
+    </div>
+
+    <div class="card" id="nodeJobCard" hidden>
+      <h1 id="nodeJobTitle"></h1>
+      <div class="console" id="nodeJobLog"></div>
+    </div>
+
+    <div class="card" id="nodeConfigCard" hidden>
+      <h1 data-i18n="node_plugins_title">Включённые плагины</h1>
+      <label class="chk"><input type="checkbox" id="pluginMirror">
+        <span data-i18n="plugin_mirror">Зеркальные папки</span></label>
+      <label class="chk"><input type="checkbox" id="pluginFiles">
+        <span data-i18n="plugin_files">Файлы устройства</span></label>
+      <label class="chk" style="margin-left:26px"><input type="checkbox" id="pluginFilesWrite">
+        <span data-i18n="plugin_files_write">Можно менять</span></label>
+      <label class="chk"><input type="checkbox" id="pluginClipboard">
+        <span data-i18n="plugin_clipboard">Общий буфер</span></label>
+      <label class="chk"><input type="checkbox" id="pluginBackup">
+        <span data-i18n="plugin_backup">Резервные копии</span><button class="hint" data-hint="hint_plugin_backup">?</button></label>
+      <label class="chk"><input type="checkbox" id="pluginMachines">
+        <span data-i18n="plugin_machines">Машины: история</span><button class="hint" data-hint="hint_plugin_machines">?</button></label>
+      <div class="field" style="margin-left:26px;max-width:260px">
+        <label for="nodeMachDays" data-i18n="node_mach_days">Хранить историю машин (дней)</label>
+        <input type="number" id="nodeMachDays" min="1" max="3650">
+      </div>
+      <label class="chk"><input type="checkbox" id="pluginAdblock">
+        <span data-i18n="plugin_adblock">Блокировка рекламы: общий список</span><button class="hint" data-hint="hint_plugin_adblock">?</button></label>
+      <label class="chk"><input type="checkbox" id="pluginSitecheck">
+        <span data-i18n="plugin_sitecheck">Проверить сайт с сервера</span><button class="hint" data-hint="hint_plugin_sitecheck">?</button></label>
+      <div class="field" style="margin-top:10px">
+        <label for="nodeQuota"><span data-i18n="node_quota_label">Место на сервере всем плагинам, всего (МБ)</span><button class="hint" data-hint="hint_node_quota">?</button></label>
+        <input type="number" id="nodeQuota" min="1" max="16777216">
+      </div>
+      <div class="kv"><span class="k" data-i18n="node_used">Занято</span><span class="v" id="nodeUsed">—</span></div>
+      <button class="btn" id="nodeConfigSaveBtn" style="margin-top:10px" data-i18n="cap_save">Применить</button>
+      <div id="nodeConfigMsg"></div>
+    </div>
+
+    <div class="card" id="nodeEventsCard" hidden>
+      <h1 data-i18n="node_events_title">Журнал плагинов</h1>
+      <div class="console" id="nodeEvents"></div>
+    </div>
+  </div>
+  <div class="sub" data-sub="ad" hidden>
+    <!-- Общий список блокировки рекламы (ТЗ 15): один на сервер, его
+         забирают устройства всех сетей с плагином блокировки. -->
+    <div class="card" id="nodeAdCard" hidden>
+      <h1><span data-i18n="node_ad_title">Общий список блокировки</span><button class="hint" data-hint="hint_node_ad">?</button></h1>
+      <div class="kv"><span class="k" data-i18n="node_ad_names">Имён в списке</span><span class="v" id="nodeAdNames">—</span></div>
+      <div class="kv"><span class="k" data-i18n="node_ad_updated">Обновлён</span><span class="v" id="nodeAdUpdated">—</span></div>
+      <div class="kv"><span class="k" data-i18n="node_ad_devices">Устройств забрали за сутки</span><span class="v" id="nodeAdDevices">—</span></div>
+      <div class="msg err" id="nodeAdErr" hidden></div>
+      <div id="nodeAdFetched"></div>
+      <div class="field" style="margin-top:10px">
+        <label for="nodeAdSources" data-i18n="node_ad_sources">Источники — ссылки на списки (hosts или adblock), по одной в строке</label>
+        <textarea id="nodeAdSources" rows="3" spellcheck="false" style="font-family:var(--mono);font-size:12px"></textarea>
+      </div>
+      <div class="field">
+        <label for="nodeAdDeny" data-i18n="node_ad_deny">Блокировать всегда (свои имена)</label>
+        <textarea id="nodeAdDeny" rows="2" spellcheck="false" style="font-family:var(--mono);font-size:12px"></textarea>
+      </div>
+      <div class="field">
+        <label for="nodeAdAllow" data-i18n="node_ad_allow">Не блокировать никогда (вместе с поддоменами)</label>
+        <textarea id="nodeAdAllow" rows="2" spellcheck="false" style="font-family:var(--mono);font-size:12px"></textarea>
+      </div>
+      <div class="row-inline">
+        <button class="btn" id="nodeAdSaveBtn" data-i18n="node_ad_save">Сохранить</button>
+        <button class="btn ghost" id="nodeAdUpdateBtn" data-i18n="node_ad_update">Обновить сейчас</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="sub" data-sub="site" hidden>
+    <!-- Проверить сайт с сервера (ТЗ 15): то же, что второй столбец на
+         устройстве. -->
+    <div class="card" id="nodeSiteCard" hidden>
+      <h1><span data-i18n="node_site_title">Проверить сайт с сервера</span><button class="hint" data-hint="hint_node_site">?</button></h1>
+      <div class="row-inline">
+        <input type="text" id="nodeSiteInput" placeholder="youtube.com" spellcheck="false" autocomplete="off" style="flex:1;min-width:140px">
+        <button class="btn" id="nodeSiteBtn" data-i18n="node_site_check">Проверить</button>
+      </div>
+      <div id="nodeSiteOut" style="margin-top:8px"></div>
+    </div>
+  </div>
+  <div class="sub" data-sub="nets" hidden>
+    <div class="sec-head" id="nodeNetsHead" hidden>
+      <h1 class="page-title" data-i18n="node_nets_title">Сети на сервере</h1>
+    </div>
+    <div class="card" id="nodeNetsNone" hidden>
+      <p class="note" data-i18n="node_no_nets" style="margin:0">Ни одна сеть ещё не пользуется плагинами сервера.</p>
+    </div>
+    <div class="cards same" id="nodeNets"></div>
+  </div>
+</section>

@@ -1,0 +1,88 @@
+<!-- ======== СЕТИ ======== -->
+<section id="tabMesh" hidden>
+  <div class="sec-head">
+    <h1 class="page-title"><span data-i18n="nav_mesh">Сети</span><button class="hint" data-hint="hint_mesh_what">?</button></h1>
+    <p class="page-sub" data-i18n="mesh_sub">Твои устройства в одной сети через твои же серверы — как NetBird:
+      каждое получает постоянный адрес и имя вида «ноутбук.mesh».</p>
+  </div>
+  <div class="subtabs" data-tab="Mesh">
+    <button type="button" data-sub="nets" data-i18n="sub_mesh_nets">Сети</button>
+    <button type="button" data-sub="servers" data-i18n="sub_mesh_servers">Серверы</button>
+    <button type="button" data-sub="links" data-i18n="sub_mesh_links">Соединения</button>
+  </div>
+  <div class="sub" data-sub="nets">
+
+    <div class="card" id="netsNone" hidden>
+      <p class="note" id="netsNoneText" style="margin:0"></p>
+    </div>
+
+    <div class="msg err" id="netsOldHint" hidden></div>
+    <div class="cards same" id="meshNets"></div>
+  </div>
+  <div class="sub" data-sub="servers" hidden>
+    <div class="card" id="meshServersCard" hidden>
+      <h1><span data-i18n="mesh_servers_title">Серверы сети</span><button class="hint" data-hint="hint_servers">?</button></h1>
+      <p class="note" data-i18n="srv_eq_note">Все серверы сети равны. Правила доступа, одобрения, заморозки, имена и учётные записи устройств — общие: поменял на одном, получили все.</p>
+      <div class="msg warn" id="srvRemoved" hidden></div>
+      <div class="msg warn" id="srvHostNote" style="white-space:pre-line" hidden></div>
+      <div class="row-inline" style="margin:4px 0 12px">
+        <button class="btn" id="srvAddBtn" data-i18n="srv_add">Добавить сервер</button>
+        <button class="btn ghost" id="srvJoinBtn" data-i18n="srv_join">Войти в сеть</button>
+      </div>
+      <div id="srvCodeBox" hidden style="margin-bottom:14px">
+        <div class="msg ok" data-i18n="srv_code_ready">Код готов. Он одноразовый и действует час — вставь его только в панель своего сервера.</div>
+        <div class="code-box" id="srvCode"></div>
+        <p class="note" id="srvCodeExp" style="margin:6px 0 0"></p>
+        <div class="row-inline" style="margin-top:10px">
+          <button class="btn" id="srvCodeCopy" data-i18n="copy_config">Скопировать</button>
+          <button class="btn ghost" id="srvCodeClose" data-i18n="close">Закрыть</button>
+        </div>
+        <ol class="steps">
+          <li data-i18n="srv_step1">Открой панель нового сервера → «Сети» → «Серверы сети».</li>
+          <li data-i18n="srv_step2">Нажми «Войти в сеть» и вставь код.</li>
+          <li data-i18n="srv_step3">Подтверди — служба сети поставится сама, через минуту сервер появится здесь.</li>
+        </ol>
+      </div>
+      <div id="srvJoinBox" hidden style="margin-bottom:14px">
+        <div class="field">
+          <label for="srvJoinCode"><span data-i18n="srv_join_label">Код с любого сервера сети</span><button class="hint" data-hint="hint_srv_code">?</button></label>
+          <textarea id="srvJoinCode" rows="3" style="font-family:var(--mono);font-size:11.5px" placeholder="sshtunnel-net1:…"></textarea>
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="srvJoinCheck" data-i18n="srv_join_check">Дальше</button>
+          <button class="btn ghost" id="srvJoinCancel" data-i18n="cancel">Отмена</button>
+        </div>
+        <div id="srvJoinConfirm" hidden style="margin-top:12px">
+          <ul id="srvJoinList" style="margin:0 0 10px;padding-left:20px"></ul>
+          <div class="msg warn" data-i18n="srv_trust">Серверы одной сети полностью доверяют друг другу: любой из них заводит учётные записи и меняет правила на всех.</div>
+          <button class="btn" id="srvJoinGo" style="margin-top:10px" data-i18n="srv_join_go">Войти в сеть</button>
+        </div>
+      </div>
+      <div id="srvMsg"></div>
+      <div id="meshServers"></div>
+    </div>
+
+    <!-- сам сервер как узел сети (и у главного, и у побочного) -->
+    <div class="card" id="meshSelfCard" hidden>
+      <h1><span data-i18n="self_title">Сервер в сети устройств</span><button class="hint" data-hint="hint_self">?</button></h1>
+      <div class="kv"><span class="k" data-i18n="self_addr">Адрес в сети</span><span class="v" id="selfAddr">—</span></div>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="selfEnabled">
+        <span data-i18n="self_enable">Пускать устройства сети к самому серверу</span></label>
+      <div class="field" style="margin-top:10px">
+        <label for="selfPorts"><span data-i18n="self_ports">Порты</span><button class="hint" data-hint="hint_self_ports">?</button></label>
+        <input type="text" id="selfPorts" data-i18n-ph="self_ports_ph" placeholder="пусто — все порты; например 22, 80, 8000-8100">
+      </div>
+      <p class="note" id="selfExample" style="margin:0 0 10px"></p>
+      <button class="btn" id="selfSaveBtn" data-i18n="cap_save">Применить</button>
+    </div>
+
+  </div>
+  <div class="sub" data-sub="links" hidden>
+    <div class="card" id="meshForecastCard" hidden>
+      <h1><span data-i18n="fc_title">Прямые соединения: прогноз</span><button class="hint" data-hint="hint_fc">?</button></h1>
+      <p class="note" data-i18n="fc_note">Проверка NAT идёт сама при каждом подключении устройства. По её итогам —
+        смогут ли устройства когда-нибудь соединяться напрямую, минуя сервер.</p>
+      <div id="meshForecast"></div>
+    </div>
+  </div>
+</section>

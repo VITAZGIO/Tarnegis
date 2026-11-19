@@ -9,7 +9,7 @@ import (
 // ТЗ 23: у каждой вкладки раздела есть свой блок .sub и перевод на обоих
 // языках; сетки «карточки в 4–5 колонок» (auto-fill по 420 px) больше нет.
 func TestВкладкиРазделовСходятся(t *testing.T) {
-	raw, err := assets.ReadFile("assets/index.html")
+	raw, err := pageHTML()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestВкладкиРазделовСходятся(t *testing.T) {
 				t.Errorf("%s: у вкладки %s нет блока", m[1], b[1])
 			}
 			delete(subs, b[1])
-			if strings.Count(page, "    "+b[2]+":") < 2 {
+			if strings.Count(page, "\n  "+b[2]+":") < 2 {
 				t.Errorf("%s: перевод %s не на обоих языках", m[1], b[2])
 			}
 		}

@@ -1,0 +1,87 @@
+<!-- ======== ДОСТУП ======== -->
+<section id="tabAccess" class="acc-sec" hidden>
+  <div class="sec-head">
+    <h1 class="page-title" data-i18n="nav_access">Доступ</h1>
+    <p class="page-sub" data-i18n="access_sub">Кто к кому может подключаться в сети устройств.</p>
+  </div>
+  <div class="subtabs" data-tab="Access">
+    <button type="button" data-sub="simple" data-i18n="sub_access_simple">Простой</button>
+    <button type="button" data-sub="adv" data-i18n="sub_access_adv">Расширенный</button>
+    <button type="button" data-sub="journal" data-i18n="sub_access_journal">Журнал</button>
+  </div>
+  <div class="sub" data-sub="simple">
+    <!-- простой режим: роли и галочки поверх групп и правил -->
+    <div class="card" id="smCard">
+      <h1><span data-i18n="sm_title">Кто к кому может подключаться</span><button class="hint" data-hint="hint_sm">?</button></h1>
+      <div id="smStatus"></div>
+      <div id="smMsg"></div>
+      <div class="msg err" id="smOldHint" hidden></div>
+      <div id="smOff" hidden>
+        <p class="note" data-i18n="sm_off_note">Простой режим ещё не включён.</p>
+        <button class="btn" id="smEnableBtn" data-i18n="sm_enable">Включить простой режим</button>
+      </div>
+      <div id="smBody" hidden>
+        <p class="note sm-tnote" data-i18n="sm_table_note">Строка — кто подключается, столбец — к кому. Нажми на клетку.</p>
+        <p class="note" id="smShared" hidden></p>
+        <p class="note" id="smForeign" hidden></p>
+        <div class="scroll-x" id="smTable"></div>
+        <div id="smList"></div>
+        <div class="empty" id="smEmpty" data-i18n="sm_empty" hidden>В этой сети пока нет устройств</div>
+        <p class="note sm-counts" id="smCounts"></p>
+      </div>
+    </div>
+    <div class="card">
+      <h1 data-i18n="sm_roles_title">Роли</h1>
+      <div class="help" id="smRolesHelp"></div>
+      <button class="btn ghost small" id="accAdvBtn" style="margin-top:6px" data-i18n="acc_adv">Расширенное: группы и правила</button>
+    </div>
+  </div>
+  <div class="sub" data-sub="adv" hidden>
+    <!-- права доступа в сети устройств -->
+    <div class="card" id="accessCard" hidden>
+      <h1><span data-i18n="acc_adv">Расширенное: группы и правила</span><button class="hint" data-hint="hint_acc">?</button></h1>
+      <div id="accessMsg"></div>
+      <label class="acc-line"><input type="checkbox" id="accEnabled"> <span data-i18n="acc_enabled">Правила включены</span></label>
+      <h2 data-i18n="acc_groups">Группы</h2>
+      <div id="accGroups" class="acc-checks"></div>
+      <div class="row-inline">
+        <input type="text" id="accNewGroup" data-i18n-ph="acc_new_group_ph" placeholder="Новая группа" style="flex:1">
+        <button class="btn ghost small" id="accAddGroupBtn" data-i18n="acc_add">Добавить</button>
+      </div>
+      <h2 style="margin-top:14px"><span data-i18n="acc_rules">Правила</span><button class="hint" data-hint="hint_acc_rules">?</button></h2>
+      <div id="accRules"></div>
+      <div class="row-inline" style="margin-top:10px">
+        <button class="btn ghost small" id="accAddRuleBtn" data-i18n="acc_add_rule">+ Правило</button>
+        <button class="btn" id="accSaveBtn" data-i18n="save">Сохранить</button>
+      </div>
+    </div>
+    <div class="card">
+      <h1><span data-i18n="ck_title">Проверка</span><button class="hint" data-hint="hint_ck">?</button></h1>
+      <div class="ck-form">
+        <label for="ckFrom" data-i18n="ck_from">Кто подключается</label><select id="ckFrom"></select>
+        <label for="ckTo" data-i18n="ck_to">К кому</label><select id="ckTo"></select>
+        <label for="ckPort" data-i18n="ck_port">Что открывает</label><select id="ckPort"></select>
+        <div class="verdict" id="ckVerdict"></div>
+      </div>
+    </div>
+    <!-- Те же тексты, что в подсказках «?», — раскрытыми. -->
+    <div class="card acc-help">
+      <h1 data-i18n="acc_help_title">Как это работает</h1>
+      <div class="help" id="accHelp"></div>
+    </div>
+  </div>
+  <div class="sub" data-sub="journal" hidden>
+    <!-- журнал сети устройств: новые сверху -->
+    <div class="card ov-journal" id="jrCard" hidden>
+      <h1><span data-i18n="jr_title">Журнал</span><button class="hint" data-hint="hint_jr">?</button></h1>
+      <div class="chips" id="jrFilter" style="margin-bottom:10px">
+        <button data-f="all" data-i18n="jr_all">Все</button>
+        <button data-f="conn" data-i18n="jr_conn">Подключения</button>
+        <button data-f="denied" data-i18n="jr_denied">Отказы</button>
+      </div>
+      <div class="msg err" id="jrOldHint" hidden></div>
+      <div class="msg err" id="jrErr" hidden></div>
+      <div class="journal" id="journal"></div>
+    </div>
+  </div>
+</section>
