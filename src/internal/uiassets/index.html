@@ -3094,9 +3094,15 @@ function show(name){
 // Логотип всегда возвращает на главный экран — с любого места.
 $('logo').parentElement.style.cursor = 'pointer';
 $('logo').parentElement.title = 'На главный экран';
-// На главном он же прокручивает от списка устройств обратно наверх.
+// На главном он же прокручивает от списка устройств обратно наверх. С
+// другого экрана — сразу наверх главного, к кнопке: главный помнил, что его
+// пролистали к «Устройствам», и логотип возвращал туда (ТЗ 32: «Устройства» →
+// вниз → «Настройки» → VG открывало «Устройства», нужен был второй клик).
 $('logo').parentElement.onclick = () => {
-  if(current === 'viewMain') scrollMainTo(0); else show('viewMain');
+  if(current === 'viewMain'){ scrollMainTo(0); return; }
+  show('viewMain');
+  mainAtDev = false;
+  $('viewMain').scrollTop = 0;
 };
 
 // Главный листается только отсюда (см. #viewMain в стилях). mainAtDev
