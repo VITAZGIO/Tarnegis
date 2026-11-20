@@ -145,6 +145,7 @@ func (n *ServerNet) reconcile(ctx context.Context) {
 	n.refreshSelf(ctx)
 	n.applyAccounts(items)
 	n.applyAccess(ctx, items)
+	n.applyNewDevice(items)
 	n.applyMesh(ctx, items)
 	n.mu.Lock()
 	netID := n.f.Net

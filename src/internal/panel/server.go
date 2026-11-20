@@ -354,6 +354,11 @@ func (s *Server) handleClientCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	// «Новое устройство» в «Доступе» (ТЗ 28).
+	s.grantNewDevice(r.Context(), c)
+	if fresh, ok := s.clients.Get(c.ID); ok {
+		c = fresh
+	}
 	resp := map[string]any{"ok": true, "client": c}
 	if cfg, err := BuildClientConfigPayload(c, s.sshHost, s.sshPort, s.panelURL, true); err != nil {
 		resp["configError"] = err.Error()

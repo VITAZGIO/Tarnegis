@@ -14,11 +14,34 @@ have the same rights.
 
 ## Two modes
 
-The section has two modes. The switch is **Turn on simple mode**.
+The section has three tabs: **Simple**, **Advanced** and **Journal** (the journal
+has its own chapter).
 
 ### Simple mode
 
-Simple mode shows a table with ticks. Each device is given a role:
+On the left — explanations: roles and what the cells mean. On the right — the
+board with ticks: a row is who connects, a column is to whom. **✓** — allowed,
+**·** — not, **◐** — only some ports (a rule from advanced mode). A click on a
+cell saves by itself.
+
+There is no separate rules switch here. While nothing is edited and the rules
+are off, every cell on the board is ticked — that is how it is: everyone sees
+everyone. The first tick set or removed turns the rules on and writes the board
+as rules. The **Rules on** switch stays only in advanced mode.
+
+Above the board — **New device**:
+
+- **visible to all and sees all** — a device that appears later gets all ticks
+  in its row and column at once;
+- **no access until I tick it** — an empty row and column until you tick them
+  yourself.
+
+This choice does not change ticks that are already set. It is shared by all
+servers of the network. On a server where the rules were on before this
+choice, it is not set: new devices get only what the existing rules give, until
+you pick an option.
+
+Each device is given a role:
 
 - **My device** — goes to everyone except guests;
 - **Server** — others go to it, it goes nowhere;
@@ -30,6 +53,10 @@ the rules you set by hand in advanced mode: such ticks are shown as set by the
 advanced mode rules.
 
 ### Advanced: groups and rules
+
+Top left — **Check** (will A be let to B), below it groups and rules. On the
+right — the same explanation as in the “?” hints; it stays in place while you
+scroll a long list of rules.
 
 In advanced mode there are two lists:
 

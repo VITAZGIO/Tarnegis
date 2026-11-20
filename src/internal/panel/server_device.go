@@ -19,6 +19,7 @@ func (s *Server) deviceRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mesh/freeze", s.requireAuth(s.withMesh(s.handleMeshFreeze)))
 	mux.HandleFunc("/api/mesh/exit", s.requireAuth(s.withMesh(s.handleMeshExit)))
 	mux.HandleFunc("/api/access/simple", s.requireAuth(s.handleAccessSimple))
+	mux.HandleFunc("/api/access/newdevice", s.requireAuth(s.handleNewDevice))
 }
 
 // handleMeshApproval — {"net","on"}: «Новые устройства — после одобрения».

@@ -68,9 +68,6 @@ Object.assign(I18N.en, {
   srv_leave_confirm:'Leave the network? This server stays alone with its own data, the others forget it.',
   srv_removed_note:'This server was removed from the network ({n}). It works alone; to come back — “Join a network” with a new code.',
   saved:'Saved',
-  sub_mesh_nets:'Networks',
-  sub_mesh_servers:'Servers',
-  sub_mesh_links:'Connections',
   net_rename:'Rename network',
   net_name_ph:'network name',
   net_renamed:'Network name saved',
@@ -90,4 +87,6 @@ Object.assign(I18N.en, {
   net_approval_on:'New devices now wait for approval',
   net_approval_off:'New devices join at once',
   net_pending:'Awaiting approval',
+  srv_more:'Details',
+  srv_less:'Collapse',
 });

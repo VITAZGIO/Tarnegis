@@ -1,5 +1,40 @@
 // Раздел «Сети»: сети устройств, серверы сети, соединения и прогноз
-// прямых соединений.
+// прямых соединений — одной страницей (ТЗ 28).
+//
+// Правая часть — в двух вариантах, пока Виталий не выберет (адрес ?v=2):
+//   1 — карточки стопкой: сети (по две в ряд на широком), под ними «Серверы
+//       сети» и «Сервер в сети устройств» рядом;
+//   2 — серверы сети полосой сверху (кнопкой — вся карточка), сети —
+//       вкладками, видна одна, её устройства в две колонки.
+const NETS_V = new URLSearchParams(location.search).get('v') === '2' ? 2 : 1;
+$('netsPage').classList.toggle('nets-v1', NETS_V === 1);
+$('netsPage').classList.toggle('nets-v2', NETS_V === 2);
+let SRV_OPEN = false; // вариант 2: карточка «Серверы сети» раскрыта
+
+// Старые ссылки #nets/servers и #nets/links (раньше — вкладки) ведут к
+// своему блоку. Каркас переписывает адрес на #nets, поэтому хвост берём
+// раньше него: при загрузке и при смене адреса (перехват — первым).
+let NETS_JUMP = netsJumpOf(location.hash);
+function netsJumpOf(h){
+  const m = /^#nets\/(nets|servers|links)$/.exec(h || '');
+  return m ? m[1] : '';
+}
+// Каркас к этому времени уже открыл раздел и переписал адрес — хвост берём
+// из самого события.
+addEventListener('hashchange', e => {
+  const to = netsJumpOf(new URL(e.newURL).hash);
+  if (to){ NETS_JUMP = to; netsJump(); }
+});
+function netsJump(){
+  const to = NETS_JUMP;
+  if (!to || $('tabMesh').hidden) return;
+  if (to === 'servers' && NETS_V === 2 && !SRV_OPEN){ SRV_OPEN = true; $('meshServersCard').hidden = false; renderSrvStrip(); }
+  const target = {nets: $('netsPage'), servers: $('meshServersCard'), links: $('meshForecastCard')}[to];
+  // Карточка ещё не показана (картина сети не пришла) — прыгнем, когда придёт.
+  if (!target || target.hidden) return;
+  NETS_JUMP = '';
+  setTimeout(() => target.scrollIntoView({block: 'start'}), 0);
+}
 /* ---------- проверка NAT и прогноз прямых соединений ---------- */
 // natForecast — сможет ли пара устройств соединиться напрямую.
 function natForecast(a, b){
@@ -118,6 +153,34 @@ function renderMeshServers(){
     box.appendChild(row);
   });
 }
+// Вариант 2: полоса «Серверы сети» над сетями — кто есть и на связи ли;
+// «Подробнее» раскрывает всю карточку (код, вход, переименование).
+function renderSrvStrip(){
+  const box = $('srvStrip');
+  box.hidden = NETS_V !== 2;
+  if (box.hidden) return;
+  const sn = srvNet();
+  box.innerHTML = '';
+  box.appendChild(el('span', 'k', t('mesh_servers_title')));
+  (sn.servers || []).forEach(s => {
+    const pill = el('span', 'srv-pill');
+    pill.appendChild(el('span', 'dot' + (s.online ? ' on' : '')));
+    pill.appendChild(el('span', '', s.name || s.host));
+    if (s.self) pill.appendChild(el('span', 'm', t('srv_main')));
+    else if (s.online && s.rttMs) pill.appendChild(el('span', 'm', fmtMs(s.rttMs)));
+    else if (!s.online) pill.appendChild(el('span', 'm', t('srv_offline')));
+    pill.title = (s.host || '') + (s.port && s.port !== 22 ? ':' + s.port : '');
+    box.appendChild(pill);
+  });
+  box.appendChild(el('span', 'sp'));
+  const btn = (key, cls, fn) => { const b = el('button', 'btn small ' + cls, t(key)); b.type = 'button'; b.addEventListener('click', fn); box.appendChild(b); };
+  const open = () => { SRV_OPEN = true; $('meshServersCard').hidden = false; $('meshServersCard').scrollIntoView({block: 'start', behavior: 'smooth'}); };
+  if (!sn.legacy) btn('srv_add', '', () => { open(); $('srvAddBtn').click(); });
+  btn(SRV_OPEN ? 'srv_less' : 'srv_more', 'ghost', () => {
+    if (SRV_OPEN){ SRV_OPEN = false; $('meshServersCard').hidden = true; renderSrvStrip(); } else { open(); renderSrvStrip(); }
+  });
+}
+
 // Переименование сервера сети (ТЗ 24): имя общее — побеждает последнее.
 let SRV_EDIT = null;
 function startSrvRename(s, holder){
@@ -258,7 +321,17 @@ function renderNets(){
   box.innerHTML = '';
   const nets = mainNets();
   if (nets.length) meshDevices();
+  const tabs = $('netTabs');
+  tabs.hidden = NETS_V !== 2 || nets.length < 2;
+  tabs.innerHTML = '';
+  if (!tabs.hidden) nets.forEach((n, i) => {
+    const b = el('button', n.id === MESH_NET ? 'on' : '', netLabel(n, i));
+    b.type = 'button';
+    b.addEventListener('click', () => pickNet(n.id));
+    tabs.appendChild(b);
+  });
   nets.forEach((n, i) => {
+    if (NETS_V === 2 && nets.length > 1 && n.id !== MESH_NET) return;
     const devs = n.devices || [];
     const card = el('div', 'card net-card');
     const top = el('div', 'net-top');
@@ -293,7 +366,7 @@ function renderNets(){
     renderNetApproval(card, n);
 
     const acts = el('div', 'dacts');
-    if (nets.length > 1 && n.id !== MESH_NET){
+    if (NETS_V === 1 && nets.length > 1 && n.id !== MESH_NET){
       const b = el('button', 'btn ghost small', t('net_show'));
       b.addEventListener('click', () => pickNet(n.id));
       acts.appendChild(b);
@@ -310,7 +383,7 @@ function renderNets(){
 // и как добавить в неё устройство (ТЗ 24, п. 7).
 function renderNetMembers(card, n){
   const devs = (n.devices || []).slice().sort((a, b) => (b.online - a.online) || String(a.display).localeCompare(b.display));
-  const sec = el('div', 'net-sec');
+  const sec = el('div', 'net-sec devs');
   sec.appendChild(el('div', 'k', t('net_devs_head')));
   if (!devs.length) sec.appendChild(el('p', 'note', t('net_no_devs')));
   devs.forEach(d => {
@@ -424,7 +497,7 @@ function renderNetApproval(card, n){
 }
 
 /* ---------- события каркаса ---------- */
-onPanel('sub:Mesh', () => remesh());
+
 onPanel('mesh', (m, role) => {
   const isMain = role === 'main';
   $('meshForecastCard').hidden = !isMain;
@@ -433,6 +506,9 @@ onPanel('mesh', (m, role) => {
   renderSelfCard(m, role);
   renderNets();
   if (isMain) renderForecast(meshDevices());
-  $('meshServersCard').hidden = false;
+  $('meshServersCard').hidden = NETS_V === 2 && !SRV_OPEN;
   renderMeshServers();
+  renderSrvStrip();
+  netsJump();
 });
+onPanel('show:Mesh', () => netsJump());
