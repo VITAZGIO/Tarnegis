@@ -73,7 +73,7 @@ func (a *App) connectCandidates(cfg config.Config) []config.Profile {
 	out := make([]config.Profile, 0, len(ranked))
 	for _, p := range ranked {
 		if p.Host != "" {
-			out = append(out, p)
+			out = append(out, cfg.Resolve(p)) // общие настройки программы (ТЗ 32)
 		}
 	}
 	return out

@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"sshtunnel/internal/addons"
@@ -33,20 +34,29 @@ import (
 // снять службу можно только с правами администратора, через окно UAC.
 
 type client struct {
-	p  *winsvc.Proxy
-	hc *http.Client
+	p   *winsvc.Proxy
+	hc  *http.Client
+	log *windowLog
+	w   svcWait
 }
 
 func runClient(tray, noWindow bool) {
+	dir := config.Dir()
+	wl := openWindowLog(dir)
+	wl.printf("окно запущено, версия %s, служба: %s", updater.Version, winsvc.State())
+	// Неполадки общего буфера — в журнал окна: у окна нет журнала программы.
+	clipshare.Logf = wl.printf
 	if !winsvc.Running() {
-		// Служба стоит, но не работает (остановили или упала). Права на
-		// запуск у вошедшего пользователя есть — см. winsvc.serviceDACL.
+		// Служба стоит, но не работает (остановили, упала, не поднялась после
+		// обновления). Права на запуск у вошедшего пользователя есть — см.
+		// winsvc.serviceDACL.
 		if err := winsvc.Start(); err != nil {
-			fmt.Fprintln(os.Stderr, "запуск службы:", err)
+			wl.printf("запуск службы: %v", err)
+		} else {
+			wl.printf("служба не работала — запустил")
 		}
 	}
 
-	dir := config.Dir()
 	c := &client{
 		p: winsvc.NewProxy(dir, map[string]http.HandlerFunc{
 			// У службы нет рабочего стола — диалоги открывает окно.
@@ -55,16 +65,18 @@ func runClient(tray, noWindow bool) {
 			"/api/openterminal": webui.HandleOpenTerminal,
 			"/api/bootstart":    webui.HandleBootStart,
 		}),
-		hc: &http.Client{Timeout: 5 * time.Second},
+		hc:  &http.Client{Timeout: 5 * time.Second},
+		log: wl,
 	}
-	ep, err := c.waitEndpoint(30 * time.Second)
-	if err != nil {
-		fatal("Служба ssh_tunnel VPN не отвечает.\n\n" +
-			"Проверь её в «Службах» Windows (services.msc) и журнал службы:\n" +
-			filepath.Join(dir, "service.log") + "\n\n" + err.Error())
+	if noWindow {
+		ep, err := c.waitEndpoint(30 * time.Second)
+		if err != nil {
+			fatal("Служба ssh_tunnel VPN не отвечает.\n\n" +
+				"Проверь её в «Службах» Windows (services.msc) и журнал службы:\n" +
+				filepath.Join(dir, "service.log") + "\n\n" + err.Error())
+		}
+		c.serviceReady(ep, dir)
 	}
-	c.offerServiceUpdate(ep)
-	webui.SetBootControl(clientBoot{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -81,21 +93,223 @@ func runClient(tray, noWindow bool) {
 	for _, rt := range addons.AppRoutes("ssh") {
 		c.p.Local[rt.Path] = rt.H
 	}
-	// Общий буфер (ТЗ 5): служба под SYSTEM буфера пользователя не видит —
-	// за ним следит окно и говорит со службой через её API.
-	go clipshare.WatchRemote(func() (string, string) { ep := c.p.Endpoint(); return ep.Addr, ep.Token })
-	go (&http.Server{Handler: c.p, ReadHeaderTimeout: 10 * time.Second}).Serve(ln)
+	go (&http.Server{Handler: c.gate(c.p), ReadHeaderTimeout: 10 * time.Second}).Serve(ln)
 	pageURL := fmt.Sprintf("http://%s/?t=%s", ln.Addr(), c.p.Token)
 	if noWindow {
 		fmt.Println(pageURL)
 		select {}
 	}
 
+	// Окно открывается сразу; пока служба не ответила, в нём страница
+	// «Служба запускается…» (gate), а не сообщение об ошибке через 30 с.
+	go func() {
+		ep := c.waitService()
+		c.serviceReady(ep, dir)
+	}()
+	runWindow(pageURL, tray, nativeui.Options{
+		Running: c.running,
+		Toggle:  c.toggle,
+		// «Выход» — выключить туннель и сеть устройств в службе: процесс
+		// службы остаётся (это служба Windows), но трафик через туннель не
+		// идёт и адрес — настоящий. «Закрыть окно» — только окно.
+		OnQuit:        c.quit,
+		OnCloseWindow: func() { wl.printf("«Закрыть окно»: туннель остаётся в службе") },
+		Lang:          func() string { return config.Load().Language },
+	})
+}
+
+// serviceReady — служба ответила: всё, что окну нужно от неё.
+func (c *client) serviceReady(ep winsvc.Endpoint, dir string) {
+	c.offerServiceUpdate(ep)
+	webui.SetBootControl(clientBoot{})
+	// Общий буфер (ТЗ 5): служба под SYSTEM буфера пользователя не видит —
+	// за ним следит окно и говорит со службой через её API.
+	go clipshare.WatchRemote(func() (string, string) { ep := c.p.Endpoint(); return ep.Addr, ep.Token })
 	go c.trayStatus()
 	go c.watchUpgrade(dir)
-	// «Выход» из трея закрывает только окно: VPN и сеть устройств — дело
-	// службы, они продолжают работать.
-	runWindow(pageURL, tray, c.running, c.toggle, func() {})
+	// После «Выхода» служба ждёт окно — подключиться по настройкам запуска.
+	if data, err := c.call(c.p.Endpoint(), http.MethodPost, "/api/winopened"); err == nil &&
+		strings.Contains(string(data), `"started":true`) {
+		c.log.printf("служба была выключена «Выходом» — подключаюсь по настройкам запуска")
+	}
+}
+
+// quit — «Выход» в трее: выключить туннель и сеть устройств в службе.
+// Старая служба (без /api/quit) — «Выключено» (/api/stop): выбор тогда
+// запомнится, но туннель всё равно не останется включённым за спиной.
+func (c *client) quit() {
+	ep := c.p.Endpoint()
+	if _, err := c.call(ep, http.MethodPost, "/api/quit"); err != nil {
+		c.log.printf("«Выход»: /api/quit: %v — пробую /api/stop", err)
+		if _, err := c.call(ep, http.MethodPost, "/api/stop"); err != nil {
+			c.log.printf("«Выход»: /api/stop: %v", err)
+			return
+		}
+	}
+	c.log.printf("«Выход»: туннель и сеть устройств выключены в службе")
+}
+
+// svcWait — что окно знает о службе, пока ждёт её (для страницы ожидания).
+type svcWait struct {
+	mu      sync.Mutex
+	ready   bool
+	failed  bool   // ждём дольше svcWaitLimit — показать ошибку и кнопку
+	err     string // последняя причина
+	state   string // winsvc.State()
+	restart string // "", "running", "failed: …"
+	since   time.Time
+}
+
+// svcWaitLimit — сколько окно показывает «Служба запускается…», прежде чем
+// показать ошибку. Ждать оно продолжает и после: служба поднимется — страница
+// сама перейдёт в программу.
+const svcWaitLimit = 20 * time.Second
+
+// waitService ждёт службу без срока: читает service.json и спрашивает саму
+// службу. Остановленную — запускает (так бывает после обновления, если
+// net start не дождался остановки старой копии).
+func (c *client) waitService() winsvc.Endpoint {
+	c.w.mu.Lock()
+	c.w.since = time.Now()
+	c.w.mu.Unlock()
+	lastLogged := ""
+	lastStart := time.Time{}
+	for {
+		c.p.Forget()
+		ep := c.p.Endpoint()
+		var why string
+		if ep.Addr != "" {
+			_, err := c.call(ep, http.MethodGet, "/api/status")
+			if err == nil {
+				c.w.mu.Lock()
+				c.w.ready = true
+				waited := time.Since(c.w.since)
+				c.w.mu.Unlock()
+				c.log.printf("служба ответила (%s, PID %d, версия %s) через %d мс", ep.Addr, ep.PID, ep.Version, waited.Milliseconds())
+				return ep
+			}
+			why = "служба записала адрес, но не отвечает: " + err.Error()
+		} else {
+			why = "служба ещё не записала свой адрес (service.json)"
+		}
+		state := winsvc.State()
+		if state == "stopped" && time.Since(lastStart) > 10*time.Second {
+			lastStart = time.Now()
+			if err := winsvc.Start(); err != nil {
+				c.log.printf("служба остановлена, запуск: %v", err)
+			} else {
+				c.log.printf("служба была остановлена — запустил")
+			}
+		}
+		c.w.mu.Lock()
+		c.w.err, c.w.state = why, state
+		if !c.w.failed && time.Since(c.w.since) > svcWaitLimit {
+			c.w.failed = true
+			c.log.printf("служба не ответила за %s: %s; состояние службы: %s", svcWaitLimit, why, state)
+		}
+		c.w.mu.Unlock()
+		if line := why + " | " + state; line != lastLogged {
+			lastLogged = line
+			c.log.printf("жду службу: %s; состояние службы: %s", why, state)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+// gate — пока служба не ответила, вместо программы — страница ожидания и её
+// два адреса: /svcwait/status (JSON) и /svcwait/restart (перезапуск службы
+// через окно UAC, как при установке).
+func (c *client) gate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/svcwait/status":
+			c.w.mu.Lock()
+			st := map[string]any{"ready": c.w.ready, "failed": c.w.failed, "error": c.w.err,
+				"state": c.w.state, "restart": c.w.restart, "log": filepath.Join(c.p.Dir, "service.log")}
+			c.w.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(st)
+			return
+		case "/svcwait/restart":
+			if r.Method != http.MethodPost || r.URL.Query().Get("t") != c.p.Token {
+				http.Error(w, "нет", http.StatusForbidden)
+				return
+			}
+			go c.restartService()
+			w.Write([]byte(`{"ok":true}`))
+			return
+		}
+		c.w.mu.Lock()
+		ready := c.w.ready
+		c.w.mu.Unlock()
+		if !ready && r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			w.Write([]byte(waitPage(config.Load().Language, c.p.Token)))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// restartService — кнопка «Перезапустить службу»: та же копия программы с
+// -restart-service через окно UAC.
+func (c *client) restartService() {
+	c.w.mu.Lock()
+	if c.w.restart == "running" {
+		c.w.mu.Unlock()
+		return
+	}
+	c.w.restart = "running"
+	c.w.mu.Unlock()
+	c.log.printf("перезапуск службы по кнопке")
+	self, err := os.Executable()
+	code := 0
+	if err == nil {
+		code, err = winsvc.RunElevated(self, []string{"-restart-service"}, true)
+	}
+	res := ""
+	if err != nil {
+		res = "failed: " + err.Error()
+	} else if code != 0 {
+		res = fmt.Sprintf("failed: код %d", code)
+	}
+	if res == "" {
+		c.log.printf("перезапуск службы: готово")
+	} else {
+		c.log.printf("перезапуск службы: %s", res)
+	}
+	c.w.mu.Lock()
+	c.w.restart = res
+	c.w.failed = false
+	c.w.since = time.Now()
+	c.w.mu.Unlock()
+}
+
+// windowLog — журнал окна (window.log рядом с service.log): у окна нет
+// журнала программы, а понять, кто кого не дождался, нужно по обоим.
+type windowLog struct {
+	mu   sync.Mutex
+	path string
+}
+
+func openWindowLog(dir string) *windowLog {
+	p := filepath.Join(dir, "window.log")
+	if st, err := os.Stat(p); err == nil && st.Size() > 1<<20 {
+		os.Rename(p, p+".old")
+	}
+	return &windowLog{path: p}
+}
+
+func (l *windowLog) printf(format string, a ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	f, err := os.OpenFile(l.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s  %s\n", time.Now().Format("2006-01-02 15:04:05.000"), fmt.Sprintf(format, a...))
 }
 
 // waitEndpoint ждёт, пока служба запишет адрес и начнёт отвечать. Файл от

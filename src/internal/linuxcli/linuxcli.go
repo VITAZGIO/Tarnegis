@@ -101,6 +101,7 @@ func Run(o Options) {
 	p.FilterApps = splitApps(*apps)
 	p.DirectHosts = routing.SplitEntries(*direct)
 	cfg.SetProfile(p)
+	cfg.PutRules(p) // правила общие для программы (ТЗ 32)
 
 	if *printEnv {
 		for _, line := range envLines(p) {

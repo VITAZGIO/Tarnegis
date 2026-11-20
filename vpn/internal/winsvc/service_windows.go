@@ -75,6 +75,65 @@ func Running() bool {
 	return err == nil && st.State == svc.Running
 }
 
+// State — состояние службы словами, для журнала окна и страницы ожидания:
+// "running", "start-pending", "stop-pending", "stopped", "paused",
+// "not-installed" или текст ошибки.
+func State() string {
+	s, done, err := openService(windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return "not-installed"
+		}
+		return err.Error()
+	}
+	defer done()
+	st, err := s.Query()
+	if err != nil {
+		return err.Error()
+	}
+	switch st.State {
+	case svc.Running:
+		return "running"
+	case svc.StartPending:
+		return "start-pending"
+	case svc.StopPending:
+		return "stop-pending"
+	case svc.Stopped:
+		return "stopped"
+	}
+	return fmt.Sprintf("state-%d", st.State)
+}
+
+// Restart — «Перезапустить службу» на странице ожидания окна: остановить
+// (не остановилась за 15 с — снять процесс службы), запустить. Нужны права
+// администратора (ssh_tunnel_vpn.exe -restart-service через UAC).
+func Restart() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("нет доступа к службам Windows (нужны права администратора): %w", err)
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(Name)
+	if err != nil {
+		return fmt.Errorf("служба не установлена: %w", err)
+	}
+	defer s.Close()
+	stopAndWait(s, 15*time.Second)
+	if st, err := s.Query(); err == nil && st.State != svc.Stopped && st.ProcessId != 0 {
+		// Зависла на остановке — снимаем её процесс, иначе запуск не пройдёт.
+		if h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, st.ProcessId); err == nil {
+			_ = windows.TerminateProcess(h, 1)
+			windows.CloseHandle(h)
+		}
+		stopAndWait(s, 10*time.Second)
+	}
+	err = s.Start()
+	if errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING) {
+		return nil
+	}
+	return err
+}
+
 // Start запускает службу, если она стоит. Без прав администратора тоже
 // можно: установка разрешает это вошедшим в систему (см. serviceDACL).
 func Start() error {

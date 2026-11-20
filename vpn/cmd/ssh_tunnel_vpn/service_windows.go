@@ -42,8 +42,14 @@ func runService(profile, appdata string) {
 			return err
 		}
 		// net stop — штатная остановка (Execute гасит туннель), net start —
-		// уже новый файл. cmd переживает выход службы.
-		cmd := exec.Command("cmd", "/c", "ping -n 3 127.0.0.1 >nul & net stop "+winsvc.Name+" & net start "+winsvc.Name)
+		// уже новый файл. cmd переживает выход службы. Если служба ещё не
+		// успела остановиться, первый net start не проходит — и раньше служба
+		// так и оставалась выключенной («служба ещё не записала свой адрес»
+		// в окне): пробуем запустить ещё дважды.
+		n := winsvc.Name
+		cmd := exec.Command("cmd", "/c", "ping -n 3 127.0.0.1 >nul & net stop "+n+
+			" & net start "+n+" || (ping -n 6 127.0.0.1 >nul & net start "+n+")"+
+			" || (ping -n 16 127.0.0.1 >nul & net start "+n+")")
 		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 		return cmd.Start()
 	}
@@ -57,8 +63,12 @@ type service struct{}
 
 func (*service) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	status <- svc.Status{State: svc.StartPending}
+	t0 := time.Now()
 
 	dir := config.Dir()
+	// Журнал — с самого начала и с временем: окно пишет свою сторону в
+	// window.log, по двум файлам видно, кто кого ждал (ТЗ 32).
+	writeServiceLog(dir, fmt.Sprintf("старт службы, PID %d, версия %s", os.Getpid(), updater.Version))
 	e, err := newEngine()
 	if err != nil {
 		writeServiceLog(dir, "не запустился интерфейс: "+err.Error())
@@ -73,6 +83,8 @@ func (*service) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<- 
 		Addr: e.srv.Addr(), Token: e.srv.Token(), Version: updater.Version, PID: os.Getpid(),
 	}); err != nil {
 		writeServiceLog(dir, "не удалось записать service.json: "+err.Error())
+	} else {
+		writeServiceLog(dir, fmt.Sprintf("адрес записан (%s) через %d мс после старта", e.srv.Addr(), time.Since(t0).Milliseconds()))
 	}
 	// Удалённо включённый компьютер должен появиться в сети, когда бы ни
 	// поднялась его сеть, — поэтому ждём её без срока.
@@ -84,10 +96,17 @@ func (*service) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<- 
 		case svc.Interrogate:
 			status <- c.CurrentStatus
 		case svc.Stop, svc.Shutdown:
+			why := "остановка"
+			if c.Cmd == svc.Shutdown {
+				why = "выключение компьютера"
+			}
+			t := time.Now()
+			writeServiceLog(dir, why+": служба останавливается")
 			status <- svc.Status{State: svc.StopPending}
 			winsvc.RemoveEndpoint(dir)
 			e.a.StopNow()
 			e.srv.Close()
+			writeServiceLog(dir, fmt.Sprintf("служба остановлена за %d мс", time.Since(t).Milliseconds()))
 			return false, 0
 		}
 	}

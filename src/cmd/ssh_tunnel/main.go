@@ -131,6 +131,7 @@ func main() {
 		// Выход — не нажатие кнопки: выбор человека не запоминается, и «как
 		// при закрытии» вернёт то, что было включено до выхода.
 		OnQuit: a.StopNow,
+		Lang:   func() string { return a.Config().Language },
 	})
 	if err != nil {
 		fatal(err.Error())
