@@ -1,26 +1,44 @@
-/* ---------- устройства: таблица и боковая панель ---------- */
-/* Таблица во всю ширину; выбранное устройство (и формы «Добавить»,
-   «Права») открываются панелью справа: от 1300 px — колонкой рядом с
-   таблицей, уже — поверх неё, на телефоне — на весь экран с «Назад». */
-.devs{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr)}
-.dmap{display:none}
-.back{display:inline-block;align-self:flex-start;margin:0}
-.ddetail{display:none;flex-direction:column;gap:14px;min-width:0}
-.devs.open .ddetail{display:flex}
+/* ---------- устройства (ТЗ 27): две равные половины ---------- */
+/* Слева список, справа фирменный фон или карточка выбранного устройства
+   (и формы «Добавить», «Права», «Настройки»). Половины не сужаются, когда
+   устройство открыто. Страница сама не листается: пока открыт этот раздел,
+   рамка ровно до низа окна, раздел занимает остаток, обе половины листаются
+   каждая внутри себя — ничего не едет «вразнобой». */
+/* Высота шапки не задана (кнопки сетей делают её выше), поэтому не
+   вычитаем её числом: страница — колонка высотой в окно, рамка .app берёт
+   остаток под шапкой. */
+body:has(#tabDevices:not([hidden])){display:flex;flex-direction:column;height:100dvh}
+body:has(#tabDevices:not([hidden])) .app{flex:1 1 0;min-height:0}
+body:has(#tabDevices:not([hidden])) .side{height:auto;align-self:stretch}
+body:has(#tabDevices:not([hidden])) main{min-height:0;display:flex;flex-direction:column}
+#tabDevices{display:flex;flex-direction:column;flex:1 1 0;min-height:0}
+.devs{flex:1 1 0;min-height:0;display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.dlist{display:flex;flex-direction:column;min-height:0;margin:0}
+.dscroll{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;margin-right:-10px;padding-right:6px}
+.ddetail{display:flex;flex-direction:column;min-height:0;min-width:0}
+.dbrand{flex:1 1 0;min-height:0;display:flex}
+.dbrand .brand-bg{min-height:0}
+.dpane{display:none;flex:1 1 0;min-height:0;flex-direction:column;gap:14px;overflow-y:auto;overflow-x:hidden;padding-right:2px}
+.dpane > *{flex:none}
+.devs.open .dbrand{display:none}
+.devs.open .dpane{display:flex}
 /* Панель закрыта — строка не выглядит выбранной. */
 .devs:not(.open) button.drow.on{background:none;border-color:transparent}
-@media (min-width:1300px){
-  .devs.open{grid-template-columns:minmax(0,1fr) 460px}
-  /* Панель не уезжает вместе с длинной таблицей. */
-  .ddetail{position:sticky;top:69px;max-height:calc(100vh - 87px);overflow-y:auto}
+.dbar{display:flex;align-items:center;gap:8px}
+.back{display:inline-block;margin:0}
+.dclose{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--card);
+  color:var(--dim);font:400 20px/1 "Segoe UI",sans-serif;cursor:pointer;transition:color .15s,border-color .15s}
+.dclose:hover{color:var(--text);border-color:var(--accent)}
+@media (min-width:761px){
+  .devs{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .dbar .back{display:none}
 }
-@media (min-width:761px) and (max-width:1299px){
-  .devs.open .ddetail{position:fixed;top:51px;right:0;bottom:0;z-index:25;width:min(460px,100%);
-    overflow-y:auto;padding:14px;background:var(--bg);border-left:1px solid var(--line);
-    box-shadow:-10px 0 28px rgba(0,0,0,.35)}
-}
+/* Телефон: список во весь экран; устройство — во весь экран с «Назад». */
 @media (max-width:760px){
+  .ddetail{display:none}
+  .devs.open .ddetail{display:flex}
   .devs.open .dlist{display:none}
+  .dbar .dclose{display:none}
 }
 .dlist{container-type:inline-size}
 .drow{display:grid;grid-template-columns:12px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) 74px;gap:10px;

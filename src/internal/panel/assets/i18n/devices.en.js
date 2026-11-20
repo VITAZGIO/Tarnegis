@@ -88,4 +88,5 @@ Object.assign(I18N.en, {
   ex_deleted:'deleted server',
   ex_hint:'The device applies it as its own “Exit via” setting for this server if it is newer. The person on the device can change it — you will see it here.',
   renamed:'Name changed',
+  dev_close:'Close (Esc)',
 });

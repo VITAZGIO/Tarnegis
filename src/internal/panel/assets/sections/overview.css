@@ -1,20 +1,70 @@
-/* ---------- обзор: плитки, схема во всю ширину, ниже ровные строки ---------- */
-.ov{grid-template-columns:minmax(0,1fr);
-    grid-template-areas:"head" "tiles" "map" "clients" "traffic" "status"}
-.ov > .sec-head{grid-area:head} .ov-tiles{grid-area:tiles;margin:0}
-.ov-map{grid-area:map;min-width:0} .ov-status{grid-area:status}
-.ov-clients{grid-area:clients} .ov-traffic{grid-area:traffic}
-@media (min-width:1100px){
-  .ov{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch;
-      grid-template-areas:"head head" "tiles tiles" "map map" "clients traffic" "status status"}
-  .ov-clients,.ov-traffic{display:flex;flex-direction:column;min-height:0}
-  .ov-clients .scroll-x,.ov-traffic .scroll-x{max-height:420px;overflow:auto}
-  /* Состояние сервера — строкой: пары «название — значение» в три колонки. */
-  .ov-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:28px}
-  .ov-status > h1{grid-column:1/-1}
-}
-.ov-map .map-wrap svg{height:max(420px, 55vh)}
+/* ---------- обзор (ТЗ 27) ---------- */
+/* Два блока: .ov-screen (заголовок, плитки, схема, клиенты) и .ov-bot
+   (состояние сервера, трафик). Телефон — всё по очереди: плитки 2×2, схема,
+   клиенты, трафик, состояние сервера. */
+.ov-screen{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ov-top{min-width:0}
+.ov-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-areas:"tiles" "map" "clients"}
+.ov-tiles{grid-area:tiles;margin:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+.ov-map{grid-area:map;min-width:0} .ov-clients{grid-area:clients;min-width:0}
+.ov-bot{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-areas:"traffic" "status"}
+.ov-status{grid-area:status;min-width:0} .ov-traffic{grid-area:traffic;min-width:0}
+.ov-scroll{overflow:auto;min-height:0}
+.ov-clients .ov-scroll{max-height:420px}
 .ov.nomap .ov-map{display:none}
+.ov-map .map-wrap svg{height:max(420px, 55vh)}
+/* Средняя ширина: плитки строкой, схема во всю ширину, ниже клиенты, ещё
+   ниже состояние сервера и трафик рядом. */
+@media (min-width:761px){
+  .ov-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .ov-bot{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"status traffic";align-items:start}
+}
+/* Широкий экран. Первый экран — до низа окна с зазором 14 px. --ov-top —
+   где раздел начинается на странице (шапка 51 px и отступ 18 px, а с
+   плашкой режима показа или ошибкой службы сети — ниже), его ставит
+   overview.js. Ряд «плитки | схема | клиенты»
+   занимает всё, что осталось под заголовком; .ov-top — контейнер по
+   размеру, поэтому 200cqh = две его высоты: шире схема не станет, лишняя
+   ширина уходит колонке клиентов. */
+@media (min-width:1280px){
+  .ov-screen{height:calc(100dvh - var(--ov-top, 69px) - 14px)}
+  .ov-top{flex:1 1 0;min-height:0;container-type:size}
+  .ov-grid{height:100%;grid-template-rows:minmax(0,1fr);grid-template-areas:"tiles map clients";
+    grid-template-columns:230px minmax(0,200cqh) minmax(380px,1fr)}
+  .ov-tiles{grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);min-height:0}
+  .ov-tiles .box{display:flex;flex-direction:column;justify-content:center;min-height:0}
+  .ov-map{min-height:0}
+  .ov-map .map-card{height:100%;display:flex;flex-direction:column;min-height:0}
+  .ov-map .map-wrap{flex:1 1 0;min-height:0}
+  .ov-map .map-wrap svg{height:100%}
+  .ov-clients{display:flex;flex-direction:column;min-height:0}
+  .ov-clients .ov-scroll{flex:1 1 0;max-height:none}
+  /* Узкая колонка: трафик переносится на две строки, а не листается вбок. */
+  .ov-clients table.list td.num{white-space:normal}
+  .ov-clients table.list td,.ov-clients table.list th{padding-right:6px}
+  /* Низ — по трети: состояние сервера, трафик, пустая треть (так решил Виталий). */
+  .ov-bot{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* Сети устройств на сервере нет — плиток и схемы нет, клиенты во всю ширину. */
+  .ov.nomap .ov-screen{height:auto}
+  .ov.nomap .ov-top{container-type:normal}
+  .ov.nomap .ov-grid{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"clients"}
+  .ov.nomap .ov-clients .ov-scroll{max-height:420px}
+}
+/* Состояние сервера: три плитки (процессор, память, диск) — по нажатию
+   открывается «Мониторинг». */
+.ovs-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 12px;cursor:pointer;border-radius:10px}
+.ovs-tiles:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.ovs{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;
+  --lvl:var(--ok);transition:border-color .15s}
+.ovs-tiles:hover .ovs{border-color:color-mix(in srgb, var(--accent) 40%, var(--line))}
+.ovs.warn{--lvl:var(--warn)} .ovs.err{--lvl:var(--err)}
+.ovs .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovs .v{font:700 20px/1.2 var(--mono);margin-top:3px;font-variant-numeric:tabular-nums}
+.ovs .s{font-size:11px;color:var(--dim);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovs-bar{height:5px;border-radius:3px;background:var(--line);margin-top:7px;overflow:hidden}
+.ovs-bar i{display:block;height:100%;width:0;border-radius:3px;background:var(--lvl);transition:width .4s}
+.ovs-more{margin-top:12px}
 .map-wrap{position:relative;background:
       radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 65%),
       var(--card2);border:1px solid var(--line);border-radius:12px;overflow:hidden}

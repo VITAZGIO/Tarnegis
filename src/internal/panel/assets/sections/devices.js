@@ -1,5 +1,5 @@
 // Раздел «Устройства»: один список клиентов и устройств сети, карточка
-// устройства справа, добавление, права, настройки клиента.
+// устройства в правой половине (ТЗ 27), добавление, права, настройки клиента.
 /* ---------- устройства: один список на клиентов и устройства сети ---------- */
 /* Клиент — учётная запись SSH на этом сервере (ключ, заморозка, удаление);
    устройство сети — то, что знает meshd (адрес .mesh, связь, имя). Обычно
@@ -25,7 +25,6 @@ function itemName(it){ return it.mesh ? it.mesh.display : it.client.name; }
 function itemOnline(it){ return !!((it.mesh && it.mesh.online) || (it.client && it.client.sessions > 0)); }
 function itemPlatform(it){ return it.mesh ? it.mesh.platform : it.client.deviceType; }
 function itemSystem(it){ return it.mesh ? systemText(it.mesh) : t('device_' + it.client.deviceType); }
-const WIDE_DETAIL = '(min-width:980px)';
 
 function renderDevList(){
   const all = devItems();
@@ -41,11 +40,8 @@ function renderDevList(){
       .some(v => v && String(v).toLowerCase().includes(q));
   }).sort((a, b) => (itemOnline(b) - itemOnline(a)) || itemName(a).localeCompare(itemName(b)));
 
-  // На широком экране карточка справа не пустует: выбираем первое.
-  if (!all.some(i => i.key === DEV_SEL) && matchMedia(WIDE_DETAIL).matches &&
-      list.length && $('addClientForm').hidden && $('clientConfigCard').hidden){
-    DEV_SEL = list[0].key;
-  }
+  // Ничего не выбрано — справа фирменный фон (ТЗ 27), первое устройство
+  // сами не открываем.
 
   const box = $('devRows');
   box.innerHTML = '';
@@ -93,16 +89,41 @@ function selectDev(key, open){
   $('addClientForm').hidden = true;
   document.querySelectorAll('#devRows .drow').forEach(r => r.classList.toggle('on', r.dataset.key === key));
   renderDetail();
-  if (open){
-    $('devsBox').classList.add('open');
-    if (!matchMedia(WIDE_DETAIL).matches) scrollTo(0, 0);
-  }
+  if (open) openDevPane(true);
 }
-$('devBackBtn').addEventListener('click', () => { $('devsBox').classList.remove('open'); scrollTo(0, 0); });
-// Боковую панель устройства закрывает и Esc (ТЗ 23).
-addEventListener('keydown', e => {
-  if (e.key === 'Escape' && TAB === 'Devices' && $('devsBox').classList.contains('open') && !document.querySelector('.modal:not([hidden])')) $('devsBox').classList.remove('open');
-});
+
+/* ---------- правая половина: фирменный фон или карточка (ТЗ 27) ---------- */
+$('devBrand').appendChild(brandBlock());
+// openDevPane — показать карточку и формы вместо фона; top — с начала.
+function openDevPane(top){
+  $('devsBox').classList.add('open');
+  if (top) $('devPane').scrollTop = 0;
+}
+// closeDevPane — назад к фону: ×, Esc, «Назад». Открытые формы закрываем —
+// приватный ключ из «Настроек» на странице не остаётся.
+function closeDevPane(){
+  $('devsBox').classList.remove('open');
+  $('addClientForm').hidden = true;
+  $('clientAccessCard').hidden = true;
+  if (CONFIG_FOR || !$('clientConfigCard').hidden) closeClientConfig();
+}
+// devPaneCheck — показывать справа нечего (устройство пропало, формы
+// закрыты) — возвращаем фон, а не пустую карточку.
+function devPaneCheck(){
+  const any = !$('addClientForm').hidden || !$('clientConfigCard').hidden || !$('clientAccessCard').hidden ||
+    devItems().some(i => i.key === DEV_SEL);
+  if (!any) $('devsBox').classList.remove('open');
+}
+$('devBackBtn').addEventListener('click', closeDevPane);
+$('devCloseBtn').addEventListener('click', closeDevPane);
+// Esc — до остальных обработчиков (capture): если открыто окно поверх
+// страницы (QR, «Вы уверены?») или идёт переименование, Esc закрывает их,
+// а не карточку.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || TAB !== 'Devices' || !$('devsBox').classList.contains('open')) return;
+  if (MESH_EDIT || document.querySelector('.overlay:not([hidden])') || $('brandTest')) return;
+  closeDevPane();
+}, true);
 
 // fact — «подпись: значение» в сетке карточки.
 function fact(box, k, v, node){
@@ -122,8 +143,9 @@ function renderDetail(){
   const box = $('devInfo');
   box.innerHTML = '';
   const it = devItems().find(i => i.key === DEV_SEL);
+  $('devInfoCard').hidden = !it;
   if (!it){
-    box.appendChild(el('div', 'empty', t(devItems().length ? 'dev_pick' : 'dev_none')));
+    devPaneCheck();
     return;
   }
   const d = it.mesh, c = it.client, on = itemOnline(it);
@@ -307,10 +329,10 @@ function openClientAccess(id){
   $('clientCanCreate').checked = !!c.canCreate;
   $('clientCreatorPass').value = '';
   $('clientAccessCard').hidden = false;
-  $('devsBox').classList.add('open');
+  openDevPane(false);
   $('clientAccessCard').scrollIntoView({behavior:'smooth', block:'start'});
 }
-$('closeClientAccessBtn').addEventListener('click', () => { $('clientAccessCard').hidden = true; });
+$('closeClientAccessBtn').addEventListener('click', () => { $('clientAccessCard').hidden = true; devPaneCheck(); });
 $('saveClientAccessBtn').addEventListener('click', async () => {
   const msg = $('clientAccessMsg');
   showMsg(msg, '', '');
@@ -333,6 +355,7 @@ async function deleteClient(id){
   if (DEV_SEL === 'c:' + id) DEV_SEL = '';
   if (ACCESS_CLIENT === id) $('clientAccessCard').hidden = true;
   if (CONFIG_FOR === id) closeClientConfig();
+  devPaneCheck();
   loadClients();
   emitPanel('refresh');
 }
@@ -342,11 +365,11 @@ $('addClientBtn').addEventListener('click', () => {
   $('newClientName').value = '';
   $('newClientType').value = 'windows';
   $('addClientForm').hidden = false;
-  $('devsBox').classList.add('open');
+  openDevPane(false);
   $('addClientForm').scrollIntoView({behavior: 'smooth', block: 'start'});
   $('newClientName').focus();
 });
-$('cancelClientBtn').addEventListener('click', () => { $('addClientForm').hidden = true; });
+$('cancelClientBtn').addEventListener('click', () => { $('addClientForm').hidden = true; devPaneCheck(); });
 
 $('createClientBtn').addEventListener('click', async () => {
   showMsg($('addClientMsg'), '', '');
@@ -401,7 +424,7 @@ function renderClientConfig(cfg, justCreated){
   currentConfigFilename = 'ssh_tunnel-' + cfg.user + '.json';
   currentConfigJSON = cfg.json;
   $('clientConfigCard').hidden = false;
-  $('devsBox').classList.add('open');
+  openDevPane(false);
   $('clientConfigCard').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
@@ -441,7 +464,7 @@ $('downloadClientConfigBtn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-$('closeClientConfigBtn').addEventListener('click', () => closeClientConfig());
+$('closeClientConfigBtn').addEventListener('click', () => { closeClientConfig(); devPaneCheck(); });
 // closeClientConfig — убрать со страницы приватный ключ, ссылку и QR.
 function closeClientConfig(){
   CONFIG_FOR = '';
@@ -656,8 +679,7 @@ onPanel('clients', () => { renderDevList(); renderDetail(); });
 onPanel('access', () => renderDetail());
 onPanel('detail', () => renderDetail());
 onPanel('focusDevice', id => focusDeviceNow(id));
-onPanel('mesh', (m, role) => {
-  $('devsBox').classList.toggle('withmap', role === 'main');
+onPanel('mesh', () => {
   renderDevList();
   renderDetail();
 });

@@ -1,10 +1,17 @@
 <!-- ======== ОБЗОР ======== -->
 <section id="tabHome" class="ov nomap">
+  <!-- ТЗ 27. Широкий экран (от 1280 px): первый экран — плитки столбиком
+       слева, схема в середине (высотой до низа окна, шириной не больше двух
+       высот), справа «Подключённые клиенты» той же высоты. Ниже — «Состояние
+       сервера» и «Трафик» по трети ширины. Уже — плитки строкой, схема во всю
+       ширину, остальное ниже; на телефоне всё по очереди. -->
+  <div class="ov-screen">
   <div class="sec-head">
     <h1 class="page-title" data-i18n="nav_home">Обзор</h1>
     <p class="page-sub" data-i18n="home_sub">Что сейчас с сервером и кто через него ходит.</p>
   </div>
 
+  <div class="ov-top"><div class="ov-grid">
   <div class="sum ov-tiles" id="meshTiles" hidden>
     <div class="box"><div class="k"><span data-i18n="tile_devices">Устройства</span><button class="hint" data-hint="hint_tile_devices">?</button></div>
       <div class="v" id="tileDevices">—</div><div class="s" id="tileDevicesSub"></div></div>
@@ -16,8 +23,7 @@
       <div class="v" id="tileTraffic">—</div><div class="s" id="tileTrafficSub"></div></div>
   </div>
 
-  <!-- Схема одна на всю панель: обычно стоит здесь, а на очень широком
-       экране переезжает третьей колонкой в «Устройства» (placeMap). -->
+  <!-- Схема одна на всю панель и стоит здесь. -->
   <div class="ov-map" id="ovMapSlot">
     <div class="card map-card" id="mapCard" hidden>
       <h1><span data-i18n="mesh_map_title">Схема сети</span><button class="hint" data-hint="hint_map">?</button></h1>
@@ -36,8 +42,32 @@
     </div>
   </div>
 
+  <div class="card ov-clients">
+    <h1 data-i18n="clients_title">Подключённые клиенты</h1>
+    <p class="note" data-i18n="home_clients_note">Здесь только показ. Заводить, замораживать
+      и удалять устройства — в разделе «Устройства».</p>
+    <div class="ov-scroll">
+      <table class="list" id="homeClients"></table>
+      <div class="empty" id="homeClientsEmpty" data-i18n="clients_empty">Клиентов пока нет</div>
+    </div>
+  </div>
+  </div></div>
+  </div>
+
+  <div class="ov-bot">
+  <!-- Коротко о машине: процессор, память, диск (GET /api/server/stats).
+       Нажатие на плитки открывает «Мониторинг», там всё подробно. -->
   <div class="card ov-status">
     <h1 data-i18n="server_status">Состояние сервера</h1>
+    <div class="ovs-tiles" id="ovsTiles" role="button" tabindex="0" data-i18n-title="ovs_open_monitor" title="Открыть «Мониторинг»">
+      <div class="ovs" id="ovsCpu"><div class="k" data-i18n="ovs_cpu">Процессор</div>
+        <div class="v">—</div><div class="ovs-bar"><i></i></div><div class="s"></div></div>
+      <div class="ovs" id="ovsMem"><div class="k" data-i18n="ovs_mem">Память</div>
+        <div class="v">—</div><div class="ovs-bar"><i></i></div><div class="s"></div></div>
+      <div class="ovs" id="ovsDisk"><div class="k" data-i18n="ovs_disk">Диск</div>
+        <div class="v">—</div><div class="ovs-bar"><i></i></div><div class="s"></div></div>
+    </div>
+    <div class="msg err" id="ovsErr" hidden></div>
     <div class="kv"><span class="k" data-i18n="status_label">Статус</span>
       <span class="v"><span class="badge ok" data-i18n="running">работает</span></span></div>
     <div class="kv"><span class="k" data-i18n="os_label">Система</span>
@@ -54,16 +84,7 @@
             <path d="M8 0a8 8 0 0 0-2.5 15.6c.4.1.5-.2.5-.4v-1.4C3.8 14.2 3.3 13 3.3 13c-.4-1-.9-1.2-.9-1.2-.8-.5 0-.5 0-.5.8.1 1.3.9 1.3.9.7 1.2 1.9.9 2.4.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-3.9 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.5 7.5 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.5 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3-1.8 3.7-3.6 3.9.3.3.6.8.6 1.6v2.3c0 .2.1.5.5.4A8 8 0 0 0 8 0Z"/>
           </svg>GitHub</a>
       </span></div>
-  </div>
-
-  <div class="card ov-clients">
-    <h1 data-i18n="clients_title">Подключённые клиенты</h1>
-    <p class="note" data-i18n="home_clients_note">Здесь только показ. Заводить, замораживать
-      и удалять устройства — в разделе «Устройства».</p>
-    <div class="scroll-x">
-      <table class="list" id="homeClients"></table>
-    </div>
-    <div class="empty" id="homeClientsEmpty" data-i18n="clients_empty">Клиентов пока нет</div>
+    <button class="btn ghost small ovs-more" id="ovsMore" type="button" data-i18n="ovs_more">Подробно — «Мониторинг» →</button>
   </div>
 
   <div class="card ov-traffic">
@@ -87,6 +108,7 @@
     <div class="scroll-x">
       <table class="list" id="trafficByClient"></table>
     </div>
+  </div>
   </div>
 
 </section>

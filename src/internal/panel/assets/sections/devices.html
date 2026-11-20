@@ -6,8 +6,11 @@
       учётная запись на сервере — панель заводит и удаляет их сама, без консоли.</p>
   </div>
 
-  <!-- Список | карточка выбранного | (от 1700 px) схема. На узком
-       экране — список, а по нажатию карточка во весь экран с «Назад». -->
+  <!-- ТЗ 27: две равные половины, всегда. Слева поиск, фильтры и список,
+       справа фирменный фон, а по нажатию на устройство — его карточка.
+       Страница не листается: обе половины ровно до низа окна, каждая
+       листается внутри себя. На телефоне — список, а устройство во весь
+       экран с «Назад». -->
   <div class="devs" id="devsBox">
     <div class="card dlist">
       <div class="toolbar">
@@ -23,12 +26,20 @@
         <span></span><span data-i18n="col_device">Устройство</span><span class="c-ip" data-i18n="dev_ip">Адрес</span>
         <span class="c-sys" data-i18n="dev_platform">Система</span><span class="c-ms" data-i18n="dev_latency">Задержка</span>
       </div>
-      <div id="devRows"></div>
-      <div class="empty" id="devRowsEmpty" hidden></div>
+      <div class="dscroll" id="devScroll">
+        <div id="devRows"></div>
+        <div class="empty" id="devRowsEmpty" hidden></div>
+      </div>
     </div>
 
     <div class="ddetail" id="devDetail">
-      <button class="btn ghost small back" id="devBackBtn" type="button" data-i18n="back">← Назад</button>
+      <!-- Ничего не выбрано — фирменный фон (look.js, brandBlock). -->
+      <div class="dbrand" id="devBrand"></div>
+      <div class="dpane" id="devPane">
+      <div class="dbar">
+        <button class="btn ghost small back" id="devBackBtn" type="button" data-i18n="back">← Назад</button>
+        <button class="dclose" id="devCloseBtn" type="button" data-i18n-title="dev_close" title="Закрыть (Esc)" aria-label="close">×</button>
+      </div>
       <div id="devicesMsg"></div>
 
       <!-- добавить устройство -->
@@ -114,8 +125,7 @@
           <button class="btn ghost" id="closeClientAccessBtn" data-i18n="close">Закрыть</button>
         </div>
       </div>
+      </div>
     </div>
-
-    <div class="dmap" id="devMapSlot" hidden></div>
   </div>
 </section>

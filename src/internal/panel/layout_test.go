@@ -230,3 +230,75 @@ func TestСкриптыСтраницыЦелые(t *testing.T) {
 		}
 	}
 }
+
+// ТЗ 27: «Устройства» — две равные половины всегда (никакой узкой боковой
+// панели, которая сужает список), справа фирменный фон, пока ничего не
+// выбрано; страница раздела не листается — листаются половины.
+func TestУстройстваДвеПоловины(t *testing.T) {
+	css := assetString(t, "sections/devices.css")
+	js := assetString(t, "sections/devices.js")
+	html := assetString(t, "sections/devices.html")
+	for _, want := range []string{
+		".devs{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}",
+		"body:has(#tabDevices:not([hidden])){display:flex;flex-direction:column;height:100dvh}",
+		"body:has(#tabDevices:not([hidden])) .app{flex:1 1 0;min-height:0}",
+		".dscroll{flex:1 1 0;min-height:0;overflow-y:auto",
+		".dpane{display:none;flex:1 1 0;min-height:0;flex-direction:column;gap:14px;overflow-y:auto",
+		".devs.open .dbrand{display:none}",
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("devices.css: нет %q", want)
+		}
+	}
+	for _, bad := range []string{"460px", "position:sticky", "position:fixed"} {
+		if strings.Contains(css, bad) {
+			t.Errorf("devices.css: снова %q — правая колонка опять живёт отдельно от левой", bad)
+		}
+	}
+	if !strings.Contains(js, "$('devBrand').appendChild(brandBlock())") {
+		t.Error("devices.js: справа нет фирменного фона")
+	}
+	if strings.Contains(js, "WIDE_DETAIL") || strings.Contains(js, "DEV_SEL = list[0]") {
+		t.Error("devices.js: снова сам открывает первое устройство — фон не виден")
+	}
+	for _, id := range []string{`id="devBrand"`, `id="devPane"`, `id="devCloseBtn"`, `id="devBackBtn"`, `id="devScroll"`} {
+		if !strings.Contains(html, id) {
+			t.Errorf("devices.html: нет %s", id)
+		}
+	}
+	if strings.Contains(html, "devMapSlot") {
+		t.Error("devices.html: вернулось место под схему")
+	}
+}
+
+// ТЗ 27: «Обзор» на широком экране — плитки | схема | клиенты в первом
+// экране, схема не шире двух высот; ниже состояние сервера и трафик по
+// трети; состояние сервера — из /api/server/stats со ссылкой в «Мониторинг».
+func TestОбзорШирокийЭкран(t *testing.T) {
+	css := assetString(t, "sections/overview.css")
+	js := assetString(t, "sections/overview.js")
+	wide := css[strings.Index(css, "@media (min-width:1280px)"):]
+	for _, want := range []string{
+		`grid-template-areas:"tiles map clients"`,
+		"grid-template-columns:230px minmax(0,200cqh) minmax(380px,1fr)",
+		"container-type:size",
+		".ov-screen{height:calc(100dvh - var(--ov-top, 69px) - 14px)}",
+		".ov-bot{grid-template-columns:repeat(3,minmax(0,1fr))}",
+		".ov.nomap .ov-top{container-type:normal}",
+	} {
+		if !strings.Contains(wide, want) {
+			t.Errorf("overview.css (от 1280 px): нет %q", want)
+		}
+	}
+	// Телефон: плитки, схема, клиенты, трафик, состояние сервера.
+	for _, want := range []string{`grid-template-areas:"tiles" "map" "clients"`, `grid-template-areas:"traffic" "status"`} {
+		if !strings.Contains(css, want) {
+			t.Errorf("overview.css (телефон): нет %q", want)
+		}
+	}
+	for _, want := range []string{"api('/api/server/stats')", "showTab('Monitor')", "onPanel('show:Home'"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("overview.js: нет %q", want)
+		}
+	}
+}

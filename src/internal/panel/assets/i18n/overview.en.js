@@ -43,4 +43,12 @@ Object.assign(I18N.en, {
   hint_tile_latency:'<p>Round-trip time from this server to the device (<b>RTT</b>), measured every 15 seconds.</p><p>Up to 60 ms is excellent, up to 150 good, over 400 poor.</p>',
   hint_tile_traffic:'How much data devices sent each other through the network (not all internet traffic, only connections between devices).',
   hint_traffic:'Traffic is counted by nftables rules on the server itself, separately for each client.',
+  ovs_cpu:'CPU',
+  ovs_mem:'Memory',
+  ovs_disk:'Disk',
+  ovs_cores:'cores: {n}',
+  ovs_collecting:'collecting…',
+  ovs_none:'no data',
+  ovs_open_monitor:'Open "Monitoring"',
+  ovs_more:'Details — "Monitoring" →',
 });
