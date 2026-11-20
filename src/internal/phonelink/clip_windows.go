@@ -13,16 +13,15 @@ import (
 	"image/draw"
 	_ "image/jpeg"
 	"image/png"
-	"runtime"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"sshtunnel/internal/clipshare"
 )
 
 var (
 	kernel32          = syscall.NewLazyDLL("kernel32.dll")
-	pOpenClipboard    = user32.NewProc("OpenClipboard")
-	pCloseClipboard   = user32.NewProc("CloseClipboard")
 	pEmptyClipboard   = user32.NewProc("EmptyClipboard")
 	pSetClipboardData = user32.NewProc("SetClipboardData")
 	pRegisterFormat   = user32.NewProc("RegisterClipboardFormatW")
@@ -81,32 +80,28 @@ func pasteImage(data []byte) error {
 }
 
 func setClipboard(dib, pngData []byte) error {
-	// Буфер обмена привязан к потоку, который его открыл.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	opened := false
-	for i := 0; i < 10; i++ { // другая программа может держать буфер миг
-		if r, _, _ := pOpenClipboard.Call(0); r != 0 {
-			opened = true
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	if !opened {
-		return errors.New("буфер обмена занят другой программой")
-	}
-	defer pCloseClipboard.Call()
-	pEmptyClipboard.Call()
-	if err := putClip(cfDIB, dib); err != nil {
-		return err
-	}
+	// Открыть, записать и закрыть — через clipshare.WithClipboard: там поток
+	// ОС закреплён (буфер привязан к потоку, который его открыл) и стоит
+	// замок на весь процесс — общий буфер в это время тоже может писать.
+	var format uintptr
 	if len(pngData) > 0 {
 		name, _ := syscall.UTF16PtrFromString("PNG")
-		if f, _, _ := pRegisterFormat.Call(uintptr(unsafe.Pointer(name))); f != 0 {
-			_ = putClip(f, pngData)
-		}
+		format, _, _ = pRegisterFormat.Call(uintptr(unsafe.Pointer(name)))
 	}
-	return nil
+	err := clipshare.WithClipboard(func() error {
+		pEmptyClipboard.Call()
+		if err := putClip(cfDIB, dib); err != nil {
+			return err
+		}
+		if format != 0 {
+			_ = putClip(format, pngData)
+		}
+		return nil
+	})
+	if errors.Is(err, clipshare.ErrBusy) {
+		return errors.New("буфер обмена занят другой программой")
+	}
+	return err
 }
 
 func putClip(format uintptr, data []byte) error {
