@@ -9,3 +9,11 @@
   #tabSettings > .sub:not([data-sub="book"]) > *{break-inside:avoid;margin-bottom:14px;display:block}
   #tabSettings > .sub:not([data-sub="book"]) > [hidden]{display:none}
 }
+
+/* «Обновить на всех серверах» (ТЗ 31): строка на сервер — имя, версии, шаг. */
+.upd-all .ua-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.4fr);gap:10px;align-items:center;
+  padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.upd-all .ua-row .ua-v{color:var(--dim);font-variant-numeric:tabular-nums}
+.upd-all .ua-row .ua-s.ok{color:var(--ok)}
+.upd-all .ua-row .ua-s.err{color:var(--err)}
+@media (max-width:760px){.upd-all .ua-row{grid-template-columns:1fr}}

@@ -62,6 +62,7 @@ type demoBackend struct {
 	self     meshsvc.Self
 	known    []meshsvc.KnownServer // серверы, которые панель советует устройствам (ТЗ 12)
 	srvnet   demoSrvNet            // сеть серверов (ТЗ 22)
+	upd      demoUpd               // «обновить на всех» (ТЗ 31, demo_update.go)
 	capacity int
 
 	// Одна картина сети (ТЗ 24, demo_view.go): «этот» сервер, имена
@@ -693,7 +694,8 @@ func (d *demoBackend) routes() http.Handler {
 		for i := range list {
 			list[i].PrivateKey, list[i].CreatorHash = "", ""
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"clients": list})
+		// Сведения всей сети — как у настоящей панели (ТЗ 31).
+		writeJSON(w, http.StatusOK, map[string]any{"clients": withNet(list, clientNetOf(d.state()), d.servers[0].Name)})
 	})
 	h("/api/clients/create", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -843,9 +845,7 @@ func (d *demoBackend) routes() http.Handler {
 		writeJSON(w, http.StatusOK, AutostartStatus{})
 	})
 	h("/api/book", serveBook)
-	h("/api/update", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"error": "в режиме показа обновления не проверяются", "code": "update_failed"})
-	})
+	d.updateRoutes(h)
 	h("/api/update/install", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"error": "в режиме показа обновление выключено"})
 	})

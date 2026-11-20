@@ -110,6 +110,7 @@ $('updateCheckBtn').addEventListener('click', async () => {
     $('updateInstallBtn').textContent = t('update_install').replace('{v}', r.latest);
     $('updateInstallBtn').hidden = false;
     $('updateHow').hidden = false;
+    loadUpdateAll(false);
   } else if (r.ahead){
     showMsg($('updateMsg'), t('update_ahead').replace('{v}', r.latest), 'ok');
   } else if (r.unknown){
@@ -174,6 +175,57 @@ $('updateInstallBtn').addEventListener('click', async () => {
     } catch(e){ /* панель ещё перезапускается */ }
   }
   fail(t('update_no_return'));
+});
+
+/* ---------- «Обновить на всех серверах» (ТЗ 31) ----------
+   Кнопка видна, когда сервер в сети серверов. Каждый сервер обновляет себя
+   сам (панель, потом meshd) тем же путём, что кнопка выше; этот — последним.
+   Сервер без связи обновится, когда вернётся. */
+let UA_TIMER = 0;
+const UA_FINAL = ['done', 'error', 'offline', 'old', 'manual', 'idle'];
+function uaStage(s){
+  const key = 'ua_' + s.stage;
+  return I18N[LANG][key] ? t(key) : s.stage;
+}
+function renderUpdateAll(st){
+  const list = $('updateAllList');
+  list.innerHTML = '';
+  st.servers.forEach(s => {
+    const row = el('div', 'ua-row');
+    row.appendChild(el('span', '', s.name + (s.self ? ' · ' + t('ua_this') : '')));
+    row.appendChild(el('span', 'ua-v', fill('ua_versions', {p: s.panel || '—', m: s.meshdRel || s.meshd || '—'})));
+    const cls = s.stage === 'done' ? ' ok' : s.stage === 'error' ? ' err' : '';
+    row.appendChild(el('span', 'ua-s' + cls, uaStage(s) + (s.error ? ': ' + s.error : '')));
+    list.appendChild(row);
+  });
+  $('updateAllNote').textContent = fill('ua_target', {v: st.target || UPDATE_TO});
+}
+// loadUpdateAll — версии серверов; follow — следить за ходом, пока не
+// закончится (этот сервер перезапускается — панель пропадает, ждём её).
+async function loadUpdateAll(follow){
+  clearTimeout(UA_TIMER);
+  const {ok, status, data} = await api('/api/update/all');
+  if (!ok){
+    if (follow && status === 0){ UA_TIMER = setTimeout(() => loadUpdateAll(true), 3000); return; }
+    $('updateAllBtn').hidden = true;
+    return;
+  }
+  const many = data.inNet && data.servers.length > 1;
+  $('updateAllBtn').hidden = !many;
+  $('updateAllBox').hidden = !many;
+  if (!many) return;
+  renderUpdateAll(data);
+  const running = data.target && data.servers.some(s => !UA_FINAL.includes(s.stage));
+  $('updateAllBtn').disabled = !!running;
+  if (running) UA_TIMER = setTimeout(() => loadUpdateAll(true), 2000);
+  else if (follow && data.target && data.servers.every(s => s.stage !== 'error')) toast(fill('ua_finished', {v: data.target}));
+}
+$('updateAllBtn').addEventListener('click', async () => {
+  const yes = await appConfirm(fill('ua_confirm', {v: UPDATE_TO}), t('update_confirm_yes'));
+  if (!yes) return;
+  const {ok, data} = await api('/api/update/all', {});
+  if (!ok || data.error){ showMsg($('updateMsg'), t('update_install_failed').replace('{e}', data.error || t('err_internal')), 'err'); return; }
+  loadUpdateAll(true);
 });
 
 $('autostartCheck').addEventListener('change', async e => {

@@ -13,7 +13,9 @@ Servers first, then devices:
 2. **Plugin host.** If the plugins are installed, press **Update** in the host card.
 3. **The program on the devices.** Update it after the servers.
 
-If there are several servers, update them one by one.
+If there are several servers in one server network, press **Update on all
+servers** (see below) — every server updates its panel and `meshd` by itself, in
+turn. Otherwise update them one by one.
 
 Why `meshd` comes first: approval of new devices and freezing in the network work
 only with version 5 of the service. An old service does not understand them.
@@ -30,6 +32,10 @@ not affected.
 
 If the server has no internet access, the update check does not work. The panel
 writes that it cannot reach GitHub.
+
+**Update on all servers** — the same, for the whole server network: every server
+downloads and installs the new version itself (the panel, then `meshd`), the
+server where you pressed it goes last. Details are in the «Servers of the network» chapter.
 
 ## meshd
 

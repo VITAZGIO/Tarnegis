@@ -121,6 +121,11 @@ type srvView struct {
 	// Relays — идущие пересланные соединения от устройств этого сервера
 	// (meshd 7): на схеме — пунктиром через оба сервера.
 	Relays []meshsvc.RelayLine `json:"relays,omitempty"`
+	// Panel — версия панели, MeshdRel — из какого релиза meshd, Upd — как
+	// идёт «обновить на всех» (ТЗ 31). Старая панель их не шлёт.
+	Panel    string    `json:"panel,omitempty"`
+	MeshdRel string    `json:"meshdRel,omitempty"`
+	Upd      *updState `json:"upd,omitempty"`
 }
 
 // peerView — картина другого сервера и когда она пришла (unix, свои часы).
@@ -176,6 +181,7 @@ func (n *ServerNet) buildView(ctx context.Context) srvView {
 		}
 		v.Links = append(v.Links, l)
 	}
+	v.Panel, v.Upd = n.panelVersion(), n.updViewLocked()
 	n.mu.Unlock()
 	sort.Slice(v.Links, func(i, j int) bool { return v.Links[i].ID < v.Links[j].ID })
 	v.Accts = n.activeAccts()
@@ -187,7 +193,7 @@ func (n *ServerNet) buildView(ctx context.Context) srvView {
 		v.Meshd = false
 		return v
 	}
-	v.MeshIP, v.MeshHost, v.Version = ms.Self.IP, ms.Self.Host, ms.Version
+	v.MeshIP, v.MeshHost, v.Version, v.MeshdRel = ms.Self.IP, ms.Self.Host, ms.Version, ms.Release
 	for _, l := range ms.Relays {
 		if l.Dir == "out" {
 			v.Relays = append(v.Relays, l)
@@ -747,6 +753,48 @@ type devAcc struct {
 	dev   MeshDevice
 	local bool
 	nameT int64
+	// best — сведения сервера, с которым устройство на связи с наименьшей
+	// задержкой (ТЗ 31): ими карточка заполняется, когда с этим сервером
+	// устройство не на связи.
+	best    *viewDevice
+	bestSrc string
+}
+
+// takeBest — запомнить сведения сервера src, если устройство с ним на связи
+// и задержка меньше прежней лучшей (0 — не мерили: хуже любой измеренной).
+func (a *devAcc) takeBest(src string, vd viewDevice) {
+	if b := a.best; b != nil {
+		if vd.RTTMs <= 0 || b.RTTMs > 0 && b.RTTMs <= vd.RTTMs {
+			return
+		}
+	}
+	v := vd
+	a.best, a.bestSrc = &v, src
+}
+
+// overlayLive — устройство не на связи с этим сервером, но на связи с
+// другим: задержка, качество, «на связи с», версия программы и профили — от
+// того сервера (ТЗ 31: на Amsterdam карточка телефона, который сидит через
+// Frankfurt, показывала «–» и «не на связи» при зелёной точке).
+func overlayLive(d *MeshDevice, src string, b viewDevice) {
+	d.Server = src
+	d.RTTMs, d.RTTAvgMs, d.JitterMs, d.LossPct, d.Quality = b.RTTMs, b.RTTAvgMs, b.JitterMs, b.LossPct, b.Quality
+	d.ConnectedAt, d.Sessions, d.Direct = b.ConnectedAt, b.Sessions, b.Direct
+	if b.LastSeen > d.LastSeen {
+		d.LastSeen = b.LastSeen
+	}
+	if b.App != "" {
+		d.App = b.App
+	}
+	if b.Mode != "" {
+		d.Mode = b.Mode
+	}
+	if b.OS != "" {
+		d.OS = b.OS
+	}
+	if len(b.Profiles) > 0 {
+		d.Profiles = b.Profiles
+	}
 }
 
 // mergeNetworks — правило сложения картин (ТЗ 24). local — картина этого
@@ -835,6 +883,12 @@ func mergeNetworks(local []MeshNetwork, srcs []viewSrc, items map[string]srvItem
 					if a.dev.User == "" {
 						a.dev.User = users[vd.UH]
 					}
+					if vd.LastSeen > a.dev.LastSeen {
+						a.dev.LastSeen = vd.LastSeen
+					}
+				}
+				if conn.Online {
+					a.takeBest(src.ID, vd)
 				}
 				a.dev.Conns = append(a.dev.Conns, conn)
 			}
@@ -879,6 +933,11 @@ func mergeNetworks(local []MeshNetwork, srcs []viewSrc, items map[string]srvItem
 					d.Server = first
 				}
 				d.Stale = stale
+			}
+			// С этим сервером не на связи, с другим — на связи: живые сведения
+			// от лучшего из них, чтобы карточка не спорила с зелёной точкой.
+			if !d.Here && a.best != nil {
+				overlayLive(&d, a.bestSrc, *a.best)
 			}
 			if r, ok := decodeItem[aliasRec](items[devKey(kAlias, nw.ID, d.ID)]); ok {
 				d.Alias = r.Alias

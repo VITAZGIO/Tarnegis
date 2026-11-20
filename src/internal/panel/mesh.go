@@ -1280,8 +1280,3 @@ func (m *MeshManager) SetExit(ctx context.Context, netID, device, entry string, 
 	}
 	return m.admin.SetExit(ctx, netID, device, entry, via)
 }
-
-// Check — пустят ли устройство from к устройству to на порт.
-func (m *MeshManager) Check(ctx context.Context, netID, from, to string, port int) (meshsvc.CheckResult, error) {
-	return m.admin.Check(ctx, netID, from, to, port)
-}

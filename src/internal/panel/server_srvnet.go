@@ -18,6 +18,7 @@ import (
 
 func (s *Server) serverNetRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mesh/servers", s.requireAuth(s.withMesh(s.handleServers)))
+	mux.HandleFunc("/api/update/all", s.requireAuth(s.withMesh(s.handleUpdateAll)))
 	mux.HandleFunc("/api/mesh/servers/invite", s.requireAuth(s.withMesh(s.handleServersInvite)))
 	mux.HandleFunc("/api/mesh/servers/preview", s.requireAuth(s.withMesh(s.handleServersPreview)))
 	mux.HandleFunc("/api/mesh/servers/join", s.requireAuth(s.withMesh(s.handleServersJoin)))

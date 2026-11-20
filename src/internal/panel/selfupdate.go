@@ -85,22 +85,40 @@ func (s *Server) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "нужен POST"})
 		return
 	}
-	if s.dataDir == "" {
-		writeJSON(w, http.StatusOK, map[string]string{"error": "у панели нет папки данных — обнови её вручную"})
+	if err := s.startSelfUpdate(); err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"error": err.Error()})
 		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// errUpdateRunning — обновление этой панели уже идёт.
+var errUpdateRunning = errors.New("обновление уже идёт")
+
+// startSelfUpdate запускает обновление этой панели фоном — тот же путь у
+// кнопки «Обновить» и у «Обновить на всех серверах» (srvnet_update.go).
+func (s *Server) startSelfUpdate() error {
+	if s.dataDir == "" {
+		return errors.New("у панели нет папки данных — обнови её вручную")
 	}
 	u := &s.update
 	u.mu.Lock()
 	if u.running {
 		u.mu.Unlock()
-		writeJSON(w, http.StatusOK, map[string]string{"error": "обновление уже идёт"})
-		return
+		return errUpdateRunning
 	}
 	u.running, u.stage, u.err, u.target = true, updStageDownload, "", ""
 	u.mu.Unlock()
-
 	go s.runSelfUpdate()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+// selfUpdateState — как идёт обновление этой панели.
+func (s *Server) selfUpdateState() (running bool, stage, errText string) {
+	u := &s.update
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.running, u.stage, u.err
 }
 
 func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
