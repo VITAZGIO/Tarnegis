@@ -278,10 +278,12 @@ func TestУстройстваДвеПоловины(t *testing.T) {
 func TestОбзорШирокийЭкран(t *testing.T) {
 	css := assetString(t, "sections/overview.css")
 	js := assetString(t, "sections/overview.js")
-	wide := css[strings.Index(css, "@media (min-width:1280px)"):]
+	// ТЗ 30: клиенты помещаются целиком (не уже 540 px), схема не уже
+	// 640 px; где обоим не хватает места — раскладка стопкой.
+	wide := css[strings.Index(css, "@media (min-width:1680px)"):]
 	for _, want := range []string{
 		`grid-template-areas:"tiles map clients"`,
-		"grid-template-columns:230px minmax(0,200cqh) minmax(380px,1fr)",
+		"grid-template-columns:210px minmax(640px,200cqh) minmax(540px,1fr)",
 		"container-type:size",
 		".ov-screen{height:calc(100dvh - var(--ov-top, 69px) - 14px)}",
 		".ov-bot{grid-template-columns:repeat(3,minmax(0,1fr))}",
@@ -297,9 +299,150 @@ func TestОбзорШирокийЭкран(t *testing.T) {
 			t.Errorf("overview.css (телефон): нет %q", want)
 		}
 	}
-	for _, want := range []string{"api('/api/server/stats')", "showTab('Monitor')", "onPanel('show:Home'"} {
+	if strings.Contains(css, "@media (min-width:1280px)") {
+		t.Error("overview.css: снова раскладка в ряд с 1280 px — клиенты не помещаются")
+	}
+	if !strings.Contains(css, ".ov-clients .ov-scroll{overflow-x:hidden}") {
+		t.Error("overview.css: таблица клиентов снова листается вбок")
+	}
+	for _, want := range []string{"api('/api/server/stats')", "showTab('Monitor')", "onPanel('show:Home'", "cell(row, clientLink(c), 'link')"} {
 		if !strings.Contains(js, want) {
 			t.Errorf("overview.js: нет %q", want)
+		}
+	}
+}
+
+// ТЗ 30: название раздела — в шапке по центру, с «?» (пояснение и ссылка
+// на главу Книги). Старого заголовка и серой строки под ним в разделах нет.
+func TestНазваниеРазделаВШапке(t *testing.T) {
+	frame := assetString(t, "index.html")
+	top := frame[strings.Index(frame, `<header class="topbar">`):strings.Index(frame, `</header>`)]
+	for _, want := range []string{`id="pageHead"`, `id="pageTitle"`, `class="hint pt-help" id="pageHelp"`} {
+		if !strings.Contains(top, want) {
+			t.Errorf("шапка: нет %s", want)
+		}
+	}
+	for _, s := range pageSections {
+		html := assetString(t, "sections/"+s+".html")
+		for _, bad := range []string{`class="sec-head"`, `class="page-title"`, `class="page-sub"`} {
+			if strings.Contains(html, bad) {
+				t.Errorf("sections/%s.html: снова старый заголовок раздела (%s)", s, bad)
+			}
+		}
+	}
+	page := pageString(t)
+	for _, bad := range []string{".sec-head{", ".page-sub{", "'page-title'"} {
+		if strings.Contains(page, bad) {
+			t.Errorf("на странице снова %q", bad)
+		}
+	}
+	// У каждого раздела — название и пояснение в PAGE_HEAD, ключи переведены
+	// на оба языка.
+	core := assetString(t, "core.js")
+	i := strings.Index(core, "const PAGE_HEAD = {")
+	if i < 0 {
+		t.Fatal("core.js: нет PAGE_HEAD")
+	}
+	head := core[i : i+strings.Index(core[i:], "};")]
+	rowRe := regexp.MustCompile(`(\w+):\s*\{title: '(\w+)',\s*help: \[([^\]]+)\]\}`)
+	got := map[string]bool{}
+	for _, m := range rowRe.FindAllStringSubmatch(head, -1) {
+		got[m[1]] = true
+		keys := []string{m[2]}
+		for _, k := range regexp.MustCompile(`'(\w+)'`).FindAllStringSubmatch(m[3], -1) {
+			keys = append(keys, k[1])
+		}
+		if len(keys) < 2 {
+			t.Errorf("PAGE_HEAD.%s: нет пояснения", m[1])
+		}
+		for _, k := range keys {
+			if strings.Count(page, "\n  "+k+":") < 2 {
+				t.Errorf("PAGE_HEAD.%s: ключ %s не переведён на оба языка", m[1], k)
+			}
+		}
+	}
+	tabs := regexp.MustCompile(`const TABS = \[([^\]]+)\]`).FindStringSubmatch(core)
+	if tabs == nil {
+		t.Fatal("core.js: нет TABS")
+	}
+	for _, m := range regexp.MustCompile(`'(\w+)'`).FindAllStringSubmatch(tabs[1], -1) {
+		if !got[m[1]] {
+			t.Errorf("раздел %s без названия в шапке (PAGE_HEAD)", m[1])
+		}
+	}
+	for _, want := range []string{"renderPageHead();", "help.dataset.hints"} {
+		if !strings.Contains(core, want) {
+			t.Errorf("core.js: нет %q", want)
+		}
+	}
+}
+
+// ТЗ 30: «Скопировано» не сдвигает соседей — облачко поверх страницы, а не
+// элемент рядом со значением.
+func TestСкопированоНичегоНеДвигает(t *testing.T) {
+	core := assetString(t, "core.js")
+	css := assetString(t, "core.css")
+	if strings.Contains(core, "node.after(tip)") {
+		t.Error("core.js: «Скопировано» снова вставляется рядом со значением")
+	}
+	if !strings.Contains(core, "function copyFlash(anchor, ok)") || !strings.Contains(core, "document.body.appendChild(tip)") {
+		t.Error("core.js: нет copyFlash с облачком в <body>")
+	}
+	if !strings.Contains(css, ".copy-tip{position:fixed;") {
+		t.Error("core.css: облачко «Скопировано» не поверх страницы")
+	}
+	if strings.Contains(assetString(t, "sections/devices.js"), "showMsg($('clientConfigMsg'), t('copied')") {
+		t.Error("devices.js: «Скопировано» снова строкой в карточке — она прыгает")
+	}
+}
+
+// ТЗ 30: «Устройства» — крестик в рамке карточки, правая половина — одна
+// скруглённая рамка, верх на уровне списка.
+func TestУстройстваКрестикВРамке(t *testing.T) {
+	css := assetString(t, "sections/devices.css")
+	for _, want := range []string{
+		".dpane{position:relative;gap:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:12px;",
+		".dbar{position:absolute;",
+		"#devicesMsg:empty{display:none}",
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("devices.css: нет %q", want)
+		}
+	}
+}
+
+// ТЗ 30: «Сети» — слева серверы и сети, справа прогноз в рамке инструкции и
+// сервер в сети; двух вариантов ТЗ 28 больше нет.
+func TestСетиРаскладкаВиталия(t *testing.T) {
+	html := assetString(t, "sections/nets.html")
+	css := assetString(t, "sections/nets.css")
+	js := assetString(t, "sections/nets.js")
+	main := html[strings.Index(html, `<div class="nets-main">`):strings.Index(html, `<aside class="nets-side">`)]
+	side := html[strings.Index(html, `<aside class="nets-side">`):]
+	if a, b := strings.Index(main, `id="meshServersCard"`), strings.Index(main, `id="meshNets"`); a < 0 || b < a {
+		t.Error("nets.html: слева должны быть «Серверы сети», под ними сети")
+	}
+	if a, b := strings.Index(side, `class="card instr" id="meshForecastCard"`), strings.Index(side, `id="meshSelfCard"`); a < 0 || b < a {
+		t.Error("nets.html: справа должны быть прогноз (рамка инструкции), под ним «Сервер в сети устройств»")
+	}
+	for _, want := range []string{
+		"grid-template-columns:minmax(0,3fr) minmax(0,2fr)",
+		"@media (min-width:1920px){\n  .nets-page{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}",
+		"#meshForecastCard{order:4}",
+	} {
+		if !strings.Contains(strings.ReplaceAll(css, "\r\n", "\n"), want) {
+			t.Errorf("nets.css: нет %q", want)
+		}
+	}
+	for _, bad := range []string{"NETS_V", "srvStrip", "netTabs", "nets-v1", "nets-v2", "get('v')"} {
+		if strings.Contains(html+css+js, bad) {
+			t.Errorf("«Сети»: остался вариант ТЗ 28 (%s)", bad)
+		}
+	}
+	core := assetString(t, "core.css")
+	for _, want := range []string{".card.instr{", ".card.instr::before{content:\"i\"", ".card.instr > h1{color:var(--accent)}"} {
+		if !strings.Contains(core, want) {
+			t.Errorf("core.css: рамка инструкции — нет %q", want)
 		}
 	}
 }

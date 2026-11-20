@@ -15,7 +15,24 @@ a:hover{text-decoration:underline}
 /* ---------- шапка: одна на все вкладки и на экран входа ---------- */
 .topbar{position:sticky;top:0;z-index:20;background:var(--card);
         border-bottom:1px solid var(--line)}
-.topbar .inner{padding:10px 18px;display:flex;align-items:center;gap:12px}
+/* Три части (ТЗ 30): слева знак и имя, по центру — название раздела, справа
+   выбор сети и языка. Боковые части одной ширины, поэтому название стоит
+   точно посередине окна. */
+.topbar .inner{padding:10px 18px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+               align-items:center;gap:12px}
+.topbar .tb-l,.topbar .tb-r{display:flex;align-items:center;gap:12px;min-width:0}
+.topbar .tb-r{justify-content:flex-end}
+/* Название раздела в рамке; «?» рядом открывает пояснение (и ссылку на
+   главу Книги, если она есть). Высота рамки — как у выбора языка, чтобы
+   шапка не стала выше. */
+.page-head{grid-column:2;display:flex;align-items:center;gap:8px;min-width:0}
+.page-head .pt{padding:3px 18px;border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+     border-radius:10px;background:color-mix(in srgb, var(--accent) 7%, var(--card2));
+     font-size:17px;font-weight:700;letter-spacing:.2px;line-height:1.5;white-space:nowrap;
+     overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.page-head .pt .pt-sub{color:var(--dim);font-weight:600}
+.page-head .hint{margin-left:0}
+.topbar .tb-r{grid-column:3}
 /* Выбор сети — когда ключей несколько: схема, плитки и список устройств
    показывают выбранную. */
 .net-chips{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:3px 2px}
@@ -28,11 +45,20 @@ a:hover{text-decoration:underline}
 .topbar .shield{width:19px;height:19px;fill:var(--accent-muted);flex:none}
 .topbar .site{font-size:13.5px;font-weight:600}
 .topbar .app-name{font-weight:650;font-size:15px}
-.topbar .sp{flex:1}
-.topbar .lang-label{font-size:12px;color:var(--dim)}
-@media (max-width:560px){
-  .topbar .site,.topbar .lang-label,.topbar .shield,.topbar .app-name{display:none}
-  .topbar .inner{padding:8px 12px;gap:8px}
+.topbar .lang-label{font-size:12px;color:var(--dim);white-space:nowrap}
+/* Средняя ширина: подпись «Язык / Language» уступает место названию. */
+@media (max-width:1100px){ .topbar .lang-label{display:none} }
+/* Телефон: название меньше и без рамки (ТЗ 30, п. 4). */
+@media (max-width:760px){
+  .page-head .pt{padding:0;border:0;background:none;font-size:15px;max-width:none}
+  .topbar .site,.topbar .shield,.topbar .app-name{display:none}
+  /* Знак | название (сколько ему нужно) | выбор сети и языка — остаток;
+     кнопки сетей листаются вбок. Вкладка раздела на телефоне не пишется. */
+  .topbar .inner{padding:8px 12px;gap:8px;grid-template-columns:auto minmax(0,max-content) minmax(0,1fr)}
+  .page-head .pt .pt-sub{display:none}
+  .topbar .tb-r{gap:8px}
+  .topbar .tb-r .net-chips{flex:0 1 auto}
+  .topbar .tb-r select{flex:none}
 }
 
 select{background:var(--card2);border:1px solid var(--line);border-radius:8px;
@@ -61,7 +87,6 @@ select:focus{outline:none;border-color:var(--accent)}
 main{min-width:0;padding:18px 20px 40px}
 main > section{display:grid;gap:14px;align-content:start;min-width:0}
 main > section .card{margin-bottom:0}
-.sec-head{grid-column:1/-1}
 /* Блоки раздела — стопкой во всю ширину. Рядом два блока ставятся только
    явной строкой .row2: обе ячейки одной высоты, длинное листается внутри. */
 .cards{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr)}
@@ -117,8 +142,24 @@ main > section .card{margin-bottom:0}
 .card h2{font-size:13px;margin:0 0 10px;color:var(--dim);font-weight:600;
          text-transform:uppercase;letter-spacing:.6px}
 .card p.note{color:var(--dim);font-size:12.5px;margin:0 0 14px;line-height:1.4;max-width:80ch}
-.page-title{font-size:20px;font-weight:700;margin:0 0 4px;display:flex;align-items:center}
-.page-sub{color:var(--dim);font-size:13px;margin:0;max-width:90ch}
+/* Карточка-инструкция (ТЗ 30, вариант B): рамка 1.5 px цвета акцента темы
+   с мягким переливом и свечением, значок «i» разрывает верхнюю рамку слева,
+   заголовок — цветом акцента. Цвета — только переменные темы, поэтому
+   рамка следует за любой темой «Вида». */
+.card.instr{position:relative;border:1.5px solid transparent;
+  background:linear-gradient(var(--card),var(--card)) padding-box,
+    linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 30%, var(--line)) 55%,
+      color-mix(in srgb, var(--accent) 70%, var(--line))) border-box;
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent),
+    0 10px 30px -16px color-mix(in srgb, var(--accent) 70%, transparent)}
+.card.instr,.card.instr:hover{border-color:transparent}
+.card.instr::before{content:"i";position:absolute;top:-12px;left:18px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font:italic 700 13px/1 Georgia,"Times New Roman",serif;color:var(--accent);
+  background:var(--bg);border:1.5px solid var(--accent);
+  box-shadow:0 0 0 4px var(--bg),0 0 12px -2px color-mix(in srgb, var(--accent) 60%, transparent)}
+.card.instr > h1{color:var(--accent)}
+.card.instr > h1 .hint{color:var(--dim)}
 
 .field{margin-bottom:12px}
 .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
@@ -361,8 +402,16 @@ button.btn:not(.ghost):not(.danger):hover{box-shadow:0 4px 18px -6px rgba(76,141
 .srv-row .n .icon-btn{width:26px;height:26px;margin-left:6px;vertical-align:middle}
 .copy{cursor:copy;border-bottom:1px dashed color-mix(in srgb, var(--dim) 60%, transparent)}
 .copy:hover{color:var(--accent)}
-.copied{margin-left:8px;font-size:12px;font-weight:600;color:var(--ok)}
-.copied.fail{color:var(--err)}
+/* «Скопировано» (ТЗ 30): облачко поверх страницы, ничего не сдвигает. */
+.copy{transition:color .2s}
+.copy.copy-ok{color:var(--ok)}
+.copy.copy-bad{color:var(--err)}
+.copy-tip{position:fixed;z-index:75;pointer-events:none;padding:4px 9px;border-radius:7px;white-space:nowrap;
+  font-size:12px;font-weight:600;color:var(--ok);background:var(--card);
+  border:1px solid color-mix(in srgb, var(--ok) 45%, var(--line));box-shadow:0 8px 22px -10px rgba(0,0,0,.55);
+  animation:fade .15s ease both;transition:opacity .25s}
+.copy-tip.fail{color:var(--err);border-color:color-mix(in srgb, var(--err) 45%, var(--line))}
+.copy-tip.out{opacity:0}
 .dconns{margin:10px 0 4px;display:grid;gap:5px;font-size:13px}
 .dconns .k{margin-top:6px;color:var(--dim);font-size:12px}
 .dconn{display:flex;align-items:center;gap:8px;min-width:0}

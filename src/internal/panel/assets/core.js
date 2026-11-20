@@ -63,6 +63,7 @@ function applyI18N(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   $('lang').value = LANG;
+  renderPageHead();
   // Списки собираются кодом, поэтому их надо перерисовать целиком.
   emitPanel('lang');
   if (!$('viewMain').hidden){
@@ -93,6 +94,7 @@ function showMsg(el, text, kind){
 /* ---------- переключение экранов и вкладок ---------- */
 function showView(name){
   ['Login','MustChange','Main'].forEach(v => { $('view'+v).hidden = (v !== name); });
+  $('pageHead').hidden = name !== 'Main';
 }
 
 const TABS = ['Home','Devices','Access','Mesh','Settings','Plugins','Monitor'];
@@ -135,7 +137,7 @@ function showSub(tab, sub){
   sec.querySelectorAll(':scope > .sub').forEach(d => { d.hidden = d.dataset.sub !== sub; });
   sec.querySelectorAll(':scope > .subtabs button').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
   refreshSubtabs(tab);
-  if (tab === TAB) writeHash();
+  if (tab === TAB){ writeHash(); renderPageHead(); }
   emitPanel('sub:' + tab, sub);
 }
 // remesh — перерисовать всё, что нарисовано по картине сети, со схемой
@@ -172,6 +174,38 @@ addEventListener('hashchange', () => {
   const tab = parseHash();
   if (tab) showTab(tab);
 });
+// Название раздела в шапке (ТЗ 30): title — ключ перевода названия, help —
+// пояснение под «?» (бывшая серая строка под заголовком и бывшая подсказка
+// у заголовка), первым ключом ищется глава Книги (BOOK_HELP).
+const PAGE_HEAD = {
+  Home:     {title: 'nav_home',     help: ['home_sub']},
+  Devices:  {title: 'nav_devices',  help: ['devices_sub', 'hint_devices_list']},
+  Access:   {title: 'nav_access',   help: ['access_sub']},
+  Mesh:     {title: 'nav_mesh',     help: ['mesh_sub', 'hint_mesh_what']},
+  Settings: {title: 'nav_settings', help: ['settings_sub']},
+  Plugins:  {title: 'nav_plugins',  help: ['plugins_sub', 'hint_plugins_what']},
+  Monitor:  {title: 'nav_monitor',  help: ['mon_sub']},
+};
+// renderPageHead — «Доступ · Журнал»: вкладка — через точку, если она не
+// повторяет название (первая вкладка «Плагинов» — сами «Плагины»).
+function renderPageHead(){
+  const h = PAGE_HEAD[TAB];
+  if (!h) return;
+  const box = $('pageTitle');
+  box.textContent = t(h.title);
+  const sub = SUB[TAB];
+  if (sub){
+    const b = document.querySelector('.subtabs[data-tab="' + TAB + '"] button[data-sub="' + sub + '"]');
+    const label = b ? t(b.dataset.i18n) : '';
+    if (label && label !== t(h.title)){
+      box.appendChild(el('span', 'pt-sub', ' · ' + label));
+    }
+  }
+  const help = $('pageHelp');
+  help.dataset.hint = h.help[0];
+  help.dataset.hints = h.help.join(' ');
+  document.title = box.textContent + ' — ssh_tunnel panel';
+}
 function showTab(name){
   if (!TABS.includes(name)) name = 'Home';
   const changed = TAB !== name;
@@ -183,6 +217,7 @@ function showTab(name){
     b.classList.toggle('on', b.dataset.tab === name);
   });
   hidePop();
+  renderPageHead();
   if (changed) scrollTo(0, 0);
   emitPanel('show:' + name);
   emitPanel('show', name);
@@ -384,6 +419,15 @@ function fillPop(content){
   p.textContent = content;
   hintPop.appendChild(p);
 }
+// hintContent — текст подсказки; у «?» в шапке (data-hints) — несколько
+// строк перевода подряд, каждая своим абзацем.
+function hintContent(h){
+  if (!h.dataset.hints) return t(h.dataset.hint);
+  return h.dataset.hints.split(' ').map(k => {
+    const v = t(k);
+    return v.startsWith('<p>') ? v : '<p>' + v.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</p>';
+  }).join('');
+}
 function placePop(r){
   const pw = hintPop.offsetWidth, ph = hintPop.offsetHeight;
   let left = Math.max(12, Math.min(r.left + r.width/2 - pw/2, innerWidth - pw - 12));
@@ -430,7 +474,7 @@ function hidePop(){
 }
 document.addEventListener('mouseover', e => {
   const h = e.target.closest('.hint');
-  if (h && !hintPinned && h !== hintOwner) showPop(h, t(h.dataset.hint));
+  if (h && !hintPinned && h !== hintOwner) showPop(h, hintContent(h));
 });
 document.addEventListener('mouseout', e => {
   const h = e.target.closest('.hint');
@@ -438,7 +482,7 @@ document.addEventListener('mouseout', e => {
 });
 document.addEventListener('focusin', e => {
   const h = e.target.closest('.hint');
-  if (h) showPop(h, t(h.dataset.hint));
+  if (h) showPop(h, hintContent(h));
 });
 document.addEventListener('focusout', e => {
   if (e.target.closest('.hint') && !hintPinned) hidePop();
@@ -452,7 +496,7 @@ document.addEventListener('click', e => {
   if (h){
     e.preventDefault();
     e.stopPropagation();
-    if (hintOwner === h && hintPinned) hidePop(); else showPop(h, t(h.dataset.hint), true);
+    if (hintOwner === h && hintPinned) hidePop(); else showPop(h, hintContent(h), true);
     return;
   }
   if (hintPinned) hidePop();
@@ -594,7 +638,27 @@ function whyText(m){
   const key = 'why_' + String(m.code || 'unknown').replace(/-/g, '_');
   return fill(I18N[LANG][key] ? key : 'why_unknown', {s: serverName(m.server), b: serverName(m.by || ''), h: m.host || ''});
 }
-// copyable — щелчок по node копирует text, рядом на миг «Скопировано».
+// copyFlash — «Скопировано» облачком над anchor (ТЗ 30): облачко висит
+// поверх страницы (position:fixed в <body>), поэтому ни строка, ни колонка
+// не сдвигаются; само значение на миг подсвечивается цветом, без смены
+// размеров.
+function copyFlash(anchor, ok){
+  document.querySelectorAll('.copy-tip').forEach(x => x.remove());
+  const tip = el('div', 'copy-tip' + (ok ? '' : ' fail'), ok ? t('copied_short') : t('copy_failed_short'));
+  document.body.appendChild(tip);
+  const r = anchor.getBoundingClientRect();
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let top = r.top - h - 6;
+  if (top < 4) top = r.bottom + 6;
+  tip.style.left = Math.max(6, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 6)) + 'px';
+  tip.style.top = top + 'px';
+  anchor.classList.remove('copy-ok', 'copy-bad');
+  void anchor.offsetWidth;                       // перезапуск подсветки при повторном щелчке
+  anchor.classList.add(ok ? 'copy-ok' : 'copy-bad');
+  setTimeout(() => { tip.classList.add('out'); anchor.classList.remove('copy-ok', 'copy-bad'); }, 1100);
+  setTimeout(() => tip.remove(), 1400);
+}
+// copyable — щелчок по node копирует text; «Скопировано» — copyFlash.
 function copyable(node, text){
   if (!text || text === '—') return node;
   node.classList.add('copy');
@@ -602,10 +666,7 @@ function copyable(node, text){
   node.addEventListener('click', async e => {
     e.stopPropagation();
     e.preventDefault();
-    const ok = await copyText(text);
-    const tip = el('span', 'copied' + (ok ? '' : ' fail'), ok ? t('copied_short') : t('copy_failed_short'));
-    node.after(tip);
-    setTimeout(() => tip.remove(), 1400);
+    copyFlash(node, await copyText(text));
   });
   return node;
 }

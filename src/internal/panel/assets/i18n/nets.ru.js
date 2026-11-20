@@ -87,6 +87,4 @@ Object.assign(I18N.ru, {
   net_approval_on:'Новые устройства теперь ждут одобрения',
   net_approval_off:'Новые устройства входят сразу',
   net_pending:'Ждут одобрения',
-  srv_more:'Подробнее',
-  srv_less:'Свернуть',
 });

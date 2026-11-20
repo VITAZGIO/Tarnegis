@@ -439,21 +439,11 @@ document.addEventListener('keydown', e => {
   if (!$('confirmOverlay').hidden) closeConfirm(false);
 });
 
-$('copyClientConfigBtn').addEventListener('click', async () => {
-  if (await copyText(currentConfigJSON)) {
-    showMsg($('clientConfigMsg'), t('copied'), 'ok');
-  } else {
-    showMsg($('clientConfigMsg'), t('copy_failed'), 'err');
-  }
-});
+// «Скопировано» — облачком над кнопкой (copyFlash): карточка не прыгает.
+$('copyClientConfigBtn').addEventListener('click', async () => copyFlash($('copyClientConfigBtn'), await copyText(currentConfigJSON)));
 
-$('copyClientLinkBtn').addEventListener('click', async () => {
-  if (await copyText(currentConfigLink)) {
-    showMsg($('clientConfigMsg'), t('copied'), 'ok');
-  } else {
-    showMsg($('clientConfigMsg'), t('copy_failed'), 'err');
-  }
-});
+// «Скопировано» — облачком над кнопкой (copyFlash): карточка не прыгает.
+$('copyClientLinkBtn').addEventListener('click', async () => copyFlash($('copyClientLinkBtn'), await copyText(currentConfigLink)));
 
 $('downloadClientConfigBtn').addEventListener('click', () => {
   const blob = new Blob([currentConfigJSON], {type: 'application/json'});

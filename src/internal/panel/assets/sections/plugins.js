@@ -466,7 +466,7 @@ function plHead(p, st){
   head.appendChild(back);
   head.appendChild(plIcon(p));
   const tt = el('div', '');
-  const h1 = el('h1', 'page-title', t('plugin_' + p));
+  const h1 = el('h1', 'pl-name', t('plugin_' + p));
   const hint = $('plHints').content.querySelector('[data-hint="hint_plugin_' + p + '"]');
   if (hint) h1.appendChild(hint.cloneNode(true));
   tt.appendChild(h1);

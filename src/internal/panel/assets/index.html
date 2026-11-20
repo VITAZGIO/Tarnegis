@@ -26,6 +26,7 @@
 
 <header class="topbar">
   <div class="inner">
+    <div class="tb-l">
     <!-- Тот же знак, что в программе на компьютере и на телефоне. -->
     <svg class="logo" viewBox="0 0 626 520" role="img" aria-label="Vitaz Gio">
       <path d="M0 0 137 449 180 308 86 0Z"/>
@@ -41,13 +42,22 @@
       <path d="M12 1.7 4 4.6v6.2c0 5 3.4 9.6 8 11.5 4.6-1.9 8-6.5 8-11.5V4.6L12 1.7Zm0 8.1a1.9 1.9 0 0 1 1 3.5v2.4a1 1 0 0 1-2 0v-2.4a1.9 1.9 0 0 1 1-3.5Z"/>
     </svg>
     <span class="app-name">ssh_tunnel</span>
-    <span class="sp"></span>
-    <div class="net-chips" id="netChips" hidden></div>
-    <span class="lang-label">Язык / Language</span>
-    <select id="lang">
-      <option value="ru">Русский</option>
-      <option value="en">English</option>
-    </select>
+    </div>
+    <!-- ТЗ 30: название открытого раздела — по центру шапки, в рамке; «?»
+         рядом — то, что раньше было серой строкой под заголовком (core.js,
+         PAGE_HEAD). В самих разделах заголовка и этой строки больше нет. -->
+    <div class="page-head" id="pageHead" hidden>
+      <span class="pt" id="pageTitle"></span>
+      <button class="hint pt-help" id="pageHelp" type="button" data-hint="home_sub">?</button>
+    </div>
+    <div class="tb-r">
+      <div class="net-chips" id="netChips" hidden></div>
+      <span class="lang-label">Язык / Language</span>
+      <select id="lang">
+        <option value="ru">Русский</option>
+        <option value="en">English</option>
+      </select>
+    </div>
   </div>
 </header>
 

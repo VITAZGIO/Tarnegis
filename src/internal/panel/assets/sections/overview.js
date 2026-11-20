@@ -44,9 +44,36 @@ function renderHomeClients(){
     // «принято» и «отдано», а не посреди числа.
     const nb = v => v.replace(/ /g, ' ');
     cell(row, nb('↓ ' + fmtBytes(c.rxBytes)) + ' ' + nb('↑ ' + fmtBytes(c.txBytes)), 'num');
-    cell(row, onlineText(c));
+    cell(row, clientLink(c), 'link');
     table.appendChild(row);
   });
+}
+
+// clientLink — «Связь» глазами всей сети (ТЗ 30, п. 11), а не только этого
+// сервера: устройство, которое сидит на Frankfurt, на панели Amsterdam —
+// «на связи через Frankfurt». Учётная запись и устройство сети — одна
+// строка по device.user == client.username (как в «Устройствах»).
+// Если сервер уже отдаёт общую картину в самом списке клиентов (ТЗ 31:
+// onlineAny / viaServer / lastSeenAny), берём её; нет — собираем из картины
+// сети (/api/mesh/state, она уже общая для всех серверов, ТЗ 24).
+function clientLink(c){
+  const devs = [];
+  ((MESH && MESH.networks) || []).forEach(n => (n.devices || []).forEach(d => {
+    if (d.user && d.user === c.username) devs.push(d);
+  }));
+  const via = new Set();
+  if (c.viaServer) String(c.viaServer).split(/,\s*/).forEach(v => v && via.add(v));
+  devs.filter(d => d.online).forEach(d => devConns(d).forEach(x => { if (x.online && x.server) via.add(serverName(x.server)); }));
+  via.delete('—');
+  if (via.size) return fill('ov_link_via', {s: [...via].join(', ')});
+  if (c.onlineAny || c.sessions > 0 || devs.some(d => d.online)) return t('ov_link_on');
+  // Последний раз на связи — самое позднее из того, что знает сеть.
+  let last = 0;
+  devs.forEach(d => { if (d.lastSeen > last) last = d.lastSeen; });
+  const any = typeof c.lastSeenAny === 'number' ? c.lastSeenAny : Date.parse(c.lastSeenAny || '') / 1000;
+  if (any > last) last = any;
+  if (!neverSeen(c.lastSeenAt)){ const own = Date.parse(c.lastSeenAt) / 1000; if (own > last) last = own; }
+  return last > 0 ? t('last_seen') + ' ' + fmtClock(last) : t('never_connected');
 }
 
 /* ---------- главная: трафик за период ---------- */
@@ -949,6 +976,7 @@ onPanel('status', st => {
 });
 onPanel('mesh', (m, role) => {
   fitOverview();
+  if (CLIENTS_READY) renderHomeClients(); // «Связь» берёт картину сети — перерисовать с ней
   const isMain = role === 'main';
   $('meshTiles').hidden = !isMain;
   $('mapCard').hidden = !isMain;

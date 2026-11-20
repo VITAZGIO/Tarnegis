@@ -18,7 +18,7 @@ Search covers all chapters in the chosen language. The Book follows the panel la
 
 ## Opening a chapter straight from the panel
 
-Section titles have a “?” mark next to them. If a section has its own chapter, tap the “?” — the pop-up hint shows a “More in the Book” link. No chapter — no link.
+The name of the open section is shown at the top, in the middle of the header, with a “?” mark next to it. Tap it to open a short explanation of the section; if the section has its own chapter, the explanation ends with a “More in the Book” link. Cards and fields have the same “?” marks. No chapter — no link.
 
 ## Where you stopped
 
