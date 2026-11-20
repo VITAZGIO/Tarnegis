@@ -9,7 +9,8 @@ import (
 	"sshtunnel/internal/routing"
 )
 
-// Правила активного сервера отдельным адресом: что идёт напрямую, что всегда
+// Правила (общие для программы, ТЗ 32; у сервера со «своими правилами» —
+// его) отдельным адресом: что идёт напрямую, что всегда
 // через сервер и какие программы ведутся через туннель. Это те же поля, что
 // в /api/config, — но без ключей и остальных настроек: адрес нужен командам,
 // MCP и своим приложениям с разрешением «менять правила» (им незачем видеть
@@ -73,28 +74,26 @@ func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 	if req.FilterMode != "" {
 		switch req.FilterMode {
 		case "all", "only", "except":
-			p.FilterMode = req.FilterMode
 		default:
 			writeJSON(w, map[string]string{"error": "filterMode: all, only или except"})
 			return
 		}
 	}
+	var vals []string
 	if req.Op != "" {
-		var l *[]string
 		switch req.List {
-		case "direct":
-			l = &p.DirectHosts
-		case "tunnel":
-			l = &p.TunnelHosts
-		case "apps":
-			l = &p.FilterApps
-		case "realip":
-			l = &cfg.RealIPHosts
+		case "direct", "tunnel", "apps", "realip":
 		default:
 			writeJSON(w, map[string]string{"error": "list: direct, tunnel, apps или realip"})
 			return
 		}
-		vals := routing.SplitEntries(req.Value)
+		switch req.Op {
+		case "add", "remove":
+		default:
+			writeJSON(w, map[string]string{"error": "op: add или remove"})
+			return
+		}
+		vals = routing.SplitEntries(req.Value)
 		if req.List == "apps" {
 			// Путь к программе может быть с пробелами — одна запись целиком.
 			vals = nil
@@ -106,27 +105,49 @@ func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]string{"error": "пустое value"})
 			return
 		}
+	}
+	// Правила — общие для программы (ТЗ 32); у сервера со «своими
+	// правилами» — его собственные. Где именно — решает config.EditRules.
+	edit := func(l []string) []string {
 		switch req.Op {
 		case "add":
+			l = append([]string(nil), l...)
 			for _, v := range vals {
-				if !containsFold(*l, v) {
-					*l = append(*l, v)
+				if !containsFold(l, v) {
+					l = append(l, v)
 				}
 			}
 		case "remove":
-			out := (*l)[:0:0]
-			for _, e := range *l {
+			out := []string{}
+			for _, e := range l {
 				if !containsFold(vals, e) {
 					out = append(out, e)
 				}
 			}
-			*l = out
-		default:
-			writeJSON(w, map[string]string{"error": "op: add или remove"})
+			l = out
+		}
+		return l
+	}
+	if req.Op != "" && req.List == "realip" {
+		cfg.RealIPHosts = edit(cfg.RealIPHosts)
+	}
+	cfg.Profiles = append([]config.Profile(nil), cfg.Profiles...)
+	cfg.EditRules(p.ID, func(rs *config.Prefs) {
+		if req.FilterMode != "" {
+			rs.FilterMode = req.FilterMode
+		}
+		if req.Op == "" {
 			return
 		}
-	}
-	cfg.SetProfile(p)
+		switch req.List {
+		case "direct":
+			rs.DirectHosts = edit(rs.DirectHosts)
+		case "tunnel":
+			rs.TunnelHosts = edit(rs.TunnelHosts)
+		case "apps":
+			rs.FilterApps = edit(rs.FilterApps)
+		}
+	})
 	note, err := s.app.SetConfig(cfg)
 	if err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})

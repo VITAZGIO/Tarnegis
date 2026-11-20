@@ -1002,9 +1002,7 @@
     <div class="two">
       <div class="field"><label for="sshPort">SSH-порт</label>
         <input type="number" id="sshPort" min="1" max="65535"></div>
-      <div class="field"><div class="lbl-row"><label for="poolSize" data-i18n="channels">Каналов SSH</label>
-        <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="pool_note">Несколько параллельных каналов заметно поднимают скорость. 4 — разумное значение.</span></span></div>
-        <input type="number" id="poolSize" min="1" max="16"></div>
+      <div class="field"></div>
     </div>
     <div class="two desk-only">
       <div class="field"><label for="socksPort">Порт SOCKS</label>
@@ -1013,9 +1011,11 @@
         <input type="number" id="httpPort" min="1" max="65535"></div>
     </div>
 
-    <button class="row-link desk-only" id="toAdvanced">
-      <span class="t"><span data-i18n="adv_fine">Тонкая настройка соединения</span>
-        <div class="v" id="advSummary">По умолчанию</div></span><span class="arr">›</span></button>
+    <div class="chk-row">
+      <label class="chk"><input type="checkbox" id="ownRules">
+        <span class="lbl" data-i18n="own_rules">Свои правила для этого сервера</span></label>
+      <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="own_rules_hint">Обычно не нужно: списки «напрямую» и «через сервер», программы, локальная сеть и тонкая настройка соединения — одни на все серверы, как в других VPN-программах. Включи, если этому серверу нужны другие правила (например, сервер внутри страны): у него будет своя копия, остальные серверы её не видят.</span></span>
+    </div>
 
     <div class="rowbtns">
       <button class="btn" id="exportClipBtn" data-i18n="to_clip">В буфер</button>
@@ -1034,6 +1034,7 @@
       <button class="ico" id="backFromApp" title="Назад" data-i18n-title="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
       <span class="t" data-i18n="app_title">Настройки приложения</span>
     </div>
+    <div class="hint ownRulesNote" hidden></div>
 
     <div class="grp" id="grpTraffic">
       <button type="button" class="grpHead"><span class="t"><span data-i18n="sect_traffic">Трафик</span>
@@ -1120,6 +1121,9 @@
         <span class="sub" data-i18n="grp_more_sub">Локальная сеть, UDP, выбор сервера, журнал</span></span>
         <svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
       <div class="grpBody"><div><div class="grpIn">
+        <button class="row-link" id="toAdvanced">
+          <span class="t"><span data-i18n="adv_fine">Тонкая настройка соединения</span>
+            <div class="v" id="advSummary">По умолчанию</div></span><span class="arr">›</span></button>
         <div class="chk-row">
           <label class="chk"><input type="checkbox" id="localViaTunnel">
             <span class="lbl" data-i18n="local_via_tunnel">Локальную сеть тоже вести через сервер</span></label>
@@ -1623,10 +1627,14 @@
       </button>
       <span class="t" data-i18n="adv_title">Дополнительно</span>
     </div>
-    <p class="note" style="margin-top:0" data-i18n="adv_intro">Тонкая настройка соединения с этим сервером.
+    <div class="hint ownRulesNote" hidden></div>
+    <p class="note" style="margin-top:0" data-i18n="adv_intro">Тонкая настройка соединения — одна на все серверы.
       Не уверен — оставь как есть: значения по умолчанию подходят почти всем. Пустое поле — значение по умолчанию.</p>
 
     <div class="sect" data-i18n="adv_ssh">SSH-соединение</div>
+    <div class="field"><div class="lbl-row"><label for="poolSize" data-i18n="channels">Каналов SSH</label>
+      <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="pool_note">Несколько параллельных каналов заметно поднимают скорость. 4 — разумное значение.</span></span></div>
+      <input type="number" id="poolSize" min="1" max="16" placeholder="4"></div>
     <div class="two">
       <div class="field">
         <div class="lbl-row"><label for="keepAliveSec" data-i18n="adv_keepalive">Проверка связи, сек</label>
@@ -1676,9 +1684,8 @@
     <div class="help" id="ipHelp" hidden><p data-i18n="adv_ip_help">У части провайдеров (особенно мобильных)
       IPv6 есть, но работает плохо: подключение сначала долго ждёт по нему и только потом идёт по IPv4.
       «Только IPv4» убирает эту задержку. «Только IPv6» — если у сервера адрес только IPv6.</p></div>
-    <div class="hint" style="margin:-2px 0 6px" data-i18n="adv_pool_note">Число параллельных каналов SSH задаётся
-      в настройках сервера («Каналов SSH»). Каждое устройство держит столько соединений — это учитывает
-      «Ёмкость сервера» в панели на VPS.</div>
+    <div class="hint" style="margin:-2px 0 6px" data-i18n="adv_pool_note">Каждое устройство держит столько
+      каналов SSH — это учитывает «Ёмкость сервера» в панели на VPS.</div>
 
     <div class="sect" data-i18n="adv_proxy">Прокси</div>
     <div class="chk-row">
@@ -1924,7 +1931,7 @@ $('pasteCancelBtn').onclick = () => closePaste(false);
    которые присылает сама программа (события, ошибки), собираются на бэкенде
    и пока остаются на русском — переводить их значило бы дублировать логику
    на два языка сразу в Go, это отдельная задача на будущее. */
-let LANG = 'ru';
+let LANG = document.documentElement.lang === 'en' ? 'en' : 'ru'; // окно приходит с языком из настроек (ТЗ 32)
 const I18N = {
   ru: {
     key_paste:'Вставить ключ', key_saved:'Ключ сохранён', key_missing:'Ключа нет — вставь его из буфера',
@@ -2000,7 +2007,7 @@ const I18N = {
       'сеть, диски) — новый открытый порт наружу. Показывает адрес и одноразовый пароль после установки.',
     adv_title:'Дополнительно', adv_default:'По умолчанию', adv_sec:'с', adv_timeout_short:'ожидание',
     adv_lan_short:'прокси в локальной сети',
-    adv_intro:'Тонкая настройка соединения с этим сервером. Не уверен — оставь как есть: значения по умолчанию '+
+    adv_intro:'Тонкая настройка соединения — одна на все серверы. Не уверен — оставь как есть: значения по умолчанию '+
       'подходят почти всем. Пустое поле — значение по умолчанию.',
     adv_ssh:'SSH-соединение', adv_keepalive:'Проверка связи, сек', adv_timeout:'Ждать подключения, сек',
     adv_keepalive_help:'Раз в столько секунд программа спрашивает сервер «ты тут?». Не ответил — соединение '+
@@ -2018,8 +2025,12 @@ const I18N = {
     adv_ip_help:'У части провайдеров (особенно мобильных) IPv6 есть, но работает плохо: подключение сначала долго '+
       'ждёт по нему и только потом идёт по IPv4. «Только IPv4» убирает эту задержку. «Только IPv6» — если у '+
       'сервера адрес только IPv6.',
-    adv_pool_note:'Число параллельных каналов SSH задаётся в настройках сервера («Каналов SSH»). Каждое устройство '+
-      'держит столько соединений — это учитывает «Ёмкость сервера» в панели на VPS.',
+    adv_pool_note:'Каждое устройство держит столько каналов SSH — это учитывает «Ёмкость сервера» в панели на VPS.',
+    own_rules:'Свои правила для этого сервера',
+    own_rules_hint:'Обычно не нужно: списки «напрямую» и «через сервер», программы, локальная сеть и тонкая '+
+      'настройка соединения — одни на все серверы, как в других VPN-программах. Включи, если этому серверу нужны '+
+      'другие правила (например, сервер внутри страны): у него будет своя копия, остальные серверы её не видят.',
+    own_rules_note:'Здесь — свои правила сервера «{name}» (включено в его настройках). У остальных серверов — общие.',
     adv_proxy:'Прокси', adv_share_lan:'Раздавать прокси в локальную сеть',
     adv_share_lan_help:'Другие устройства дома — телевизор, приставка, второй компьютер — смогут ходить через '+
       'туннель этого компьютера: в их настройках сети указывается прокси с адресом ниже. Пускаются только '+
@@ -2328,7 +2339,7 @@ const I18N = {
       'disks) — one more open port. Shows the address and a one-time password once installed.',
     adv_title:'Advanced', adv_default:'Defaults', adv_sec:'s', adv_timeout_short:'timeout',
     adv_lan_short:'proxy shared on LAN',
-    adv_intro:'Fine tuning of the connection to this server. Not sure — leave it as is: the defaults suit almost '+
+    adv_intro:'Fine tuning of the connection — one for all servers. Not sure — leave it as is: the defaults suit almost '+
       'everyone. An empty field means the default.',
     adv_ssh:'SSH connection', adv_keepalive:'Link check, sec', adv_timeout:'Connect timeout, sec',
     adv_keepalive_help:'Every this many seconds the app asks the server "are you there?". No answer — the '+
@@ -2346,8 +2357,12 @@ const I18N = {
     adv_ip_help:'Some providers (mobile ones especially) have IPv6 that works badly: the connection first waits '+
       'on it for a long time and only then goes over IPv4. "IPv4 only" removes that delay. "IPv6 only" — if the '+
       'server has an IPv6 address only.',
-    adv_pool_note:'The number of parallel SSH channels is set in the server settings ("SSH channels"). Each device '+
-      'keeps that many connections — "Server capacity" in the VPS panel accounts for it.',
+    adv_pool_note:'Each device keeps this many SSH channels — the "Server capacity" in the VPS panel counts them.',
+    own_rules:'Own rules for this server',
+    own_rules_hint:'Usually not needed: the "direct" and "via server" lists, apps, local network and connection '+
+      'tuning are one for all servers, as in other VPN apps. Turn it on if this server needs different rules '+
+      '(for example, a server inside the country): it gets its own copy, other servers do not see it.',
+    own_rules_note:'These are the own rules of server "{name}" (turned on in its settings). Other servers use the common ones.',
     adv_proxy:'Proxy', adv_share_lan:'Share the proxy on the local network',
     adv_share_lan_help:'Other devices at home — a TV, a set-top box, a second computer — can go through this '+
       'computer\'s tunnel: set a proxy with the address below in their network settings. Only local network devices '+
@@ -2605,12 +2620,64 @@ function applyI18n(){
 $('language').addEventListener('change', () => {
   LANG = $('language').value === 'en' ? 'en' : 'ru';
   applyI18n();
-  formDirty = true;
+  saveLook(); // сразу, как тема (ТЗ 32)
 });
 
 const FIELDS = ['host','user','keyPath','sshPort','socksPort','httpPort','poolSize','meshName','meshKey',
                 'keepAliveSec','connectTimeoutSec','cipher','ipVersion'];
 const PROFILE_CHECKS = ['localViaTunnel', 'udpRelayEnabled', 'meshEnabled', 'meshIncoming', 'shareLan'];
+// Общие настройки программы (ТЗ 32, config.Prefs): RULE_KEYS — правила и
+// тонкая настройка соединения (у сервера с ownRules — свои), APP_KEYS —
+// только общие. Форма по-прежнему одна: заполняется действующими
+// значениями (effProfile), при сохранении раскладывается (splitPrefs).
+const RULE_KEYS = ['filterMode','filterApps','directHosts','tunnelHosts','localViaTunnel',
+                   'poolSize','keepAliveSec','connectTimeoutSec','cipher','ipVersion'];
+const APP_KEYS = ['meshName','meshIncoming','meshDirectOff','shareLan'];
+// Служба старой версии (окно VPN новее службы) prefs не знает — тогда как
+// раньше: всё в профиле и копируется во все серверы.
+function hasPrefs(){ return !!cfg.prefsV; }
+function effProfile(p){
+  if(!hasPrefs()) return p;
+  const e = Object.assign({}, p), pr = cfg.prefs || {};
+  if(!p.ownRules) RULE_KEYS.forEach(k => e[k] = pr[k]);
+  APP_KEYS.forEach(k => e[k] = pr[k]);
+  if(!e.filterMode) e.filterMode = 'all';
+  return e;
+}
+// splitPrefs — профиль p из формы (с действующими значениями) разложить:
+// общие — в doc.prefs, свои правила — в профиль; копия профиля для
+// выключенных «своих правил» не трогается.
+function splitPrefs(doc, p){
+  if(!hasPrefs()) return shareTraffic(doc, p);
+  const pr = Object.assign({}, cfg.prefs || {});
+  const orig = (cfg.profiles || []).find(x => x.id === p.id) || {};
+  APP_KEYS.forEach(k => { pr[k] = p[k]; p[k] = orig[k]; });
+  if(!p.ownRules) RULE_KEYS.forEach(k => { pr[k] = p[k]; p[k] = orig[k]; });
+  doc.prefs = pr;
+  doc.profiles = (doc.profiles || []).map(x => x.id === p.id ? p : x);
+  return doc;
+}
+// renderOwnRulesNote — на экранах правил: чьи правила здесь правятся.
+function renderOwnRulesNote(){
+  const p = currentProfile();
+  const own = hasPrefs() && !!$('ownRules').checked;
+  document.querySelectorAll('.ownRulesNote').forEach(el => {
+    el.hidden = !own;
+    el.textContent = own ? tr('own_rules_note').replace('{name}', p.name || '') : '';
+  });
+}
+// fillRuleFields — только правила и тонкая настройка (переключили «свои
+// правила» — показать значения того места, куда теперь сохранится).
+function fillRuleFields(e){
+  ['poolSize','keepAliveSec','connectTimeoutSec','cipher','ipVersion'].forEach(f =>
+    $(f).value = ($(f).type === 'number' && !e[f]) ? '' : (e[f] ?? ''));
+  $('localViaTunnel').checked = !!e.localViaTunnel;
+  $('directHosts').value = (e.directHosts || []).join('\n');
+  $('tunnelHosts').value = (e.tunnelHosts || []).join('\n');
+  filterMode = e.filterMode || 'all';
+  filterApps = (e.filterApps || []).map(normApp);
+  renderModes(); renderApps(); renderDomainsSummary(); renderAdvSummary();
+}
 // Блокировка рекламы — теперь плагин (addons/adblock.html): её поля
 // (adBlock*) настройки не шлют, иначе «Сохранить» здесь затирало бы
 // то, что задано в плагине.
@@ -2955,11 +3022,12 @@ function renderProcs(){
 
 /* ---------- сохранение правил ---------- */
 $('saveFilter').onclick = async () => {
-  const p = Object.assign({}, currentProfile(), {
+  // Остальные поля — действующие значения, чтобы раскладка не стёрла общие.
+  const p = Object.assign(effProfile(currentProfile()), {
     filterMode: filterMode,
     filterApps: filterApps,
   });
-  const doc = shareTraffic(docWithProfile(p), p);
+  const doc = splitPrefs(docWithProfile(p), p);
   const r = await api('/api/config', doc);
   if(r.error){ $('filterNote').textContent = r.error; return; }
   applyDoc(r.config);
@@ -3092,7 +3160,7 @@ $('toMeshMain').onclick = () => {
 $('devUp').onclick = () => scrollMainTo(0);
 $('backFromMesh').onclick = () => show(meshFrom);
 $('toAdvanced').onclick = () => { show('viewAdvanced'); renderLanAddrs(); };
-$('backFromAdvanced').onclick = () => show('viewServers');
+$('backFromAdvanced').onclick = () => show('viewApp');
 $('toSelfCheck').onclick = () => { show('viewSelfCheck'); runSelfCheck(); };
 // «Настроить сервер по SSH» — вариант «автоматически» внутри вкладки VPS
 // мастера настройки, поэтому назад возвращает туда же, а не в настройки.
@@ -4746,9 +4814,10 @@ $('save').onclick = async () => {
   p.exitVia = exitChainValue();
   p.filterMode = filterMode;
   p.filterApps = filterApps;
+  p.ownRules = $('ownRules').checked;
   Object.assign(p, pickedNameFlag());
 
-  const doc = shareTraffic(docWithProfile(p), p);
+  const doc = splitPrefs(docWithProfile(p), p);
   CHECKS.forEach(f => doc[f] = $(f).checked);
   // Галочка «через VPN», а в настройках — «напрямую»: по умолчанию через VPN.
   doc.hotspotDirect = !$('hotspotVpn').checked;
@@ -4859,6 +4928,8 @@ function renderExitMainStatus(){
 }
 
 function fillProfileForm(p){
+  p = effProfile(p);
+  $('ownRules').checked = !!p.ownRules;
   // Ноль в числовом поле тонкой настройки — «по умолчанию»: показываем пустое
   // поле с подсказкой, а не «0», который выглядел бы как настоящее значение.
   FIELDS.forEach(f => {
@@ -4883,7 +4954,15 @@ function fillProfileForm(p){
   delete $('meshIncoming').dataset.touched;
   renderMeshSummary();
   renderAdvSummary();
+  renderOwnRulesNote();
 }
+$('ownRules').addEventListener('change', () => {
+  formDirty = true;
+  // Включили — начинаем с копии общих (они уже в форме); выключили —
+  // показываем общие: сохранится именно туда.
+  if(!$('ownRules').checked) fillRuleFields(effProfile(Object.assign({}, currentProfile(), { ownRules: false })));
+  renderOwnRulesNote();
+});
 
 /* ---------- «Дополнительно» ---------- */
 function renderAdvSummary(){
@@ -4986,10 +5065,15 @@ function bindSeg(id, set){
 }
 bindSeg('startModeSeg', v => startMode = v);
 bindSeg('meshStartSeg', v => meshStartMode = v);
-// Тема и фон меняются сразу — чтобы видеть, что выбираешь; сохраняются
-// общей кнопкой.
-bindSeg('themeSeg', v => { uiTheme = v; applyLook(); });
-bindSeg('bgSeg', v => { uiBg = v; applyLook(); });
+// Тема, фон и язык меняются и сохраняются сразу (ТЗ 32, /api/look): раньше
+// их сохраняла только общая кнопка «Сохранить», и без неё тема после
+// перезапуска «сбрасывалась».
+bindSeg('themeSeg', v => { uiTheme = v; applyLook(); saveLook(); });
+bindSeg('bgSeg', v => { uiBg = v; applyLook(); saveLook(); });
+async function saveLook(){
+  cfg.theme = uiTheme; cfg.background = uiBg; cfg.language = LANG;
+  try { await api('/api/look', { theme: uiTheme, background: uiBg, language: LANG }); } catch(e) {}
+}
 
 function applyLook(){
   document.documentElement.dataset.theme = uiTheme;

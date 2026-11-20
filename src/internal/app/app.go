@@ -157,6 +157,9 @@ func New(cfg config.Config) *App {
 	}
 	a.meshHost = tunnel.NewMeshHost(tunnel.MeshLog(a.Bus))
 	a.meshLinks = tunnel.NewMeshLinks(a.meshHost, tunnel.MeshLog(a.Bus))
+	for _, n := range config.TakeMigrationNotes() {
+		a.Bus.Infof("Настройки: %s", n)
+	}
 	a.machine = core.NewMachine((*driver)(a), core.Options{
 		Save:      a.saveWant,
 		Changed:   a.publishState,
@@ -235,6 +238,11 @@ func (a *App) ReplaceConfig(cfg config.Config) error {
 
 func (a *App) SetConfig(cfg config.Config) (string, error) {
 	a.mu.Lock()
+	if a.cfg.PrefsV >= config.PrefsVersion {
+		// Прислали настройки старого формата (без prefs) — переезд, как при
+		// загрузке, иначе общие настройки потерялись бы до перезапуска.
+		cfg.MigratePrefs()
+	}
 	old, running := a.cfg, a.running
 	a.cfg = cfg
 	tun := a.tun

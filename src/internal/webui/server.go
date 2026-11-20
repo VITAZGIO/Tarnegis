@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/url"
@@ -328,7 +329,94 @@ func isLocalClient(remoteAddr string) bool {
 // Книгу, каталог приложений, значки. Это код, а не данные, — ключ не нужен;
 // всё, что страницы узнают, они берут из API под ключом.
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+		s.serveIndexLooked(w, r)
+		return
+	}
 	uiassets.Static()(w, r)
+}
+
+// serveIndexLooked — главное окно сразу с сохранённой темой, фоном и языком
+// в <html> (ТЗ 32): иначе до первого ответа API окно мелькало темой по
+// умолчанию, а то и оставалось в ней.
+func (s *Server) serveIndexLooked(w http.ResponseWriter, r *http.Request) {
+	rec := &captureWriter{h: http.Header{}}
+	uiassets.Static()(rec, r)
+	if rec.code != 0 && rec.code != http.StatusOK {
+		w.WriteHeader(rec.code)
+		return
+	}
+	cfg := s.app.Config()
+	tag := `<html lang="` + cfg.Language + `"`
+	if cfg.Theme != "" {
+		tag += ` data-theme="` + html.EscapeString(cfg.Theme) + `"`
+	}
+	if cfg.Background != "" {
+		tag += ` data-bg="` + html.EscapeString(cfg.Background) + `"`
+	}
+	body := strings.Replace(rec.buf.String(), `<html lang="ru">`, tag+">", 1)
+	for k, v := range rec.h {
+		w.Header()[k] = v
+	}
+	w.Header().Del("Content-Length")
+	w.Write([]byte(body))
+}
+
+// captureWriter — ответ uiassets в память, чтобы подставить тему.
+type captureWriter struct {
+	h    http.Header
+	buf  strings.Builder
+	code int
+}
+
+func (c *captureWriter) Header() http.Header         { return c.h }
+func (c *captureWriter) Write(b []byte) (int, error) { return c.buf.Write(b) }
+func (c *captureWriter) WriteHeader(code int)        { c.code = code }
+
+// handleLook — тема, фон и язык (ТЗ 32): сохраняются сразу при выборе, а не
+// общей кнопкой «Сохранить» (её не нажимали — и тема «сбрасывалась»).
+// Отсутствующее поле — «не трогать».
+func (s *Server) handleLook(w http.ResponseWriter, r *http.Request) {
+	cfg := s.app.Config()
+	if r.Method == http.MethodPost {
+		var req struct {
+			Theme      *string `json:"theme"`
+			Background *string `json:"background"`
+			Language   *string `json:"language"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, map[string]string{"error": "нужен JSON {\"theme\",\"background\",\"language\"}"})
+			return
+		}
+		if req.Theme != nil {
+			switch *req.Theme {
+			case "", "dark", "light", "console":
+				cfg.Theme = *req.Theme
+			default:
+				writeJSON(w, map[string]string{"error": "theme: \"\", dark, light или console"})
+				return
+			}
+		}
+		if req.Background != nil {
+			switch *req.Background {
+			case "", "code", "author":
+				cfg.Background = *req.Background
+			default:
+				writeJSON(w, map[string]string{"error": "background: \"\", code или author"})
+				return
+			}
+		}
+		if req.Language != nil {
+			cfg.Language = *req.Language
+		}
+		cfg.Profiles = append([]config.Profile(nil), cfg.Profiles...)
+		if _, err := s.app.SetConfig(cfg); err != nil {
+			writeJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+		cfg = s.app.Config()
+	}
+	writeJSON(w, map[string]any{"ok": true, "theme": cfg.Theme, "background": cfg.Background, "language": cfg.Language})
 }
 
 type statusResp struct {

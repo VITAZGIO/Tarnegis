@@ -260,3 +260,35 @@ func TestImportRejectsGarbage(t *testing.T) {
 		t.Error("файл без адреса сервера должен быть отклонён с понятной ошибкой")
 	}
 }
+
+// ТЗ 32: профиль от панели (пустые списки) больше не стирает «напрямую»
+// человека — списки общие для программы, файл сервера заполняет их, только
+// если там пусто. Новый сервер активен и видит тот же список.
+func TestImportKeepsAppWideLists(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("APPDATA", tmp)
+	cfg := withHost("203.0.113.9")
+	cfg.Prefs.DirectHosts = []string{"gosuslugi.ru", "sber.ru"}
+	s, err := NewOn(app.New(cfg), "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	doc := `{"sshTunnelExport":2,"name":"Новый","host":"203.0.113.10","sshPort":22,
+		"user":"tun_x","socksPort":1080,"httpPort":1081,"poolSize":4,
+		"filterMode":"all","directHosts":[],"keyIncluded":false}`
+	rec := httptest.NewRecorder()
+	s.handleProfileImport(rec, httptest.NewRequest(http.MethodPost, "/api/profile/import", strings.NewReader(doc)))
+	if strings.Contains(rec.Body.String(), `"error"`) {
+		t.Fatalf("импорт: %s", rec.Body.String())
+	}
+	got := s.app.Config()
+	if got.Active().Host != "203.0.113.10" {
+		t.Fatalf("импортированный не активен: %+v", got.Active())
+	}
+	if d := got.Active().DirectHosts; len(d) != 2 || d[0] != "gosuslugi.ru" {
+		t.Fatalf("список «напрямую» потерялся после импорта: %v", d)
+	}
+}

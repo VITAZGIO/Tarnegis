@@ -47,6 +47,7 @@ func main() {
 	p.FilterApps = splitApps(*apps)
 	p.DirectHosts = routing.SplitEntries(*direct)
 	cfg.SetProfile(p)
+	cfg.PutRules(p) // правила общие для программы (ТЗ 32)
 
 	if p.Host == "" {
 		usage()

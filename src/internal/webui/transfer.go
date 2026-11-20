@@ -42,6 +42,7 @@ func (s *Server) handleProfileExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"error": "сервер не найден"})
 		return
 	}
+	p = cfg.Resolve(p) // действующие правила — общие настройки программы (ТЗ 32)
 
 	doc := share.Doc{
 		Name: p.Name, Flag: p.Flag, Host: p.Host, SSHPort: p.SSHPort, User: p.User,
@@ -136,6 +137,17 @@ func (s *Server) handleProfileImport(w http.ResponseWriter, r *http.Request) {
 	if err := s.app.UpdateProfile(p); err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})
 		return
+	}
+	// Правила из файла сервера — в общие настройки программы, только если
+	// там пусто (ТЗ 32): чужой профиль не перетирает списки человека.
+	if c := s.app.Config(); c.PrefsV >= config.PrefsVersion {
+		c.Profiles = append([]config.Profile(nil), c.Profiles...)
+		if c.FillPrefsFrom(p) {
+			if _, err := s.app.SetConfig(c); err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+		}
 	}
 	// Активным — отдельным шагом, после того как профиль уже на диске:
 	// SwitchProfile сверяется со списком серверов и не найдёт наш, если
