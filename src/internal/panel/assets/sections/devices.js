@@ -273,9 +273,16 @@ function renderDevConns(part, d){
   const conns = devConns(d), miss = d.missing || [];
   if (!miss.length && !conns.some(c => !c.online && c.stale)) return;
   const box = el('div', 'dconns');
+  // На связи через другой сервер (ТЗ 31): никаких «X — не на связи» рядом с
+  // зелёной точкой — только тихая пометка, к кому напрямую не подключено.
+  if (d.online){
+    const names = [...new Set(conns.filter(c => !c.online).map(c => c.server).concat(miss.map(m => m.server)))]
+      .map(serverName).filter(n => n !== '—');
+    if (names.length) box.appendChild(el('p', 'note', fill('dev_not_direct', {s: names.join(', ')})));
+  }
   // С кем на связи — уже в «На связи через»; здесь — только без связи:
   // старая картина сервера и почему нет связи с остальными.
-  conns.filter(c => !c.online).forEach(c => {
+  if (!d.online) conns.filter(c => !c.online).forEach(c => {
     const r = el('div', 'dconn');
     r.appendChild(el('span', 'dot' + (c.online ? ' on' : '')));
     const txt = serverName(c.server) + ' — ' + (c.online ? t('sec_connected') + (c.rttMs ? ' · ' + fmtMs(c.rttMs) : '') : t('dev_conns_none')) +
@@ -284,7 +291,7 @@ function renderDevConns(part, d){
     box.appendChild(r);
   });
   if (miss.length){
-    box.appendChild(el('div', 'k', t('dev_why_head')));
+    box.appendChild(el('div', 'k', t(d.online ? 'dev_why_head_on' : 'dev_why_head')));
     miss.forEach(m => {
       const r = el('div', 'dconn');
       r.appendChild(el('span', 'dot'));

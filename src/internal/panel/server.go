@@ -325,7 +325,9 @@ func (s *Server) handleClients(w http.ResponseWriter, r *http.Request) {
 	for i := range list {
 		list[i].CreatorHash = "" // странице хеш пароля ни к чему
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"clients": list})
+	// Сведения всей сети серверов (ТЗ 31): на связи ли где-либо и через
+	// какой сервер — server_clientnet.go.
+	writeJSON(w, http.StatusOK, map[string]any{"clients": s.clientsWithNet(r.Context(), list)})
 }
 
 // handleClientCreate заводит нового клиента: unix-пользователя, пару

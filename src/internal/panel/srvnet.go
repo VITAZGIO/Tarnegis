@@ -185,7 +185,18 @@ type ServerNet struct {
 	// meshdStart — когда запущен meshd, которому отдавали списки: meshd
 	// перезапустился (обновили) — у него пусто, отдать всё заново сразу.
 	meshdStart int64
-	applying bool
+	applying   bool
+
+	// upd — своё «обновить на всех» (srvnet_update.go). Остальное — подмены
+	// для тестов (nil — настоящие: кнопка «Обновить», meshd из релиза).
+	upd         updLocal
+	updMu       sync.Mutex // один updTick за раз
+	updLoopOff  bool       // тесты: без фонового круга после нажатия
+	panelVer    func() string
+	startUpdate func() error
+	updProgress func() (running bool, stage, errText string)
+	meshdLatest func() bool
+	meshdUpdate func() error
 }
 
 type peerStatus struct {
@@ -357,6 +368,9 @@ func validItemKey(k string) bool {
 	}
 	if k == kAccess || k == kNewDev {
 		return true
+	}
+	if strings.HasPrefix(k, kUpd) {
+		return cleanVersion(strings.TrimPrefix(k, kUpd)) != ""
 	}
 	for _, p := range []string{kSrv, kAcct, kAppr, kNName, kNDel, kOK, kFrz, kAlias, kForget, kSName} {
 		if strings.HasPrefix(k, p) && len(k) > len(p) {
@@ -817,6 +831,8 @@ func (n *ServerNet) Run(ctx context.Context) {
 	n.reconcile(ctx)
 	for {
 		if n.InNet() {
+			// Сначала своё обновление: его шаг уходит в картину этого обмена.
+			n.updTick(ctx)
 			n.syncAll(ctx)
 		}
 		n.reconcile(ctx)
@@ -896,6 +912,7 @@ func (n *ServerNet) handler() http.Handler {
 	mux.HandleFunc("/srv/v1/view", n.handleView)
 	mux.HandleFunc("/srv/v1/exit", n.handleExit)
 	mux.HandleFunc("/srv/v1/relay", n.handleRelay)
+	mux.HandleFunc("/srv/v1/update", n.handleUpdate)
 	return mux
 }
 

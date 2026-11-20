@@ -142,6 +142,13 @@
            контрольную сумму, подменит себя и перезапустится. -->
       <div id="updateHow" hidden style="margin-top:12px">
         <button class="btn" id="updateInstallBtn"></button>
+        <!-- «Обновить на всех серверах» (ТЗ 31): каждый сервер сети обновляет
+             себя сам, этот — последним. -->
+        <button class="btn ghost" id="updateAllBtn" hidden data-i18n="update_all">Обновить на всех серверах</button>
+        <div class="upd-all" id="updateAllBox" hidden>
+          <p class="note" id="updateAllNote" style="margin:10px 0 6px"></p>
+          <div id="updateAllList"></div>
+        </div>
         <div class="upd-bar" id="updateBar" hidden><i></i></div>
         <p class="note" id="updateStage" style="margin:8px 0 0"></p>
         <p class="note" style="margin:6px 0 0">
