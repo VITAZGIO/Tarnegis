@@ -50,7 +50,7 @@ Object.assign(I18N.en, {
   dev_why_head_on:'Why not connected directly',
   dev_not_direct:'Not connected directly to: {s}',
   dev_why_head:'Why not connected',
-  why_here:'The device has no profile of this server — the program adds it by itself (PC from v1.10.1, phone from v1.10.6) once it gets the network server list.',
+  why_here:'The device has no profile of this server — the program adds it by itself (PC from v1.10.1, phone from v1.10.7) once it gets the network server list.',
   dev_loss:'Loss',
   dev_traffic:'Traffic',
   dev_app:'App',
