@@ -969,9 +969,13 @@ var errDirBusy = errors.New("папка не пустая")
 // remove — в корзину, потом с диска, потом в индекс.
 func (h *Hub) remove(f *hfolder, rel string, cur *FileInfo, dev string) error {
 	if isDir(rel) {
-		// Папку — только пустую: остальное в ней ещё живо.
+		// Папку — только пустую: остальное в ней ещё живо. Наш временный и
+		// системный мусор (junkName) живым не считается — из-за него
+		// удаление папки раньше вечно возвращалось конфликтом (ТЗ 33).
 		if err := os.Remove(full(f.Path, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return errDirBusy
+			if !h.clearJunk(f, rel) {
+				return errDirBusy
+			}
 		}
 		return f.setFile(h, rel, FileInfo{Deleted: true, By: dev})
 	}
@@ -988,6 +992,58 @@ func (h *Hub) remove(f *hfolder, rel string, cur *FileInfo, dev string) error {
 		return f.log(jrec{Unconf: rel})
 	}
 	return nil
+}
+
+// clearJunk удаляет папку rel, если в ней нет ничего, кроме мусора
+// (junkName) и пустых папок без живой записи. false — в ней есть своё.
+func (h *Hub) clearJunk(f *hfolder, rel string) bool {
+	root := full(f.Path, rel)
+	var junk, dirs []string
+	clean := true
+	_ = filepath.WalkDir(root, func(fp string, d os.DirEntry, err error) error {
+		if err != nil || !clean {
+			clean = false
+			return filepath.SkipAll
+		}
+		if fp == root {
+			return nil
+		}
+		if !d.IsDir() {
+			if junkName(d.Name()) {
+				junk = append(junk, fp)
+				return nil
+			}
+			clean = false
+			return filepath.SkipAll
+		}
+		r, rerr := filepath.Rel(f.Path, fp)
+		if rerr != nil {
+			clean = false
+			return filepath.SkipAll
+		}
+		if cur := f.ix.Files[filepath.ToSlash(r)+"/"]; cur != nil && !cur.Deleted {
+			clean = false
+			return filepath.SkipAll
+		}
+		dirs = append(dirs, fp)
+		return nil
+	})
+	if !clean {
+		return false
+	}
+	for _, j := range junk {
+		if err := os.Remove(j); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+	for _, d := range dirs {
+		if err := os.Remove(d); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+	}
+	err := os.Remove(root)
+	return err == nil || errors.Is(err, os.ErrNotExist)
 }
 
 // Conflicts — текущие конфликты папки.

@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"sshtunnel/internal/config"
@@ -192,8 +193,11 @@ func (t *Tunnel) onNetServers(ns mesh.NetServers) {
 	t.netServers = &ns
 	l := t.netListener
 	t.mu.Unlock()
+	t.noteNetList(ns)
 	if l != nil {
 		l.OnNetServers()
+	} else {
+		t.netNote("nolistener", "сеть серверов: список пришёл раньше, чем приложение подписалось, — разберу при подписке")
 	}
 }
 
@@ -226,7 +230,13 @@ func (t *Tunnel) ApplyNetServers(profilesJSON, seenJSON string) (string, error) 
 		list = append(list, config.NetServerAd{ID: s.ID, Name: s.Name, Host: s.Host, Port: s.Port,
 			HostKey: s.HostKey, Net: s.Net, Acct: s.Acct, Via: s.Via})
 	}
+	before := config.Config{Profiles: slices.Clone(cfg.Profiles), MeshAutoSeen: slices.Clone(cfg.MeshAutoSeen)}
 	res := cfg.ApplyNetServers(list, ns.Nets)
+	done := map[string]bool{}
+	for _, p := range res.Added {
+		done[p.MeshAuto] = true
+	}
+	t.noteNetSkips(before, list, done)
 	if len(res.Added) == 0 && len(res.Off) == 0 && len(res.MeshOn) == 0 && len(cfg.MeshAutoSeen) == seenBefore {
 		return "", nil
 	}

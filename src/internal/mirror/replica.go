@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -46,6 +47,7 @@ type Replica struct {
 
 	mu     sync.Mutex
 	st     repState
+	ig     *Ignore // исключения последнего прохода (для разбора удалённых папок)
 	loaded bool
 	gone   bool // папку отключили
 	cache  map[string]cached
@@ -213,6 +215,7 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 		r.noteConflicts(rep.Conflicts)
 	}
 
+	r.ig = ig
 	disk, serr := scanDir(r.Path, ig)
 	if serr != nil {
 		r.setStatus(Status{State: "error", Error: serr.Error(), LastOK: r.st.LastOK, Conflicts: r.st.Conflicts})
@@ -380,7 +383,12 @@ func (r *Replica) reconcile(ctx context.Context, p, lh string, lst stat) (bool, 
 		rh = ""
 	}
 	if lh == rh {
-		if lh == "" {
+		if lh == "" && isDir(p) && rm.Del {
+			// Помним, что удаление папки здесь уже прошло: папка с тем же
+			// именем, созданная потом, — новая и уйдёт на сервер, а не
+			// удалится как хвост (см. ниже в reconcile).
+			r.st.Synced[p] = repFile{Ver: rm.Ver}
+		} else if lh == "" {
 			delete(r.st.Synced, p)
 		} else {
 			r.st.Synced[p] = repFile{Ver: rm.Ver, Hash: lh, Size: lst.Size, MTime: lst.MTime}
@@ -390,6 +398,17 @@ func (r *Replica) reconcile(ctx context.Context, p, lh string, lst stat) (bool, 
 	localChanged := lh != s.Hash
 	remoteChanged := rm.Ver != s.Ver
 	canSend, canRecv := r.Mode != ModeRecv, r.Mode != ModeSend
+	if isDir(p) && rm.Del && lh != "" && canRecv && !(s.Ver == rm.Ver && (s.Hash == "" || s.Size == keptDir)) {
+		// Папка есть здесь, а на сервере удалена. Кроме обычного случая
+		// (удалили после нашей сверки) это и хвосты удалений, которые сюда
+		// не дошли до ТЗ 33: пустые папки, которых сверка не знала или
+		// считала совпавшими. Убрать, если в ней нет своего; своё — вернёт
+		// папку на сервер (removeDir). Не трогаем только папку, которую уже
+		// оставили из-за исключённого в ней (keptDir), и созданную здесь
+		// заново после нашего же удаления (s.Hash "" при том же номере —
+		// это новая папка, она уйдёт на сервер).
+		return true, r.pull(ctx, p, lh, s, rm)
+	}
 	switch {
 	case localChanged && canSend && lh != "":
 		return true, r.push(ctx, p, lh, lst, s)
@@ -445,7 +464,7 @@ func (r *Replica) upload(ctx context.Context, p, hash string, size int64) error 
 	if err := r.R.json(ctx, "GET", "/part", q, nil, &part); err != nil {
 		return err
 	}
-	fh, err := os.Open(full(r.Path, p))
+	fh, err := openShared(full(r.Path, p))
 	if err != nil {
 		return err
 	}
@@ -497,6 +516,13 @@ func (r *Replica) pushDelete(ctx context.Context, p string, s repFile) error {
 	if rep.Conflict {
 		// Файл на сервере уже изменили — правка важнее удаления: вернётся
 		// при следующем проходе.
+		if isDir(p) {
+			// Папку сервер не удалил (в ней на сервере есть живое) — номер
+			// у неё прежний, и без сброса мы слали бы удаление вечно, а
+			// папка у нас и у всех остальных разошлась бы. Сброс номера —
+			// и следующий проход вернёт папку сюда.
+			r.st.Synced[p] = repFile{Ver: -1}
+		}
 		return nil
 	}
 	r.st.Synced[p] = repFile{Ver: rep.Ver}
@@ -513,10 +539,7 @@ func (r *Replica) pull(ctx context.Context, p, lh string, s repFile, rm remFile)
 	if isDir(p) {
 		if rm.Del {
 			if lh != "" {
-				if err := os.Remove(dst); err != nil && !errors.Is(err, os.ErrNotExist) {
-					// Тут в папке есть своё — папка нужна, вернуть её на сервер.
-					return r.push(ctx, p, lh, stat{}, repFile{Ver: rm.Ver})
-				}
+				return r.removeDir(ctx, p, lh, rm)
 			}
 			r.st.Synced[p] = repFile{Ver: rm.Ver}
 			return nil
@@ -566,6 +589,124 @@ func (r *Replica) pull(ctx context.Context, p, lh string, s repFile, rm remFile)
 	st := statOf(fi)
 	r.st.Synced[p] = repFile{Ver: rm.Ver, Hash: rm.Hash, Size: st.Size, MTime: st.MTime}
 	r.cache[p] = cached{st, rm.Hash}
+	return nil
+}
+
+// keptDir — отметка в Synced.Size записи папки: сервер папку удалил, а
+// здесь её оставили (в ней исключённое из синхронизации или, в режиме
+// «только получать», своё). У записей папок размер иначе всегда 0.
+const keptDir = -1
+
+// removeDir — папку удалили на сервере. К этому месту файлы внутри уже
+// разобраны (сверка идёт: файлы, потом папки — глубокие первыми). Что
+// осталось:
+//   - наш временный мусор и системный (junkName) — удаляется вместе с папкой;
+//   - исключённое из синхронизации (своё у человека) — папка остаётся здесь,
+//     но на сервер не возвращается;
+//   - настоящий файл, которого на сервере нет (или он там жив), — папка
+//     нужна: вернуть её на сервер, в журнал — какой файл;
+//   - файл, удаление которого не прошло (занят), — повтор позже.
+//
+// Раньше любой остаток (недокачанный .part, файл, который не дал себя
+// удалить) возвращал папку на сервер — и удалённые папки воскресали на всех
+// устройствах.
+func (r *Replica) removeDir(ctx context.Context, p, lh string, rm remFile) error {
+	dst := full(r.Path, p)
+	if err := os.Remove(dst); err == nil || errors.Is(err, os.ErrNotExist) {
+		r.st.Synced[p] = repFile{Ver: rm.Ver}
+		return nil
+	}
+	ig := r.ig
+	var junk, dirs []string
+	keep, back, busy := false, "", ""
+	werr := filepath.WalkDir(dst, func(fp string, d os.DirEntry, err error) error {
+		if err != nil {
+			keep = true // нечитаемое — не наше дело, не трогаем
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if fp == dst {
+			return nil
+		}
+		if !d.IsDir() && junkName(d.Name()) {
+			junk = append(junk, fp)
+			return nil
+		}
+		rel, rerr := filepath.Rel(r.Path, fp)
+		if rerr != nil {
+			keep = true
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if d.IsDir() {
+			if _, ok := cleanRel(rel); !ok || ig.Match(rel, true) {
+				keep = true
+				return fs.SkipDir
+			}
+			dirs = append(dirs, fp)
+			return nil
+		}
+		if _, ok := cleanRel(rel); !ok || ig.Match(rel, false) || !d.Type().IsRegular() {
+			keep = true // исключённое — своё у человека
+			return nil
+		}
+		if f, ok := r.st.Remote[rel]; ok && !f.Del {
+			if back == "" {
+				back = rel // файл на сервере жив — папка нужна
+			}
+			return nil
+		}
+		if r.st.Synced[rel].Hash != "" {
+			if busy == "" {
+				busy = rel // удаление файла не прошло — повтор
+			}
+			return nil
+		}
+		if back == "" {
+			back = rel // новый файл, которого сервер не знает
+		}
+		return nil
+	})
+	if werr != nil {
+		return werr
+	}
+	switch {
+	case back != "":
+		if r.Mode == ModeRecv {
+			r.st.Synced[p] = repFile{Ver: rm.Ver, Hash: DirHash, Size: keptDir}
+			return nil
+		}
+		r.event("dir-back", fmt.Sprintf("Папка %s удалена на другом устройстве, но здесь в ней есть %s — папка вернулась на сервер", p, back))
+		return r.push(ctx, p, lh, stat{}, repFile{Ver: rm.Ver})
+	case busy != "":
+		return fmt.Errorf("папку удалили на сервере, но здесь не удалился %s (занят?) — повтор позже", busy)
+	}
+	for _, j := range junk {
+		if err := os.Remove(j); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if keep {
+		// В папке исключённое из синхронизации: оставляем её здесь, но
+		// на сервер не возвращаем и больше не трогаем (keptDir).
+		r.st.Synced[p] = repFile{Ver: rm.Ver, Hash: DirHash, Size: keptDir}
+		return nil
+	}
+	// Вложенные папки — глубокие первыми, только пустые (os.Remove): файл,
+	// появившийся прямо сейчас, не пропадёт — папка просто останется до
+	// следующего прохода.
+	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+	for _, d := range dirs {
+		if err := os.Remove(d); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("папку удалили на сервере, а здесь в ней появилось новое: %w", err)
+		}
+	}
+	if err := os.Remove(dst); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("папку удалили на сервере, а здесь в ней появилось новое: %w", err)
+	}
+	r.st.Synced[p] = repFile{Ver: rm.Ver}
 	return nil
 }
 

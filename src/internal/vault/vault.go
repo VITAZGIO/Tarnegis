@@ -47,7 +47,7 @@ func init() {
 	addons.Register(ID, func() addons.Module { return &module{} })
 	addons.RegisterRoutes(ID, addons.Route{
 		Path: "/api/vault", Methods: "GET, POST",
-		Desc: "Пароли: GET — состояние (есть ли хранилище, открыто ли) и записи без паролей; POST {\"op\":\"create|unlock|lock|get|set|delete|gen|sync|import|export|extkey\",…}. Пароль отдаёт только get {id} при открытом хранилище. import {csv} — CSV из Chrome/Яндекса/Firefox/Bitwarden; export {master} — CSV в «Загрузки».",
+		Desc: "Пароли: GET — состояние (есть ли хранилище, открыто ли) и записи без паролей; POST {\"op\":\"create|unlock|lock|get|set|delete|gen|sync|import|export|extkey|network|join|merge\",…}. Пароль отдаёт только get {id} при открытом хранилище. network — хранилища на устройствах сети [{id,devices,mine}]; join {vault,master} — открыть здесь хранилище сети (когда своего нет); merge {vault,other} — слить в открытое хранилище другое (other — его главный пароль; его устройства перейдут сами). import {csv} — CSV из Chrome/Яндекса/Firefox/Bitwarden; export {master} — CSV в «Загрузки».",
 		H:    handleAPI,
 	})
 }
@@ -68,6 +68,10 @@ type file struct {
 	Salt  string `json:"salt"`
 	Nonce string `json:"nonce"`
 	Data  string `json:"data"`
+	// Wraps — ключ этого хранилища, зашифрованный ключами хранилищ, которые
+	// в него слили (ТЗ 33, network.go): устройство со старым хранилищем
+	// само переходит на это. Старые версии поле не знают и не трогают.
+	Wraps []wrap `json:"wraps,omitempty"`
 }
 
 var (
@@ -78,6 +82,8 @@ var (
 	keys     = map[string][]byte{} // соль чужого файла → ключ (тот же пароль)
 	master   string                // нужен для ключей к чужой соли; только пока открыто
 	lastSync time.Time
+	wraps    []wrap // см. file.Wraps
+	notice   string // что сказать человеку на странице (переход на общее хранилище)
 )
 
 func path() string { return filepath.Join(addons.DataDir(), "vault.json") }
@@ -135,7 +141,7 @@ func save() error {
 	if err != nil {
 		return err
 	}
-	b, _ := json.Marshal(file{base64.StdEncoding.EncodeToString(salt), base64.StdEncoding.EncodeToString(n), base64.StdEncoding.EncodeToString(d)})
+	b, _ := json.Marshal(file{base64.StdEncoding.EncodeToString(salt), base64.StdEncoding.EncodeToString(n), base64.StdEncoding.EncodeToString(d), wraps})
 	tmp := path() + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
@@ -159,7 +165,7 @@ func Create(pass string) error {
 	if err != nil {
 		return err
 	}
-	key, salt, master, entries = k, s, pass, []Entry{}
+	key, salt, master, entries, wraps = k, s, pass, []Entry{}, nil
 	keys[string(s)] = k
 	return save()
 }
@@ -170,7 +176,7 @@ func Unlock(pass string) error {
 	if err != nil {
 		return errors.New("хранилища ещё нет")
 	}
-	_, s, n, d, err := readFile(raw)
+	f, s, n, d, err := readFile(raw)
 	if err != nil {
 		return err
 	}
@@ -187,17 +193,17 @@ func Unlock(pass string) error {
 		return errors.New("файл паролей повреждён")
 	}
 	mu.Lock()
-	key, salt, master, entries = k, s, pass, es
+	key, salt, master, entries, wraps = k, s, pass, es, f.Wraps
 	keys[string(s)] = k
 	mu.Unlock()
-	go Sync()
+	kick()
 	return nil
 }
 
 // Lock закрывает: ключ и пароль забываются.
 func Lock() {
 	mu.Lock()
-	key, master, entries = nil, "", nil
+	key, master, entries, wraps, notice = nil, "", nil, nil, ""
 	keys = map[string][]byte{}
 	mu.Unlock()
 }
@@ -281,7 +287,7 @@ func Put(e Entry) (Entry, error) {
 	if err := save(); err != nil {
 		return e, err
 	}
-	go Sync()
+	kick()
 	return e, nil
 }
 
@@ -299,7 +305,7 @@ func del(id string) error {
 	if err := save(); err != nil {
 		return err
 	}
-	go Sync()
+	kick()
 	return nil
 }
 
@@ -402,7 +408,9 @@ var peerClient = &http.Client{
 }
 
 // Sync забирает файлы паролей с устройств сети и сливает записи. Возвращает,
-// со скольких устройств взял и сколько записей изменилось.
+// со скольких устройств взял и сколько записей изменилось. Файл, который
+// нашим паролем не открыть, но в котором есть ключ для нашего хранилища
+// (Wraps), — хранилище, в которое слили наше: переходим на него (adopt).
 func Sync() (int, int) {
 	mu.Lock()
 	if key == nil {
@@ -412,20 +420,8 @@ func Sync() (int, int) {
 	pass := master
 	mu.Unlock()
 	got, changed := 0, 0
-	for _, p := range devnet.Status().Peers {
-		if p.Self || !p.Online || !p.IP.IsValid() {
-			continue
-		}
-		resp, err := peerClient.Get("http://" + net.JoinHostPort(p.IP.String(), "47841") + "/vault")
-		if err != nil {
-			continue
-		}
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			continue
-		}
-		_, s, n, d, err := readFile(raw)
+	for _, pf := range fetchPeers() {
+		f, s, n, d, err := readFile(pf.Raw)
 		if err != nil {
 			continue
 		}
@@ -438,8 +434,19 @@ func Sync() (int, int) {
 			}
 		}
 		plain, err := open(k, n, d)
+		adopt := false
 		if err != nil {
-			continue // другой главный пароль — не наше хранилище
+			// Другой главный пароль. Может, наше хранилище в него слили?
+			mu.Lock()
+			k = unwrapFor(f.Wraps, key, n, d)
+			mu.Unlock()
+			if k == nil {
+				continue // чужое хранилище
+			}
+			if plain, err = open(k, n, d); err != nil {
+				continue
+			}
+			adopt = true
 		}
 		var theirs []Entry
 		if json.Unmarshal(plain, &theirs) != nil {
@@ -451,17 +458,18 @@ func Sync() (int, int) {
 			return got, changed
 		}
 		keys[string(s)] = k
-		idx := map[string]int{}
-		for i, e := range entries {
-			idx[e.ID] = i
-		}
-		c := 0
-		for _, e := range theirs {
-			if i, ok := idx[e.ID]; !ok {
-				entries = append(entries, e)
-				c++
-			} else if e.Upd > entries[i].Upd {
-				entries[i] = e
+		c := mergeEntries(theirs)
+		if adopt {
+			// Дальше наше хранилище — то: его соль, ключ и главный пароль.
+			// Записи уже слиты, наши правки уйдут к остальным с ним.
+			key, salt = k, s
+			wraps = unionWraps(wraps, f.Wraps)
+			notice = "Это хранилище объединили с хранилищем на «" + pf.Name + "»: записи слиты, теперь оно открывается главным паролем того хранилища."
+			c++
+		} else if string(s) == string(salt) {
+			// То же хранилище: ключи слитых в него хранилищ разносим дальше.
+			if w := unionWraps(wraps, f.Wraps); len(w) != len(wraps) {
+				wraps = w
 				c++
 			}
 		}
@@ -474,6 +482,26 @@ func Sync() (int, int) {
 		changed += c
 	}
 	return got, changed
+}
+
+// mergeEntries сливает чужие записи в свои по времени правки; под mu.
+func mergeEntries(theirs []Entry) int {
+	idx := map[string]int{}
+	for i, e := range entries {
+		idx[e.ID] = i
+	}
+	c := 0
+	for _, e := range theirs {
+		if i, ok := idx[e.ID]; !ok {
+			idx[e.ID] = len(entries)
+			entries = append(entries, e)
+			c++
+		} else if e.Upd > entries[i].Upd {
+			entries[i] = e
+			c++
+		}
+	}
+	return c
 }
 
 // ---------------------------------------------------------------------------
@@ -509,14 +537,21 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		if !ls.IsZero() {
 			st["lastSync"] = ls.Unix()
 		}
+		mu.Lock()
+		if notice != "" {
+			st["notice"] = notice
+		}
+		mu.Unlock()
 		writeJSON(w, st)
 		return
 	}
 	var req struct {
-		Op   string `json:"op"`
-		Pass string `json:"master"`
-		Len  int    `json:"len"`
-		CSV  string `json:"csv"`
+		Op    string `json:"op"`
+		Pass  string `json:"master"`
+		Len   int    `json:"len"`
+		CSV   string `json:"csv"`
+		Vault string `json:"vault"`
+		Other string `json:"other"`
 		Entry
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 16<<20)).Decode(&req); err != nil {
@@ -573,6 +608,19 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		if p, n, err = ExportCSV(req.Pass); err == nil {
 			out = map[string]any{"path": p, "count": n}
 		}
+	case "network":
+		out = map[string]any{"vaults": Network()}
+	case "join":
+		err = Join(req.Vault, req.Pass)
+	case "merge":
+		var n int
+		if n, err = Merge(req.Vault, req.Other); err == nil {
+			out = map[string]int{"changed": n}
+		}
+	case "notice":
+		mu.Lock()
+		notice = ""
+		mu.Unlock()
 	case "extkey":
 		out = map[string]string{"key": newExtKey()}
 	case "extinstall":
@@ -581,7 +629,7 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			out = map[string]string{"dir": dir}
 		}
 	default:
-		err = errors.New("op: create, unlock, lock, get, set, delete, gen, sync, import, export, extkey, extinstall")
+		err = errors.New("op: create, unlock, lock, get, set, delete, gen, sync, import, export, extkey, extinstall, network, join, merge, notice")
 	}
 	if err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})

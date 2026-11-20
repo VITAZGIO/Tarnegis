@@ -127,7 +127,10 @@ type Tunnel struct {
 	netServers *mesh.NetServers
 	// netListener — кому сказать, что пришёл новый список (ТЗ 26).
 	netListener NetServersListener
-	exit        []tunnel.Hop
+	// netNotes — последние строки журнала сети серверов (netservers_log.go):
+	// одна и та же причина не пишется на каждом подключении.
+	netNotes map[string]string
+	exit     []tunnel.Hop
 
 	// localOnly — туннель поднят без сервера ради сети устройств (сервер не
 	// ответил на первом подключении и ищется в фоне); serverErr — почему не
