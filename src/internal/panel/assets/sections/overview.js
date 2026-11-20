@@ -40,7 +40,10 @@ function renderHomeClients(){
     stateCell.appendChild(stateBadge(c.state));
     row.appendChild(stateCell);
 
-    cell(row, '↓ ' + fmtBytes(c.rxBytes) + '  ↑ ' + fmtBytes(c.txBytes), 'num');
+    // Неразрывные пробелы: в узкой колонке (ТЗ 27) перенос — только между
+    // «принято» и «отдано», а не посреди числа.
+    const nb = v => v.replace(/ /g, ' ');
+    cell(row, nb('↓ ' + fmtBytes(c.rxBytes)) + ' ' + nb('↑ ' + fmtBytes(c.txBytes)), 'num');
     cell(row, onlineText(c));
     table.appendChild(row);
   });
@@ -94,10 +97,7 @@ function renderTraffic(){
 }
 
 /* ---------- где стоит схема ---------- */
-/* Схема одна (у неё живая раскладка): обычно в «Обзоре», а в «Устройствах»
-   на экране от 1700 px — третьей колонкой. */
-// Схема одна и стоит в «Обзоре» во всю ширину (ТЗ 23: рядом с таблицей
-// устройств её больше нет — там боковая панель устройства).
+// Схема одна и стоит в «Обзоре» (ТЗ 23, 27).
 function placeMap(){
   const slot = $('ovMapSlot');
   const card = $('mapCard');
@@ -875,14 +875,68 @@ function serverPop(s){
     [t('dev_since'), l ? fmtAgo(l.connectedAt) : ''],
   ]);
 }
+/* ---------- состояние сервера: коротко (ТЗ 27) ---------- */
+// Процессор, память и самый заполненный диск — из того же
+// GET /api/server/stats, что у «Мониторинга». Опрос раз в 10 с, только пока
+// открыт «Обзор» и вкладка браузера видна.
+let OVS = null, OVS_TIMER = null;
+async function loadServerSummary(){
+  clearTimeout(OVS_TIMER);
+  if (TAB !== 'Home' || $('viewMain').hidden) return;
+  const {ok, data} = await api('/api/server/stats');
+  $('ovsErr').hidden = ok;
+  if (!ok) $('ovsErr').textContent = errOf(data);
+  else { OVS = data; renderServerSummary(); }
+  OVS_TIMER = setTimeout(() => { if (!document.hidden) loadServerSummary(); else OVS_TIMER = setTimeout(loadServerSummary, 2000); }, 10000);
+}
+// ovsLevel — цвет по загрузке, как в «Мониторинге»: от 70 % жёлтый, от 90 % красный.
+function ovsLevel(p){ return p >= 90 ? 'err' : p >= 70 ? 'warn' : 'ok'; }
+function ovsPct(used, total){ return total ? used / total * 100 : 0; }
+function ovsTile(id, pct, sub, none){
+  const box = $(id);
+  box.classList.remove('ok', 'warn', 'err');
+  box.classList.add(ovsLevel(pct));
+  box.querySelector('.v').textContent = none ? '—' : (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + ' %';
+  box.querySelector('.ovs-bar i').style.width = Math.min(100, none ? 0 : pct) + '%';
+  const s = box.querySelector('.s');
+  s.textContent = sub;
+  s.title = sub;
+}
+function renderServerSummary(){
+  const s = OVS;
+  if (!s) return;
+  const cpu = s.cpu || {}, mem = s.mem || {};
+  ovsTile('ovsCpu', cpu.percent || 0, s.ready ? fill('ovs_cores', {n: cpu.count || '—'}) : t('ovs_collecting'), !s.ready);
+  ovsTile('ovsMem', ovsPct(mem.used, mem.total), fmtBytes(mem.used) + ' / ' + fmtBytes(mem.total), !mem.total);
+  const disk = (s.disks || []).slice().sort((a, b) => ovsPct(b.used, b.total) - ovsPct(a.used, a.total))[0];
+  if (disk) ovsTile('ovsDisk', ovsPct(disk.used, disk.total), disk.mount + ' · ' + fmtBytes(disk.used) + ' / ' + fmtBytes(disk.total), false);
+  else ovsTile('ovsDisk', 0, t('ovs_none'), true);
+}
+const openMonitor = () => showTab('Monitor');
+$('ovsTiles').addEventListener('click', openMonitor);
+$('ovsTiles').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openMonitor(); } });
+$('ovsMore').addEventListener('click', openMonitor);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && TAB === 'Home') loadServerSummary(); });
+
+// fitOverview — где на странице начинается «Обзор»: первый экран
+// (плитки, схема, клиенты) кончается у низа окна, даже когда над разделом
+// плашка режима показа или ошибка службы сети.
+function fitOverview(){
+  const sec = $('tabHome');
+  if (sec.hidden) return;
+  const y = Math.round(sec.getBoundingClientRect().top + scrollY);
+  if (sec.style.getPropertyValue('--ov-top') !== y + 'px') sec.style.setProperty('--ov-top', y + 'px');
+}
 let MAP_RESIZE = null;
 addEventListener('resize', () => {
   clearTimeout(MAP_RESIZE);
-  MAP_RESIZE = setTimeout(() => { placeMap(); if (MESH) renderMesh(); }, 150);
+  MAP_RESIZE = setTimeout(() => { fitOverview(); placeMap(); if (MESH) renderMesh(); }, 150);
 });
 
 /* ---------- события каркаса ---------- */
-onPanel('lang', () => { MAP_SIG = ''; renderTraffic(); });
+onPanel('lang', () => { MAP_SIG = ''; renderTraffic(); renderServerSummary(); });
+onPanel('show:Home', () => { fitOverview(); loadServerSummary(); });
+onPanel('start', fitOverview);
 onPanel('remap', () => { MAP_SIG = ''; });
 onPanel('show', () => placeMap());
 onPanel('start', loadTraffic);
@@ -894,6 +948,7 @@ onPanel('status', st => {
   $('stVersion').textContent = st.version;
 });
 onPanel('mesh', (m, role) => {
+  fitOverview();
   const isMain = role === 'main';
   $('meshTiles').hidden = !isMain;
   $('mapCard').hidden = !isMain;
