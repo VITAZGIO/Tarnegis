@@ -66,6 +66,8 @@ internet goes down.
 
 ## Where to find details
 
-Many sections have a **?** sign next to the heading. It opens a short hint. This
+The section name is at the top, in the middle of the header, with a **?** sign
+next to it: it opens an explanation of the section. Many cards and fields have
+the same sign with a short hint. This
 Book goes into more detail than the hints. For devices there is a separate Book,
 inside the program itself.

@@ -19,18 +19,27 @@
   .ov-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
   .ov-bot{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"status traffic";align-items:start}
 }
-/* Широкий экран. Первый экран — до низа окна с зазором 14 px. --ov-top —
-   где раздел начинается на странице (шапка 51 px и отступ 18 px, а с
+/* Клиенты: таблица всегда во всю ширину своей колонки и вбок не листается —
+   длинное имя и «Связь» переносятся внутри ячейки (ТЗ 30). */
+.ov-clients .ov-scroll{overflow-x:hidden}
+.ov-clients table.list td:first-child{overflow-wrap:anywhere}
+.ov-clients table.list td.link{min-width:110px}
+/* Широкий экран (ТЗ 27, ТЗ 30). Первый экран — до низа окна с зазором
+   14 px. --ov-top — где раздел начинается на странице (под шапкой; с
    плашкой режима показа или ошибкой службы сети — ниже), его ставит
-   overview.js. Ряд «плитки | схема | клиенты»
-   занимает всё, что осталось под заголовком; .ov-top — контейнер по
-   размеру, поэтому 200cqh = две его высоты: шире схема не станет, лишняя
-   ширина уходит колонке клиентов. */
-@media (min-width:1280px){
+   overview.js. Названия раздела на странице больше нет (оно в шапке), так
+   что ряд «плитки | схема | клиенты» занимает всё от верха раздела до низа
+   окна. .ov-top — контейнер по размеру, поэтому 200cqh = две его высоты:
+   шире схема не станет. Клиенты всегда помещаются целиком (не меньше
+   540 px — все четыре столбца без прокрутки вбок), ширину отдаёт схема, но
+   не уже 640 px. Окно, где схеме не хватает и этого
+   (200 меню + 40 поля + 210 + 640 + 540 + зазоры ≈ 1670 px), — раскладка
+   стопкой, как на средней ширине. */
+@media (min-width:1680px){
   .ov-screen{height:calc(100dvh - var(--ov-top, 69px) - 14px)}
   .ov-top{flex:1 1 0;min-height:0;container-type:size}
   .ov-grid{height:100%;grid-template-rows:minmax(0,1fr);grid-template-areas:"tiles map clients";
-    grid-template-columns:230px minmax(0,200cqh) minmax(380px,1fr)}
+    grid-template-columns:210px minmax(640px,200cqh) minmax(540px,1fr)}
   .ov-tiles{grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);min-height:0}
   .ov-tiles .box{display:flex;flex-direction:column;justify-content:center;min-height:0}
   .ov-map{min-height:0}

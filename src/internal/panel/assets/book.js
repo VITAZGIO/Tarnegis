@@ -140,8 +140,10 @@ function bkBlocks(lines, base){
    пишутся отдельно, и если главы с этим id в сборке нет, ссылки просто не
    будет (bookChapterFor). */
 const BOOK_HELP = {
-  hint_tile_devices:'03-devices', hint_devices_list:'03-devices',
-  hint_mesh_what:'04-networks', hint_map:'04-networks',
+  // «?» у названия раздела в шапке (ТЗ 30, core.js PAGE_HEAD)
+  home_sub:'01-about', devices_sub:'03-devices', mesh_sub:'04-networks', access_sub:'05-access', plugins_sub:'11-plugins',
+  hint_tile_devices:'03-devices',
+  hint_map:'04-networks',
   hint_acc:'05-access', hint_acc_rules:'05-access', hint_acc_client_groups:'05-access', hint_nd:'05-access',
   hint_acc_creator:'05-access', hint_sm:'05-access', hint_ck:'05-access',
   hint_tile_servers:'06-servers', hint_servers:'06-servers', hint_mesh_name:'06-servers',
@@ -149,7 +151,7 @@ const BOOK_HELP = {
   hint_self:'06-servers',
   hint_fc:'07-no-server',
   hint_egress:'09-server-egress',
-  hint_plugins_what:'11-plugins', hint_node_host:'11-plugins', hint_node_quota:'11-plugins',
+  hint_node_host:'11-plugins', hint_node_quota:'11-plugins',
   hint_node_ad:'11-plugins', hint_node_site:'11-plugins', hint_plugin_adblock:'11-plugins',
   hint_plugin_machines:'11-plugins', hint_plugin_sitecheck:'11-plugins',
   hint_plugin_backup:'12-backups',

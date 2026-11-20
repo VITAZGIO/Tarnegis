@@ -10,6 +10,8 @@ Object.assign(I18N.ru, {
   col_state:'Состояние',
   col_traffic:'Трафик',
   col_online:'Связь',
+  ov_link_via:'на связи через {s}',
+  ov_link_on:'на связи',
   traffic_title:'Трафик',
   traffic_note:'Считается по правилам nftables на самом сервере, отдельно по каждому клиенту. «За всё время» — с момента, когда клиент был заведён.',
   period_day:'За день',

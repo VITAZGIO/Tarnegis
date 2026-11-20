@@ -10,6 +10,8 @@ Object.assign(I18N.en, {
   col_state:'State',
   col_traffic:'Traffic',
   col_online:'Link',
+  ov_link_via:'online via {s}',
+  ov_link_on:'online',
   traffic_title:'Traffic',
   traffic_note:'Counted by nftables rules on the server itself, per client. "All time" means since the client was created.',
   period_day:'Today',

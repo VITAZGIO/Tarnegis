@@ -87,6 +87,4 @@ Object.assign(I18N.en, {
   net_approval_on:'New devices now wait for approval',
   net_approval_off:'New devices join at once',
   net_pending:'Awaiting approval',
-  srv_more:'Details',
-  srv_less:'Collapse',
 });
