@@ -19,6 +19,7 @@
 //	POST /adblock/update    {}                   → AdblockState  скачать источники сейчас
 //	POST /sitecheck         SiteReq              → проверка сайта с сервера (probe.ServerResult)
 //	POST /machines/clear    {net}                → {"ok":true}  стереть историю машин сети
+//	POST /files/clear       {net}                → {"ok":true}  стереть общую папку сети (ТЗ 29)
 //
 // Ошибки — HTTP 400 {"error":"<текст>"}.
 package nodeapi
@@ -335,6 +336,9 @@ type API interface {
 	UpdateAdblock(ctx context.Context) (AdblockState, error)
 	CheckSite(ctx context.Context, r SiteReq) (json.RawMessage, error)
 	ClearMachines(ctx context.Context, net string) error
+	// ClearFiles — стереть общую папку сети (ТЗ 29). Старый хост отвечает
+	// 404 — панель просит его обновить.
+	ClearFiles(ctx context.Context, net string) error
 }
 
 // AccessReq — дать (On) или забрать у устройства зеркальную папку сети
@@ -480,6 +484,10 @@ func (c *Client) CheckSite(ctx context.Context, r SiteReq) (json.RawMessage, err
 
 func (c *Client) ClearMachines(ctx context.Context, n string) error {
 	return c.do(ctx, http.MethodPost, "/machines/clear", map[string]string{"net": n}, nil)
+}
+
+func (c *Client) ClearFiles(ctx context.Context, n string) error {
+	return c.do(ctx, http.MethodPost, "/files/clear", map[string]string{"net": n}, nil)
 }
 
 // PeerID — постоянный id устройства для прав зеркальных папок (ТЗ 18) по

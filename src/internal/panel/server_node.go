@@ -27,6 +27,7 @@ func (s *Server) nodeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/node/backup/delete", s.requireAuth(s.withNode(s.handleNodeBackupDelete)))
 	mux.HandleFunc("/api/node/net/delete", s.requireAuth(s.withNode(s.handleNodeNetDelete)))
 	mux.HandleFunc("/api/node/fix", s.requireAuth(s.withNode(s.handleNodeFix)))
+	mux.HandleFunc("/api/node/plugin/remove", s.requireAuth(s.withNode(s.handleNodePluginRemove)))
 	// ТЗ 15: общий список блокировки, проверка сайта с сервера, история машин.
 	mux.HandleFunc("/api/node/adblock/set", s.requireAuth(s.withNode(s.handleNodeAdblockSet)))
 	mux.HandleFunc("/api/node/adblock/update", s.requireAuth(s.withNode(s.handleNodeAdblockUpdate)))
