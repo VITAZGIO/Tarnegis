@@ -69,12 +69,12 @@ func TestУстройствоНаСвязиТолькоСДругимСерве�
 }
 
 func TestПричинаТелефонСНовойПрограммой(t *testing.T) {
-	d := MeshDevice{Device: meshsvc.Device{ID: "p", Platform: "android", App: "1.10.6", User: "tun_a"},
+	d := MeshDevice{Device: meshsvc.Device{ID: "p", Platform: "android", App: "1.10.7", User: "tun_a"},
 		Conns: []DevConn{{Server: "main", Online: true}}}
 	srv := []whySrv{{ID: "main", Host: "89.125.168.26", Online: true, Meshd: "7"},
 		{ID: "lon", Host: "203.0.113.7", Online: true, Meshd: "7"}}
 	if m := missingServers(d, srv); len(m) != 1 || m[0].Code != "phone-list" {
-		t.Fatalf("v1.10.6: %+v", m)
+		t.Fatalf("v1.10.7: %+v", m)
 	}
 	d.App = "1.10.5"
 	if m := missingServers(d, srv); len(m) != 1 || m[0].Code != "phone" {

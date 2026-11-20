@@ -86,7 +86,7 @@ picture every 30 seconds and right away when you open the page.
   this one. When the device is online anywhere, below it there is only a quiet
   note «Not connected directly to: …» and why: old program, old `meshd` on the
   server, no account, profile turned off, the phone has not received the
-  server list yet (open the program on the phone; from v1.10.6 a phone adds
+  server list yet (open the program on the phone; from v1.10.7 a phone adds
   servers by itself).
 - **Connected clients** («Overview») — also network-wide: a client that sits
   on another server shows «connected via …» here, not «never connected».
