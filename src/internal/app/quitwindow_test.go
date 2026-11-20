@@ -1,11 +1,32 @@
 package app
 
 import (
+	"net"
 	"testing"
 	"time"
 
 	"sshtunnel/internal/config"
 )
+
+// quitProfile — профиль на свободных локальных портах. Нулевые порты
+// программа заменяет на 1080/8080, а предыдущий тест пакета может ещё
+// держать их — тест падал с «порт занят программой app.test».
+func quitProfile(t *testing.T, addr, keyPath string) config.Profile {
+	t.Helper()
+	p := profileAt(t, "main", addr, keyPath)
+	p.SocksPort, p.HTTPPort = freeLocalPort(t), freeLocalPort(t)
+	return p
+}
+
+func freeLocalPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
 
 func waitRunning(t *testing.T, a *App, want bool, within time.Duration) {
 	t.Helper()
@@ -26,7 +47,7 @@ func TestВыходИзОкнаИСноваОкно(t *testing.T) {
 	keyPath, pub := testKeyPath(t)
 	addr := newFakeSSHServer(t, pub, true)
 	a := New(config.Config{StartMode: config.StartOn,
-		Profiles: []config.Profile{profileAt(t, "main", addr, keyPath)}})
+		Profiles: []config.Profile{quitProfile(t, addr, keyPath)}})
 	t.Cleanup(a.Stop)
 	if err := a.Start(); err != nil {
 		t.Fatal(err)
@@ -50,7 +71,7 @@ func TestОкноБезВыходаНичегоНеВключает(t *testing.T
 	keyPath, pub := testKeyPath(t)
 	addr := newFakeSSHServer(t, pub, true)
 	a := New(config.Config{StartMode: config.StartOn,
-		Profiles: []config.Profile{profileAt(t, "main", addr, keyPath)}})
+		Profiles: []config.Profile{quitProfile(t, addr, keyPath)}})
 	t.Cleanup(a.Stop)
 	if a.WindowOpened() {
 		t.Fatal("без «Выхода» окно запустило туннель")
@@ -69,7 +90,7 @@ func TestВыходИЗапускВыключен(t *testing.T) {
 	keyPath, pub := testKeyPath(t)
 	addr := newFakeSSHServer(t, pub, true)
 	a := New(config.Config{StartMode: config.StartOff,
-		Profiles: []config.Profile{profileAt(t, "main", addr, keyPath)}})
+		Profiles: []config.Profile{quitProfile(t, addr, keyPath)}})
 	t.Cleanup(a.Stop)
 	a.QuitWindow()
 	if a.WindowOpened() {
