@@ -81,9 +81,18 @@ picture every 30 seconds and right away when you open the page.
   server. «Servers» — how many servers the network has and how many are
   reachable now. Latency and traffic come from all servers.
 - **Device.** The side panel says «Connected via: Germany · 5 ms, London ·
-  30 ms». Below it — which servers the device is not connected to and why:
-  old program, old `meshd` on the server, no account, profile turned off, a
-  phone adds servers only by hand.
+  30 ms». Latency, «connected since» and the program version come from the
+  server the device is connected through, even when it is not connected to
+  this one. When the device is online anywhere, below it there is only a quiet
+  note «Not connected directly to: …» and why: old program, old `meshd` on the
+  server, no account, profile turned off, the phone has not received the
+  server list yet (open the program on the phone; from v1.10.6 a phone adds
+  servers by itself).
+- **Connected clients** («Overview») — also network-wide: a client that sits
+  on another server shows «connected via …» here, not «never connected».
+- **Check** («Access») gives the same answer on every server: devices come
+  from the shared network list, rules are shared. «Device not found» only
+  when no server of the network knows it.
 - **Actions.** Rename, approve, freeze, remove and the exit chain work from
   any server, even when the device is connected to another one.
 
@@ -94,6 +103,22 @@ empty after a panel restart.
 
 If a server runs an old panel, its devices are not visible: it is marked
 «old panel there». Update the panel on it.
+
+## Update all servers from one
+
+When a new version is out, **Settings** → **Panel** → **Check for updates**
+shows **Update on all servers** next to **Update to …**. Below it — the list of
+the network's servers: the panel and `meshd` version of each and how the update
+goes.
+
+Every server updates itself, the same way as the **Update** button: it downloads
+the file from the GitHub release, checks the checksum, restarts the panel, and
+then the new panel installs `meshd` of the same release. The server where you
+pressed the button goes last. A server that is offline is marked «offline — will
+update when it is back»: it gets the request with its next exchange. If one
+fails, the others go on, and it tries again in half an hour. Only a version newer
+than its own is installed. Devices reconnect by themselves, as after a `meshd`
+restart with the button.
 
 ## Rename a server
 

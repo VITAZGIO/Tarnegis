@@ -21,8 +21,11 @@ type DevMiss struct {
 	// bad-host — у сервера нет адреса, по которому до него дойти; no-account —
 	// учётной записи устройства там нет; profile-off — профиль этого сервера
 	// на устройстве есть, но не подключён; old-app — программа устройства
-	// старше v1.10.1; phone — телефон добавляет серверы только вручную;
-	// unknown — устройство ничего не сообщало.
+	// старше v1.10.1; phone — программа на телефоне старше v1.10.6 (до неё
+	// телефон добавлял серверы только вручную); phone-list — телефон v1.10.6+
+	// сам добавляет серверы сети, но списка ещё не получил (программу не
+	// открывали после появления сервера); unknown — устройство ничего не
+	// сообщало.
 	Code string `json:"code"`
 	By   string `json:"by,omitempty"`
 	Host string `json:"host,omitempty"`
@@ -41,6 +44,9 @@ type whySrv struct {
 
 // minNetApp — с какой версии программа на ПК сама добавляет серверы сети.
 const minNetApp = "1.10.1"
+
+// minNetPhone — с какой версии телефон сам добавляет серверы сети (ТЗ 26).
+const minNetPhone = "1.10.6"
 
 // versionLess — a старше b («1.9.16» < «1.10.1»; «v» и хвост «-beta» не в
 // счёт). Не разобрать — false.
@@ -142,6 +148,9 @@ func whyNot(d MeshDevice, s whySrv, via []whySrv, uh string, m *DevMiss) string 
 		return "old-app"
 	}
 	if d.Platform == "android" {
+		if d.App != "" && !versionLess(d.App, minNetPhone) {
+			return "phone-list"
+		}
 		return "phone"
 	}
 	return "unknown"
