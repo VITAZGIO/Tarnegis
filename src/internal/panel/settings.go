@@ -24,6 +24,12 @@ type Settings struct {
 	// Access — права доступа устройств в сети устройств (access.go).
 	Access AccessSettings `json:"access"`
 
+	// NewDevice — что получает устройство, которое появится позже (ТЗ 28,
+	// access_newdev.go): "all" — видно всем и видит всех, "none" — без
+	// доступа, пока не отметят; "" — не выбрано, как было до ТЗ 28 (ничего
+	// не добавляется). Общее для сети серверов (запись newdev).
+	NewDevice string `json:"newDevice,omitempty"`
+
 	// Looks — тема и фон панели по логину (ТЗ 25, «Настройки» → «Вид»):
 	// выбор переезжает в другой браузер вместе со входом.
 	Looks map[string]PanelLook `json:"looks,omitempty"`

@@ -355,7 +355,7 @@ func validItemKey(k string) bool {
 	if len(k) > 200 || k == "" {
 		return false
 	}
-	if k == kAccess {
+	if k == kAccess || k == kNewDev {
 		return true
 	}
 	for _, p := range []string{kSrv, kAcct, kAppr, kNName, kNDel, kOK, kFrz, kAlias, kForget, kSName} {

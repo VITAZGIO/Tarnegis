@@ -5,3 +5,34 @@
 .net-name.unnamed{color:var(--dim)}
 input.net-name{font-size:15px;padding:5px 8px;min-width:min(260px,70vw)}
 .net-note{margin:10px 0 0!important}
+
+/* ---------- одна страница (ТЗ 28): «Соединения» слева ⅓, справа ⅔ ---------- */
+.nets-page{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);align-items:start}
+.nets-right{display:grid;gap:14px;min-width:0;align-content:start}
+.nets-right > .card,.nets-srv > .card,.nets-links > .card{margin:0}
+.nets-srv{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);align-items:start}
+@media (min-width:1100px){
+  .nets-page{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}
+  .nets-links{grid-column:1;grid-row:1;position:sticky;top:63px}
+  .nets-right{grid-column:2;grid-row:1}
+  /* Список соединений — во всю высоту окна, листается сам. */
+  .nets-links > .card{display:flex;flex-direction:column;max-height:calc(100vh - 51px - 26px)}
+  .nets-links #meshForecast{flex:1;min-height:0;overflow-y:auto;margin-right:-8px;padding-right:8px}
+}
+@media (min-width:1500px){ .nets-v1 .nets-srv{grid-template-columns:minmax(0,3fr) minmax(0,2fr)} }
+
+/* Вариант 2: серверы сети — полосой сверху, сети — вкладками по одной. */
+.srv-strip{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding:12px 14px}
+.srv-strip .k{color:var(--dim);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-right:4px}
+.srv-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);
+     background:var(--card2);font-size:13px;font-weight:600;white-space:nowrap}
+.srv-pill .m{color:var(--dim);font:11.5px var(--mono);font-weight:400}
+.srv-strip .sp{flex:1}
+.net-tabs{flex-wrap:wrap}
+.nets-v2 #meshNets{grid-template-columns:minmax(0,1fr)}
+@media (min-width:1300px){
+  .nets-v2 .net-card .net-sec.devs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:28px}
+  .nets-v2 .net-card .net-sec.devs > :not(.net-dev){grid-column:1/-1}
+}
+.nets-v2 .nets-srv{grid-template-columns:minmax(0,1fr)}
+@media (min-width:1500px){ .nets-v2 .nets-srv{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }

@@ -174,27 +174,79 @@ function jrTime(unix){
   const hm = d.toLocaleTimeString(loc, {hour: '2-digit', minute: '2-digit'});
   return d.toDateString() === now.toDateString() ? hm : d.toLocaleDateString(loc, {day: '2-digit', month: '2-digit'}) + ' ' + hm;
 }
+// jrClass — цвет строки консоли по типу события.
+const JR_OK = ['connect', 'new-device', 'approve', 'server-up', 'unfreeze'];
+const JR_WARN = ['disconnect', 'server-down', 'pending', 'freeze', 'forget', 'net-delete'];
+function jrClass(x){
+  if (x.marker) return 'marker';
+  const tp = x.e.type;
+  return tp === 'denied' ? 'denied' : JR_OK.includes(tp) ? 'conn' : JR_WARN.includes(tp) ? 'warn' : '';
+}
+// jrList — что показано сейчас (по фильтру), старые сверху.
+function jrList(){
+  return JR.items.filter(x => x.marker ? JR.filter === 'all'
+    : JR.filter === 'denied' ? x.e.type === 'denied'
+    : JR.filter === 'conn' ? JR_CONN.includes(x.e.type) : true);
+}
+function jrLine(x){ return x.marker ? t('ev_restart') : evText(x.e); }
+function jrAtEnd(box){ return box.scrollHeight - box.scrollTop - box.clientHeight < 30; }
+// Новые — снизу, как в консоли: стоял внизу — остаёшься внизу; отлистал
+// вверх читать — не дёргаем, а показываем «к последним».
 function renderJournal(){
   document.querySelectorAll('#jrFilter button').forEach(b => b.classList.toggle('on', b.dataset.f === JR.filter));
   renderOldHints();
   const box = $('journal');
+  const stick = !box.dataset.drawn || jrAtEnd(box);
   box.innerHTML = '';
   const many = ((MESH && MESH.networks) || []).length > 1;
-  const list = JR.items.filter(x => x.marker ? JR.filter === 'all'
-    : JR.filter === 'denied' ? x.e.type === 'denied'
-    : JR.filter === 'conn' ? JR_CONN.includes(x.e.type) : true).slice().reverse();
+  const list = jrList();
   $('jrErr').hidden = !JR.err;
   $('jrErr').textContent = JR.err;
   list.forEach(x => {
-    const row = el('div', 'jr-row' + (x.marker ? ' marker' : x.e.type === 'denied' ? ' denied' : ''));
+    const row = el('div', 'jr-row ' + jrClass(x));
     row.appendChild(el('time', '', jrTime(x.time)));
-    const txt = el('span', 'tx', x.marker ? t('ev_restart') : evText(x.e));
-    if (!x.marker && many && x.e.net) txt.appendChild(el('span', 'badge dim', evNet(x.e.net)));
+    const txt = el('span', 'tx', jrLine(x));
+    if (!x.marker && many && x.e.net) txt.appendChild(el('span', 'net', '[' + evNet(x.e.net) + ']'));
     row.appendChild(txt);
     box.appendChild(row);
   });
   if (!list.length && !JR.old) box.appendChild(el('div', 'empty', t(JR.items.length ? 'jr_none_filter' : 'jr_none')));
+  if (box.offsetParent) box.dataset.drawn = '1';
+  if (stick) box.scrollTop = box.scrollHeight;
+  $('jrLast').hidden = jrAtEnd(box);
 }
+// jrText — показанное сейчас текстом: полная дата и время, как в программе.
+function jrText(){
+  const many = ((MESH && MESH.networks) || []).length > 1;
+  const p = n => String(n).padStart(2, '0');
+  return jrList().map(x => {
+    const d = new Date(x.time * 1000);
+    const ts = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    return ts + '  ' + jrLine(x) + (!x.marker && many && x.e.net ? '  [' + evNet(x.e.net) + ']' : '');
+  }).join('\n');
+}
+$('journal').addEventListener('scroll', () => { $('jrLast').hidden = jrAtEnd($('journal')); });
+$('jrLast').addEventListener('click', () => {
+  const box = $('journal');
+  box.scrollTop = box.scrollHeight;
+  $('jrLast').hidden = true;
+});
+$('jrCopy').addEventListener('click', async () => {
+  const txt = jrText();
+  if (!txt){ toast(t('jr_nothing'), 'err'); return; }
+  toast(await copyText(txt) ? t('copied') : t('copy_failed'), 'ok');
+});
+$('jrSave').addEventListener('click', () => {
+  const txt = jrText();
+  if (!txt){ toast(t('jr_nothing'), 'err'); return; }
+  const p = n => String(n).padStart(2, '0'), d = new Date();
+  const a = el('a');
+  a.href = URL.createObjectURL(new Blob([txt + '\n'], {type: 'text/plain;charset=utf-8'}));
+  a.download = 'ssh_tunnel-journal-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+});
 $('jrFilter').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -225,9 +277,23 @@ let ACCESS_RAW = {enabled: false, groups: [], rules: []}; // как на сер�
 let SM_WORK = null, SM_REV = 0, SM_TIMER = null, SM_SAVING = false;
 
 function smOwn(g){ return typeof g === 'string' && g.startsWith('~'); }
-function smOwnRule(r){ return !String(r.ports || '').trim() && smOwn(r.from) && (smOwn(r.to) || r.to === '*' || r.to === SRV); }
+function smOwnRule(r){
+  if (String(r.ports || '').trim()) return false;
+  // ~all — «новые устройства видны всем и видят всех» (ТЗ 28, access_newdev.go).
+  if (r.from === '*' && r.to === SM_NEWALL) return true;
+  return smOwn(r.from) && (smOwn(r.to) || r.to === '*' || r.to === SRV);
+}
+const SM_NEWALL = '~all';
+// smLone — единственное ручное правило «все → все» без портов: так начинал
+// редактор, и разрешает оно то же, что «все видят всех». Пока простой режим
+// не заведён, оно — заготовка: первая галочка заменит его ролями.
+function smLone(r){ return r.from === '*' && r.to === '*' && !String(r.ports || '').trim(); }
 function smActive(){ return (ACCESS_RAW.groups || []).some(g => SM_ROLE_OF[g]); }
-function smHand(){ return (ACCESS_RAW.rules || []).filter(r => !smOwnRule(r)); }
+function smHand(){
+  const hand = (ACCESS_RAW.rules || []).filter(r => !smOwnRule(r));
+  if (!smActive() && hand.length === 1 && smLone(hand[0])) return [];
+  return hand;
+}
 function smClients(){
   const by = {};
   CLIENTS.forEach(c => { if (c.username) by[c.username] = c; });
@@ -273,10 +339,13 @@ function smDecode(){
   const by = smClients(), users = Object.keys(by).sort(), groupsOf = smGroupsOf();
   const rules = ACCESS_RAW.rules || [];
   const M = {}, roles = {};
+  // Правила выключены — все видят всех; простой режим ещё не заведён —
+  // у каждого роль «Моё устройство» (как раньше давало «Включить простой режим»).
+  const off = !ACCESS_RAW.enabled, fresh = !smActive();
   users.forEach(a => {
-    roles[a] = smRoleOf(groupsOf[a]);
+    roles[a] = smRoleOf(groupsOf[a]) || (fresh ? 'mine' : '');
     M[a] = {};
-    users.concat([SRV]).forEach(b => { M[a][b] = smMatch(rules, groupsOf, a, b) >= 0; });
+    users.concat([SRV]).forEach(b => { M[a][b] = off || smMatch(rules, groupsOf, a, b) >= 0; });
   });
   return {M, roles};
 }
@@ -307,7 +376,8 @@ function smEncode(M, roles, hand){
     const left = new Set(cols.filter(c => row[c] && !H[a][c] && !(c === a && free(a))));
     // Всё нужное уже дают ручные правила — своих не надо.
     if (!left.size){ sig[a] = []; return; }
-    if (cols.every(ok)){ sig[a] = ['*']; return; }
+    // «Новое устройство — без доступа»: «→ *» открыл бы путь и к новым.
+    if (cols.every(ok) && ND_MODE !== 'none'){ sig[a] = ['*']; return; }
     const out = [];
     {
       SM_ROLES.forEach(R => {
@@ -334,7 +404,7 @@ function smEncode(M, roles, hand){
   const covers = (m, g) => {
     const row = M[m] || {};
     const ok = c => !!row[c] || (c === m && free(m));
-    if (g === '*') return cols.every(ok);
+    if (g === '*') return ND_MODE !== 'none' && cols.every(ok);
     if (g === SRV) return ok(SRV);
     if (SM_ROLE_OF[g]) return members(SM_ROLE_OF[g]).every(ok);
     if (SM_PERSONAL.test(g)) return ok(g.slice(1));
@@ -370,6 +440,14 @@ function smEncode(M, roles, hand){
     keepOwn.add(g);
     if (SM_PERSONAL.test(g) && by[g.slice(1)]) personal.add(g.slice(1));
   }));
+  // ~all («новое устройство видно всем») остаётся с обоими правилами: в нём
+  // могут быть учётные записи, которых эта страница ещё не знает (заведены
+  // только что в другом окне или на другом сервере). Известных страница из
+  // него выводит — их галочки дальше пишутся ролями и личными группами.
+  if ((ACCESS_RAW.groups || []).includes(SM_NEWALL)){
+    keepOwn.add(SM_NEWALL);
+    own.push({from: SM_NEWALL, to: '*', ports: ''}, {from: '*', to: SM_NEWALL, ports: ''});
+  }
 
   const clientGroups = {};
   users.forEach(u => {
@@ -392,12 +470,17 @@ function smEncode(M, roles, hand){
 // Сохранение — одним запросом (ТЗ 16): права и группы всех клиентов сразу,
 // сервер проверяет всё до первой записи. Раньше было несколько запросов, и
 // закрытая на середине вкладка оставляла доступ уже, чем задумано.
+// Отдельного выключателя нет (ТЗ 28): доска — это и есть правила, первая
+// правленая галочка включает их. Пока ничего не правили и правила выключены,
+// доска показывает «все видят всех» — как и есть на деле.
 async function smSaveNow(M, roles, hand){
   const enc = smEncode(M, roles, hand);
   if (enc.error){ smMsg(enc.error, 'err'); toast(enc.error, 'err'); return false; }
   const by = smClients(), clients = {};
   Object.keys(enc.clientGroups).forEach(u => { if (by[u]) clients[by[u].id] = enc.clientGroups[u]; });
-  const r = await api('/api/access/simple', {enabled: !!ACCESS_RAW.enabled, groups: enc.groups, rules: enc.rules, clients});
+  // Видели «все видят всех» — так и будет для новых устройств.
+  if (!ND_MODE && !ACCESS_RAW.enabled) await ndSave('all', true);
+  const r = await api('/api/access/simple', {enabled: true, groups: enc.groups, rules: enc.rules, clients});
   if (!r.ok){
     const e = errOf(r.data); smMsg(e, 'err'); toast(e, 'err');
     await smReload();
@@ -492,19 +575,8 @@ function renderSimple(){
   if (!card) return;
   const main = MESH && MESH.effectiveRole === 'main';
   renderOldHints();
-  const active = smActive();
-  $('smStatus').innerHTML = '';
-  const st = el('div', 'sm-status ' + (ACCESS_RAW.enabled ? 'on' : 'off'));
-  st.appendChild(el('b', '', t(ACCESS_RAW.enabled ? 'sm_on' : 'sm_off')));
-  st.appendChild(el('span', '', t(ACCESS_RAW.enabled ? 'sm_on_d' : 'sm_off_d')));
-  const tg = el('button', 'btn small ' + (ACCESS_RAW.enabled ? 'ghost' : ''), t(ACCESS_RAW.enabled ? 'sm_turn_off' : 'sm_turn_on'));
-  tg.addEventListener('click', smSetEnabled);
-  st.appendChild(tg);
-  $('smStatus').appendChild(st);
-
-  $('smOff').hidden = active;
-  $('smBody').hidden = !active;
-  if (!active || !main || !CLIENTS_READY) return;
+  renderNewDev();
+  if (!main || !CLIENTS_READY) return;
 
   const w = smCur(), lines = smLines(), by = smClients();
   const cols = lines.filter(l => l.client);
@@ -527,7 +599,7 @@ function renderSimple(){
     }
     // Чужой пользователь: только то, что дают ручные правила и «→ *».
     const groupsOf = smGroupsOf();
-    return {on: smMatch(ACCESS_RAW.rules || [], groupsOf, ua || '?', ub || '?') >= 0, lock: 'foreign', ua, ub};
+    return {on: !ACCESS_RAW.enabled || smMatch(ACCESS_RAW.rules || [], groupsOf, ua || '?', ub || '?') >= 0, lock: 'foreign', ua, ub};
   };
   const mkCell = (a, b) => {
     const s = cellState(a, b);
@@ -541,27 +613,28 @@ function renderSimple(){
   };
   const srvName = t('sm_servers');
 
-  // Таблица (компьютер).
-  const tbl = el('table', 'sm-table');
-  const hr = el('tr');
-  hr.appendChild(el('th', 'l', t('sm_who_whom')));
-  cols.forEach(l => { const th = el('th', '', l.name); th.title = l.name; hr.appendChild(th); });
-  const ths = el('th', '', srvName); ths.title = t('sm_servers_d'); hr.appendChild(ths);
-  tbl.appendChild(hr);
+  // Доска (компьютер): сетка, клетки делят ширину между собой.
+  const brd = el('div', 'smb' + (cols.length + 1 > 8 ? ' many' : ''));
+  brd.style.gridTemplateColumns = 'minmax(120px,max-content) repeat(' + (cols.length + 1) + ',minmax(34px,1fr))';
+  brd.appendChild(el('div', 'hd corner', t('sm_who_whom')));
+  cols.forEach(l => { const th = el('div', 'hd', l.name); th.title = l.name; brd.appendChild(th); });
+  const ths = el('div', 'hd', srvName); ths.title = t('sm_servers_d'); brd.appendChild(ths);
   lines.forEach(a => {
-    const tr = el('tr');
-    const td = el('td', 'l');
-    td.appendChild(el('span', 'nm', a.name));
+    const td = el('div', 'nm');
+    const b = el('b', '', a.name);
+    b.title = a.name;
+    td.appendChild(b);
     if (a.devices.length > 1) td.appendChild(el('span', 'badge dim', fill('sm_n_dev', {n: a.devices.length})));
     td.appendChild(a.client ? roleTag(w.roles[a.user]) : el('span', 'badge dim', t('sm_foreign_tag')));
-    tr.appendChild(td);
-    cols.forEach(b => { const c = el('td'); c.appendChild(mkCell(a, b)); tr.appendChild(c); });
-    const c = el('td'); c.appendChild(mkCell(a, SRV)); tr.appendChild(c);
-    tbl.appendChild(tr);
+    brd.appendChild(td);
+    cols.forEach(x => brd.appendChild(mkCell(a, x)));
+    brd.appendChild(mkCell(a, SRV));
   });
   const wrap = $('smTable');
+  const keep = [wrap.scrollLeft, wrap.scrollTop];
   wrap.innerHTML = '';
-  wrap.appendChild(tbl);
+  wrap.appendChild(brd);
+  [wrap.scrollLeft, wrap.scrollTop] = keep;
 
   // Список (телефон): по устройству — галочки «куда может ходить».
   const list = $('smList');
@@ -591,48 +664,49 @@ function renderSimple(){
     list.appendChild(box);
   });
   $('smEmpty').hidden = lines.length > 0;
+  $('smTable').hidden = !lines.length;
+  accFit();
   $('smCounts').textContent = fill('sm_counts', {g: (ACCESS_RAW.groups || []).length, gm: SM_MAX_GROUPS,
     r: (ACCESS_RAW.rules || []).length, rm: SM_MAX_RULES});
 }
 
-async function smSetEnabled(){
-  const on = !ACCESS_RAW.enabled;
-  if (on && !(ACCESS_RAW.rules || []).length){
-    if (!await appConfirm(t('sm_enable_norules'), t('sm_turn_on'))) return;
-  } else if (!await appConfirm(t(on ? 'acc_on_confirm' : 'acc_off_confirm'), t(on ? 'acc_on_yes' : 'acc_off_yes'))) return;
-  const {ok, data} = await api('/api/access', {enabled: on, groups: ACCESS_RAW.groups || [], rules: ACCESS_RAW.rules || []});
-  if (!ok){ smMsg(errOf(data), 'err'); return; }
-  await loadAccess();
-  smMsg(data.warning || t('acc_saved'), data.warning ? 'err' : 'ok');
-  runCheck();
+/* ---------- новое устройство (ТЗ 28) ---------- */
+// ND_MODE: 'all' — видно всем и видит всех, 'none' — без доступа, пока не
+// отметят, '' — не выбрано (сервер до ТЗ 28: новым ничего не добавляется);
+// null — ещё не загружено. Общее для серверов сети.
+let ND_MODE = null;
+async function loadNewDev(){
+  const {ok, data} = await api('/api/access/newdevice');
+  if (ok) ND_MODE = data.mode || '';
+  renderNewDev();
 }
-
-// Включить простой режим. Ручные правила не трогаются никогда, кроме одного
-// случая с явного согласия: единственное правило «все → все» (так начинает
-// редактор) заменяется ролью «Моё» у всех — иначе галочкам нечего снимать.
-async function smEnable(){
-  const hand = smHand();
-  const by = smClients();
-  const lone = hand.length === 1 && hand[0].from === '*' && hand[0].to === '*' && !String(hand[0].ports || '').trim();
-  const strange = (ACCESS_RAW.groups || []).filter(g => smOwn(g) && !SM_ROLE_OF[g] && !(SM_PERSONAL.test(g) && by[g.slice(1)]));
-  const foreign = ((MESH && MESH.networks) || []).some(n => (n.devices || []).some(d => !by[d.user]));
-  let msg;
-  if (!hand.length) msg = t('sm_enable_empty');
-  else if (lone) msg = t('sm_enable_default') + (foreign ? '\n\n' + t('sm_enable_foreign') : '');
-  else msg = fill('sm_enable_hand', {n: hand.length});
-  if (strange.length) msg += '\n\n' + fill('sm_enable_strange', {list: strange.join(', ')});
-  if (!await appConfirm(msg, t('sm_enable_yes'))) return;
-  const keep = lone ? [] : hand;
-  const w = smDecode();
-  // При смене «все → все» таблица считается заново: роль «Моё» у всех.
-  Object.keys(w.roles).forEach(u => { if (!w.roles[u]) w.roles[u] = 'mine'; });
-  if (lone || !hand.length){
-    Object.keys(w.M).forEach(a => Object.keys(w.M[a]).forEach(b => {
-      w.M[a][b] = w.roles[a] === 'mine' && (b === SRV || w.roles[b] !== 'guest');
-    }));
+function renderNewDev(){
+  const shown = ND_MODE || (ND_MODE === '' && !ACCESS_RAW.enabled ? 'all' : '');
+  document.querySelectorAll('input[name="smNewDev"]').forEach(r => { r.checked = r.value === shown; });
+  $('smNewDevNote').hidden = shown !== '' || ND_MODE === null;
+  $('smNewDevNote').textContent = t('nd_legacy');
+}
+async function ndSave(mode, quiet){
+  const {ok, data} = await api('/api/access/newdevice', {mode});
+  if (!ok){ toast(errOf(data), 'err'); renderNewDev(); return false; }
+  ND_MODE = mode;
+  renderNewDev();
+  if (!quiet) smMsg(t(mode === 'all' ? 'nd_saved_all' : 'nd_saved_none'), 'ok');
+  return true;
+}
+document.querySelectorAll('input[name="smNewDev"]').forEach(r => r.addEventListener('change', async () => {
+  if (!r.checked) return;
+  if (!await ndSave(r.value)) return;
+  // «Без доступа»: при выключенных правилах новое устройство увидело бы
+  // всех, а правила «→ *» и «~all» открывают путь к новым. Записываем доску
+  // как есть заново — у тех, кто уже есть, ничего не меняется.
+  if (r.value === 'none' && CLIENTS_READY && (!ACCESS_RAW.enabled ||
+      (ACCESS_RAW.rules || []).some(x => smOwnRule(x) && (x.to === '*' || x.to === SM_NEWALL)))){
+    const w = smCur();
+    await smSaveNow(w.M, w.roles);
+    renderSimple();
   }
-  await smSaveNow(w.M, w.roles, keep);
-}
+}));
 
 /* ---------- проверка «может ли A к B» ---------- */
 const CK_PORTS = [[22, 'port_ssh'], [3389, 'port_rdp'], [47835, 'port_files'], [47837, 'port_clip'], [0, 'port_any']];
@@ -685,10 +759,6 @@ async function runCheck(){
   v.textContent = text;
 }
 ['ckFrom', 'ckTo', 'ckPort'].forEach(id => $(id).addEventListener('change', runCheck));
-$('smEnableBtn').addEventListener('click', smEnable);
-// «Расширенное: группы и правила» — вкладка «Расширенный» (ТЗ 23); карточка
-// правил там видна всегда.
-$('accessCard').hidden = false;
 $('accAdvBtn').addEventListener('click', () => { showSub('Access', 'adv'); scrollTo(0, 0); });
 // evText16 — записи журнала об одобрении, заморозке и цепочке; '' — не наши.
 function evText16(e, d){
@@ -713,16 +783,7 @@ function renderDevAccess(box, d){
   part.appendChild(h);
   if (!d.user){ part.appendChild(el('p', 'note', t('old_meshd'))); box.appendChild(part); return; }
   if (!by[d.user]){ part.appendChild(el('p', 'note', t('sm_locked_foreign'))); box.appendChild(part); return; }
-  if (!smActive()){
-    part.appendChild(el('p', 'note', t('sm_dev_inactive')));
-    const go = el('button', 'btn ghost small', t('sm_open_access'));
-    go.addEventListener('click', () => showTab('Access'));
-    part.appendChild(go);
-    box.appendChild(part);
-    return;
-  }
   const w = smCur(), a = d.user;
-  if (!ACCESS_RAW.enabled) part.appendChild(el('p', 'msg err', t('sm_off_d')));
   const mates = meshDevices().filter(x => x.user === a && x.id !== d.id);
   if (mates.length) part.appendChild(el('p', 'note', fill('sm_dev_shared', {list: mates.map(x => x.display).join(', ')})));
 
@@ -767,6 +828,22 @@ function renderDevAccess(box, d){
   box.appendChild(part);
 }
 
+/* ---------- высота по окну ---------- */
+// Доска и журнал занимают окно до низа: длинное листается внутри них, а не
+// вся страница (ТЗ 28).
+function accFit(){
+  const phone = matchMedia('(max-width:760px)').matches;
+  const pad = phone ? 100 : 44;
+  const fit = (node, min, prop) => {
+    if (!node || !node.offsetParent) return;
+    const top = node.getBoundingClientRect().top + scrollY;
+    node.style[prop] = Math.max(min, Math.floor(innerHeight - top - pad)) + 'px';
+  };
+  fit($('smTable'), 240, 'maxHeight');
+  fit($('journal'), 260, 'height');
+}
+addEventListener('resize', () => { if (TAB === 'Access') accFit(); });
+
 /* ---------- события каркаса ---------- */
 onPanel('lang', () => {
   // Справка — те же тексты, что в «?» (свои строки, не ввод людей).
@@ -776,11 +853,15 @@ onPanel('lang', () => {
   if (!$('viewMain').hidden) renderJournal();
 });
 // Группы нужны редактору правил — грузим при каждом открытии раздела.
-onPanel('show:Access', () => loadAccess());
-onPanel('sub:Access', () => remesh());
+onPanel('show:Access', () => { loadAccess(); requestAnimationFrame(accFit); });
+onPanel('sub:Access', sub => {
+  remesh();
+  requestAnimationFrame(() => { accFit(); if (sub === 'journal') renderJournal(); });
+});
 onPanel('clients', first => { if (first) renderSimple(); });
 onPanel('access', raw => {
   ACCESS_RAW = raw;
+  loadNewDev(); // выбор общий — мог поменяться на другом сервере
   renderAccess();
   renderSimple();
 });

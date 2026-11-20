@@ -41,14 +41,14 @@ func TestВкладкиРазделовСходятся(t *testing.T) {
 	secRe := regexp.MustCompile(`(?s)<section id="tab(\w+)".*?</section>`)
 	btnRe := regexp.MustCompile(`<button type="button" data-sub="(\w+)" data-i18n="(\w+)">`)
 	subRe := regexp.MustCompile(`<div class="sub" data-sub="(\w+)"`)
-	bars := 0
+	bars := map[string]bool{}
 	for _, m := range secRe.FindAllStringSubmatch(page, -1) {
 		sec := m[0]
 		i := strings.Index(sec, `<div class="subtabs" data-tab="`+m[1]+`">`)
 		if i < 0 {
 			continue
 		}
-		bars++
+		bars[m[1]] = true
 		subs := map[string]bool{}
 		for _, s := range subRe.FindAllStringSubmatch(sec, -1) {
 			subs[s[1]] = true
@@ -66,8 +66,9 @@ func TestВкладкиРазделовСходятся(t *testing.T) {
 			t.Errorf("%s: блок %s без вкладки", m[1], s)
 		}
 	}
-	if bars != 4 {
-		t.Errorf("разделов с вкладками %d, ждали 4 (Доступ, Сети, Настройки, Плагины)", bars)
+	// ТЗ 28: «Сети» — одна страница без вкладок; «Плагины» решает ТЗ 29.
+	if !bars["Access"] || !bars["Settings"] || bars["Mesh"] {
+		t.Errorf("разделы с вкладками %v: ждали «Доступ» и «Настройки», «Сети» — без вкладок", bars)
 	}
 }
 

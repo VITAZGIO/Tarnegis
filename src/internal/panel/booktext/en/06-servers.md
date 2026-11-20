@@ -8,10 +8,9 @@ one. A device stays connected to all servers of the network at once.
 
 You need two servers with the panel: one already works, the other is new.
 
-1. On any server already in the network: **Networks** → the **Servers** tab → **Servers of the
-   network** → **Add a server**. The panel shows a code and a **Copy**
+1. On any server already in the network: **Networks** → **Servers of the network** → **Add a server**. The panel shows a code and a **Copy**
    button. The code is one-time and valid for an hour.
-2. On the new server: **Networks** → the **Servers** tab → **Servers of the network** → **Join a
+2. On the new server: **Networks** → **Servers of the network** → **Join a
    network**. Paste the code and press **Next**.
 3. The panel shows what changes on the new server, with numbers. For example:
    "rules replaced here: 4; accounts added here: 6". Press **Join the
@@ -98,7 +97,7 @@ If a server runs an old panel, its devices are not visible: it is marked
 
 ## Rename a server
 
-**Networks** → **Servers** → the pencil next to any server's name → new name →
+**Networks** → **Servers of the network** → the pencil next to any server's name → new name →
 **Enter** → confirm. The name is shared: all panels, the map and the devices
 see it. The name in the device network (`name.mesh`) changes by the same rules
 as before.

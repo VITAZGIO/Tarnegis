@@ -56,6 +56,7 @@ type demoBackend struct {
 
 	clients  []Client
 	access   AccessSettings
+	newDev   string // «Новое устройство» (ТЗ 28)
 	nets     []*MeshNetwork
 	servers  []MeshServer
 	self     meshsvc.Self
@@ -713,6 +714,7 @@ func (d *demoBackend) routes() http.Handler {
 			pub, priv, err = generateKeyPair()
 			c := Client{ID: u, Username: u, Name: name, DeviceType: DeviceType(req.DeviceType), CreatedAt: time.Now(),
 				State: StateActive, PublicKey: pub, PrivateKey: priv}
+			c.Groups = newDeviceGrant(&d.access, d.newDev, c.Groups)
 			if err == nil {
 				d.clients = append(d.clients, c)
 				resp := map[string]any{"ok": true, "client": c}

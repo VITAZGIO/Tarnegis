@@ -224,6 +224,11 @@ func (s *Server) selfCreate(r *http.Request, password, name string, dt DeviceTyp
 		return Client{}, fmt.Errorf("%w: %v", errSelfBadInput, err)
 	}
 	log.Printf("создание пользователя: %s (%s) завёл %s (%s)", creator.Name, creator.ID, c.Name, c.ID)
+	// «Новое устройство» в «Доступе» (ТЗ 28).
+	s.grantNewDevice(r.Context(), c)
+	if fresh, ok := s.clients.Get(c.ID); ok {
+		c = fresh
+	}
 	if len(c.Groups) > 0 {
 		if err := s.pushPolicy(r.Context()); err != nil {
 			log.Printf("права доступа: meshd не принял политику: %v", err)

@@ -4,6 +4,12 @@ The journal shows what happened in the device network: who connected and
 disconnected, who was refused by access rules, what was renamed and deleted. It is
 in the **Access** section, on the **Journal** tab.
 
+The journal looks like a console window: new lines are at the bottom. If you
+scrolled up to read, it does not jump, and a **↓ to latest** button appears at
+the bottom. The **Copy** and **Save .txt** buttons export what is shown now
+(with the filter applied), with full date and time — to the clipboard or to a
+file.
+
 ## Filters
 
 Above the journal there are three buttons:

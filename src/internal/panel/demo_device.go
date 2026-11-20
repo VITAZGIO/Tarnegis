@@ -251,4 +251,22 @@ func (d *demoBackend) deviceRoutes(h func(string, func(http.ResponseWriter, *htt
 		d.access = req.AccessSettings
 		writeJSON(w, http.StatusOK, ok)
 	})
+	h("/api/access/newdevice", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			writeJSON(w, http.StatusOK, map[string]string{"mode": d.newDev})
+			return
+		}
+		var req struct {
+			Mode string `json:"mode"`
+		}
+		if !decodePost(w, r, &req) {
+			return
+		}
+		if req.Mode != NewDeviceAll && req.Mode != NewDeviceNone {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errBadNewDevice.Error()})
+			return
+		}
+		d.newDev = req.Mode
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": req.Mode})
+	})
 }
