@@ -435,6 +435,19 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
+// handleQuit — «Выход» в трее окна службы (VPN-версия Windows): служба
+// остаётся, туннель и сеть устройств — нет. См. app.QuitWindow.
+func (s *Server) handleQuit(w http.ResponseWriter, r *http.Request) {
+	s.app.QuitWindow()
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// handleWindowOpened — окно службы открылось (после «Выхода» — подключиться
+// по настройкам запуска). См. app.WindowOpened.
+func (s *Server) handleWindowOpened(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]bool{"ok": true, "started": s.app.WindowOpened()})
+}
+
 // handleBypass — большая кнопка, когда у сервера есть сеть устройств:
 // выключает только обход блокировок, оставляя сеть (см. app.SetBypass).
 func (s *Server) handleBypass(w http.ResponseWriter, r *http.Request) {
