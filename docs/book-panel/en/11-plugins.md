@@ -5,9 +5,32 @@ are the same as in the program on a device, but they live on the server. They ar
 served by a separate process, `ssh_tunnel_node`. It runs without root rights and
 keeps its data in its own folder.
 
-Plugins are switched on with ticks, after the **plugin host** is installed (the
-**Install plugin host** button). The **Remove** button removes the host. The data
-stays, unless the **Also delete plugin data (folders, clipboard)** tick is set.
+First the **plugin host** is installed — the **Install plugin host** button in
+the line above the plugins. After that it works like in the program on a device:
+
+- The section is a **grid of cards** of the added plugins. A card has an icon,
+  the name and one line: whether the plugin works and how much space it uses.
+  The last card is **«+»**.
+- **«+»** opens the catalogue: every plugin of the server with a short
+  description and an **Add** button. An added plugin shows up as a card at once.
+- **A card** opens the plugin's page: what it does, which networks can use it,
+  its settings and the data of each network. The browser's or the mouse's
+  **Back** button returns to the grid.
+- **Remove a plugin** — on its page or in the **«…»** menu of its card. **Remove
+  plugin** only switches it off: the data stays, add it again and everything is
+  back. **Remove and erase data** also erases its data in every network of the
+  server. This cannot be undone.
+
+The **Plugin host** line above the grid shows whether the host works and how much
+of the shared quota is used. The **Host and space** button leads to the «+» page:
+the shared quota, **Update**, **Remove** (data stays) and **Remove and delete
+data**, the plugin log.
+
+There used to be a «Networks on the server» tab. It held the plugin data by
+network: folders, clipboard, backups, machine history. Now this data is on each
+plugin's page, one block per network. A plugin is available to every network of
+the server, but each network has its own data. Which devices may reach a plugin
+is decided by the **Access** rules.
 
 The host works only when the device network is switched on on this server. While
 there is no network, or its service is too old, the plugins admit nobody. The
@@ -88,6 +111,6 @@ of the network are known.
 
 ## Data of a deleted network
 
-If a network was deleted but its data remains, the card says "Network deleted, data
-left". The data is never erased by itself. The **Delete data** button erases
+If a network was deleted but its data remains, a card "Network deleted, data left"
+appears above the plugin grid. The data is never erased by itself. The **Delete data** button erases
 folders, files, the clipboard and the backups. This cannot be undone.

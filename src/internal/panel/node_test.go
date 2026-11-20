@@ -68,6 +68,11 @@ type fakeNodeAPI struct {
 	// ТЗ 18: что просили сделать с доступом к папкам.
 	access   []nodeapi.AccessReq
 	migrated []nodeapi.MigrateReq
+	// ТЗ 29: общая папка сети («Файлы устройства») и что из неё стёрли;
+	// filesOld — хост старый, /files/clear не знает.
+	files        map[string]int64
+	filesCleared []string
+	filesOld     bool
 }
 
 func newFakeNodeAPI() *fakeNodeAPI {
@@ -82,7 +87,12 @@ func (a *fakeNodeAPI) State(context.Context) (nodeapi.State, error) {
 	}
 	st := nodeapi.State{Config: a.cfg, Meshd: "ok"}
 	for id, fs := range a.folders {
-		st.Networks = append(st.Networks, nodeapi.Network{ID: id, Folders: fs})
+		st.Networks = append(st.Networks, nodeapi.Network{ID: id, Folders: fs, FilesBytes: a.files[id]})
+	}
+	for id, b := range a.files {
+		if _, ok := a.folders[id]; !ok {
+			st.Networks = append(st.Networks, nodeapi.Network{ID: id, FilesBytes: b})
+		}
 	}
 	return st, nil
 }
@@ -91,6 +101,15 @@ func (a *fakeNodeAPI) SetConfig(_ context.Context, p nodeapi.ConfigPatch) (nodea
 	a.mu.Lock()
 	if p.Mirror != nil {
 		a.cfg.Mirror = *p.Mirror
+	}
+	if p.Files != nil {
+		a.cfg.Files = *p.Files
+	}
+	if p.FilesWrite != nil {
+		a.cfg.FilesWrite = *p.FilesWrite
+	}
+	if p.Clipboard != nil {
+		a.cfg.Clipboard = *p.Clipboard
 	}
 	if p.QuotaMB != nil {
 		a.cfg.QuotaMB = *p.QuotaMB
@@ -145,6 +164,17 @@ func (a *fakeNodeAPI) CheckSite(_ context.Context, r nodeapi.SiteReq) (json.RawM
 }
 
 func (a *fakeNodeAPI) ClearMachines(context.Context, string) error { return nil }
+
+func (a *fakeNodeAPI) ClearFiles(_ context.Context, netID string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.filesOld {
+		return errors.New("404 Not Found")
+	}
+	a.filesCleared = append(a.filesCleared, netID)
+	delete(a.files, netID)
+	return nil
+}
 
 func (a *fakeNodeAPI) SetFolderAccess(_ context.Context, r nodeapi.AccessReq) error {
 	a.mu.Lock()

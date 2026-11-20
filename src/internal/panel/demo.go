@@ -1431,6 +1431,54 @@ func (d *demoBackend) routes() http.Handler {
 		delete(d.nodeBackups, req.Net)
 		writeJSON(w, http.StatusOK, ok)
 	})
+	// «Убрать плагин» (ТЗ 29): выключить и, если просили, стереть его данные.
+	h("/api/node/plugin/remove", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Plugin     string `json:"plugin"`
+			DeleteData bool   `json:"deleteData"`
+		}
+		if !decodePost(w, r, &req) {
+			return
+		}
+		c := &d.nodeConfig
+		switch req.Plugin {
+		case nodeapi.PluginMirror:
+			c.Mirror = false
+			if req.DeleteData {
+				d.nodeFolders = map[string][]nodeapi.Folder{}
+			}
+		case nodeapi.PluginFiles:
+			c.Files, c.FilesWrite = false, false
+		case nodeapi.PluginClipboard:
+			c.Clipboard = false
+			if req.DeleteData {
+				d.nodeClipboard = map[string]int{}
+			}
+		case nodeapi.PluginBackup:
+			c.Backup = false
+			if req.DeleteData {
+				d.nodeBackups = map[string][]nodeapi.BackupSet{}
+			}
+		case nodeapi.PluginMachines:
+			c.Machines = false
+			if req.DeleteData {
+				for _, n := range d.nets {
+					d.nodeMachClear[n.ID] = true
+				}
+			}
+		case nodeapi.PluginAdblock:
+			c.Adblock = false
+			if req.DeleteData {
+				d.nodeAd = nodeapi.AdblockState{}
+			}
+		case nodeapi.PluginSitecheck:
+			c.Sitecheck = false
+		default:
+			replyErr(w, fmt.Errorf("нет такого плагина: %q", req.Plugin), nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, d.nodeStatus().State)
+	})
 	h("/api/node/fix", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Code string `json:"code"`

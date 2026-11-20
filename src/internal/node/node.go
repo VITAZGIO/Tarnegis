@@ -1195,6 +1195,22 @@ func (h *Host) ClearClipboard(netID string) error {
 	return nil
 }
 
+// ClearFiles — стереть общую папку сети плагина «Файлы устройства» (панель,
+// «Убрать плагин» вместе с данными, ТЗ 29). Сама папка создастся заново,
+// когда устройство снова к ней придёт.
+func (h *Host) ClearFiles(netID string) error {
+	nd, err := h.netFor(netID)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(nd.dir, "files")); err != nil {
+		return err
+	}
+	h.event(nodeapi.Event{Plugin: nodeapi.PluginFiles, Net: nd.id, Text: "общая папка стёрта из панели"})
+	h.recount()
+	return nil
+}
+
 // DeleteBackup — убрать резервную копию устройства (панель).
 func (h *Host) DeleteBackup(req nodeapi.BackupReq) error {
 	nd, err := h.netFor(req.Net)
@@ -1365,6 +1381,15 @@ func (h *Host) ControlHandler() http.Handler {
 			return nil, err
 		}
 		return ok, h.ClearClipboard(req.Net)
+	})
+	post("/files/clear", func(b []byte) (any, error) {
+		var req struct {
+			Net string `json:"net"`
+		}
+		if err := json.Unmarshal(b, &req); err != nil {
+			return nil, err
+		}
+		return ok, h.ClearFiles(req.Net)
 	})
 	return mux
 }

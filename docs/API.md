@@ -442,6 +442,13 @@ meshd: `{id,name,host,user,online,gone,folders}`); `POST /api/node/folder/access
 - `POST /api/node/sitecheck` `{"site","lang"}` — проверка с сервера, ответ —
   как у устройств (`{site,host,server:{steps…},verdict,text}`).
 - `POST /api/node/machines/clear` `{"net"}` — стереть историю машин сети.
+- `POST /api/node/plugin/remove` `{"plugin":"mirror|files|clipboard|backup|machines|adblock|sitecheck","deleteData":bool}`
+  → `state` (ТЗ 29) — убрать плагин: выключить; с `deleteData` — ещё и
+  стереть его данные во всех сетях сервера (папки, общую папку, буфер,
+  копии, историю машин, свой список блокировки). Добавить плагин —
+  `POST /api/node/config` `{"<плагин>":true}`. Хост плагинов: новая операция
+  управляющего входа `POST /files/clear {"net"}`; старый хост её не знает —
+  панель просит нажать «Обновить» у хоста плагинов.
 
 ## Трафик, сканер, буфер (ТЗ 5)
 
