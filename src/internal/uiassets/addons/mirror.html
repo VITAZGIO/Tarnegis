@@ -126,7 +126,7 @@ set('tabTrash', L('Корзина и версии', 'Trash & versions'));
 set('tabConf', L('Конфликты', 'Conflicts'));
 set('tabAcc', L('Доступ', 'Access'));
 set('accTitle', L('Доступ к папкам', 'Folder access'));
-$('accReload').innerHTML = icon('refresh') + esc(L('Обновить', 'Refresh'));
+$('accReload').innerHTML = icon('refresh') + esc(L('Обновить список устройств', 'Refresh device list'));
 set('accHint', L('Новое устройство сети не видит раздаваемых папок, пока ему их не отметят. Нажми устройство и отметь папки — сохраняется сразу.',
   'A new device of the network sees no shared folders until they are ticked for it. Tap a device and tick folders — saved at once.'));
 set('loading', L('Загружаю…', 'Loading…'));
@@ -356,7 +356,7 @@ function drawAccess(){
   if(!a.ids) w.textContent = L('Сеть не сообщает id устройств — обнови meshd на сервере сети. До этого прежние папки видны всем, как раньше, а новые — никому.',
     'The network does not report device ids — update meshd on the network server. Until then old folders stay visible to all, as before, and new ones to nobody.');
   const box = $('accList'); box.innerHTML = '';
-  if(!a.devices.length) box.innerHTML = `<div class="empty" style="padding:12px">${esc(L('Других устройств в сети нет. Появилось новое — нажми «Обновить».', 'No other devices in the network. A new one appeared — press Refresh.'))}</div>`;
+  if(!a.devices.length) box.innerHTML = `<div class="empty" style="padding:12px">${esc(L('Других устройств в сети нет. Появилось новое — нажми «Обновить список устройств».', 'No other devices in the network. A new one appeared — press «Refresh device list».'))}</div>`;
   let group = null;
   for(const d of a.devices){
     const g = d.server ? 'srv' : 'dev';

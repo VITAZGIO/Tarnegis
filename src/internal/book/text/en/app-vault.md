@@ -1,8 +1,17 @@
 # Passwords
 
 Your passwords on all your devices under one **master password** (not stored
-anywhere). Use the same master password on your other devices — entries sync
-over the device network. The vault is encrypted (AES-256).
+anywhere). There is one vault per device network: on another device
+«Passwords» finds it («Your network has a password vault») — enter the same
+master password and it opens there; entries then sync over the device network.
+«Create a new vault» makes a **separate** vault — usually not what you want.
+The vault is encrypted (AES-256).
+
+- **Two vaults in one network** (made before): the open vault shows «Another
+  password vault in your network» — enter that vault's master password →
+  «Merge». Entries of both end up here; devices with the other vault switch to
+  this one by themselves on their next sync and then open with this vault's
+  master password.
 
 - **Phone**: choose ssh_tunnel as the autofill service — your logins appear in
   any app's login fields; new passwords are offered for saving.

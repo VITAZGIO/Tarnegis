@@ -25,7 +25,7 @@ const tmpPrefix = ".~mirror-"
 
 // hashFile — sha256 файла и его размер.
 func hashFile(p string) (string, int64, error) {
-	f, err := os.Open(p)
+	f, err := openShared(p)
 	if err != nil {
 		return "", 0, err
 	}
@@ -224,3 +224,18 @@ var errBusy = errors.New("файл меняется, повтор позже")
 // верить нельзя, читать заново. Сравниваются часы того же устройства, что
 // ставило время файлу, так что сбитые часы тут не мешают.
 func fresh(st stat) bool { return time.Since(time.Unix(0, st.MTime)) < 3*time.Second }
+
+// junkName — наш временный файл (докачка, подмена) или системный мусор
+// проводника. Его можно удалить вместе с папкой, которую удалили на другом
+// устройстве: человеку он не нужен, а из-за него папка не удалялась и
+// возвращалась на сервер (ТЗ 33).
+func junkName(name string) bool {
+	if strings.HasPrefix(name, tmpPrefix) {
+		return true
+	}
+	switch strings.ToLower(name) {
+	case "thumbs.db", "desktop.ini", ".ds_store":
+		return true
+	}
+	return false
+}

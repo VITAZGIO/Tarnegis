@@ -322,7 +322,11 @@ class Settings(context: Context) {
         private set(v) = prefs.edit().putString("meshAutoSeen", v).apply()
 
     /** Что поменял ответ mobile.ApplyNetServers — для уведомления. */
-    data class NetServersChange(val added: List<String>, val off: List<String>, val meshOn: List<String>)
+    data class NetServersChange(
+        val added: List<String>, val off: List<String>, val meshOn: List<String>,
+        /** Не сохранённые здесь новые серверы и почему — для журнала (ТЗ 33). */
+        val skipped: List<String> = emptyList(),
+    )
 
     /**
      * Сохраняет ответ mobile.ApplyNetServers (ТЗ 26). Решал общий код Go
@@ -337,23 +341,35 @@ class Settings(context: Context) {
         val o = JSONObject(json)
         val arr = o.optJSONArray("profiles") ?: return null
         val list = profiles
+        val skipped = mutableListOf<String>()
+        val skippedAuto = mutableListOf<String>()
         for (i in 0 until arr.length()) {
             val po = arr.getJSONObject(i)
             val id = po.optString("id")
             if (id.isBlank()) continue
             val known = list.find { it.id == id }
             if (known != null) {
-                known.meshEnabled = po.optBoolean("meshEnabled", known.meshEnabled)
-                known.meshKey = po.optString("meshKey", known.meshKey)
-                known.meshOnlyThis = po.optBoolean("meshOnlyThis", known.meshOnlyThis)
-                known.meshAuto = po.optString("meshAuto", known.meshAuto)
+                // Go отдаёт профиль целиком, но пустые и false поля опускает
+                // (omitempty): нет поля — значит false / пусто, а не «как
+                // было». Раньше «выключить убранный сервер» и «сеть
+                // устройств не только через этот» терялись (ТЗ 33).
+                known.meshEnabled = po.optBoolean("meshEnabled", false)
+                known.meshKey = po.optString("meshKey", "")
+                known.meshOnlyThis = po.optBoolean("meshOnlyThis", false)
+                known.meshAuto = po.optString("meshAuto", "")
                 continue
             }
             // Новый: ищем профиль-образец по его файлу ключа (keyPath в
             // coreProfilesJson — keyFile(id)). Без образца ключа нет — не
             // добавляем: подключиться всё равно было бы нечем.
             val keyPath = po.optString("keyPath")
-            val base = list.find { keyFile(it.id).absolutePath == keyPath } ?: continue
+            val newName = po.optString("name").ifBlank { po.optString("host") }
+            val base = list.find { keyFile(it.id).absolutePath == keyPath }
+            if (base == null) {
+                skipped.add("$newName: не найден профиль-образец с ключом ($keyPath)")
+                skippedAuto.add(po.optString("meshAuto"))
+                continue
+            }
             val p = base.copy(
                 id = id,
                 name = po.optString("name").ifBlank { po.optString("host") },
@@ -373,18 +389,29 @@ class Settings(context: Context) {
             if (src.exists()) {
                 try {
                     saveKeyFor(id, src.readText())
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    skipped.add("$newName: ключ не скопирован (${e.message})")
+                    skippedAuto.add(po.optString("meshAuto"))
                     continue
                 }
             }
             list.add(p)
         }
         saveAll(list, activeProfileId.ifBlank { list.first().id })
-        o.optJSONArray("seen")?.let { meshAutoSeenJson = it.toString() }
+        // Не сохранённый здесь сервер не помечаем «уже добавляли»: иначе Go
+        // считал бы его удалённым человеком и больше не предлагал.
+        o.optJSONArray("seen")?.let { seen ->
+            val keep = JSONArray()
+            for (i in 0 until seen.length()) {
+                val k = seen.optString(i)
+                if (skippedAuto.none { it.isNotBlank() && (k == it || k.startsWith("$it@")) }) keep.put(k)
+            }
+            meshAutoSeenJson = keep.toString()
+        }
         fun names(key: String): List<String> = o.optJSONArray(key)?.let { a ->
             (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
         } ?: emptyList()
-        return NetServersChange(names("added"), names("off"), names("meshOn"))
+        return NetServersChange(names("added"), names("off"), names("meshOn"), skipped)
     }
 
     fun keyFile(profileId: String): File {
