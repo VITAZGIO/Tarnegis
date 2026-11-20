@@ -157,7 +157,11 @@ func (s *Server) SelfServiceHandler() http.Handler {
 			writeJSON(w, http.StatusOK, map[string]any{"devices": []MapDevice{}})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"devices": callerMap(s.mesh.State(r.Context()), c.Username)})
+		st := s.mesh.State(r.Context())
+		// servers и serverLinks (ТЗ 32) — линии сервер—сервер для карты
+		// программы, как на схеме панели. Старые программы поля не читают.
+		writeJSON(w, http.StatusOK, map[string]any{"devices": callerMap(st, c.Username),
+			"servers": mapServers(st), "serverLinks": st.ServerLinks})
 	})
 	mux.HandleFunc("/v1/create", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -248,6 +252,22 @@ type MapDevice struct {
 	Quality  string               `json:"quality,omitempty"`
 	LastSeen int64                `json:"lastSeen,omitempty"`
 	Direct   []meshsvc.DirectLink `json:"direct,omitempty"`
+}
+
+// MapServer — сервер сети серверов для карты программы (ТЗ 32): id из
+// serverLinks и имя, по которому программа узнаёт его среди устройств.
+type MapServer struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Online bool   `json:"online"`
+}
+
+func mapServers(st MeshState) []MapServer {
+	out := []MapServer{}
+	for _, v := range st.ServerNet.Servers {
+		out = append(out, MapServer{ID: v.ID, Name: v.Name, Online: v.Online || v.Self})
+	}
+	return out
 }
 
 // callerMap — устройства той сети, где есть устройство пользователя user.

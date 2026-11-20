@@ -82,6 +82,9 @@ type App struct {
 	modes core.Modes
 	// hardStop — следующее снятие связи без слива: выход из программы.
 	hardStop atomic.Bool
+	// quitSeq — «Выход» в окне службы (QuitWindow): номер последнего
+	// действия человека в тот момент + 1; 0 — выхода не было.
+	quitSeq atomic.Uint64
 	// linkDetail — подробность последнего состояния связи (адрес сервера).
 	linkDetail string
 	// sysProxyArgs — с чем включать системный прокси (адреса локальных
@@ -154,6 +157,9 @@ func New(cfg config.Config) *App {
 	}
 	a.meshHost = tunnel.NewMeshHost(tunnel.MeshLog(a.Bus))
 	a.meshLinks = tunnel.NewMeshLinks(a.meshHost, tunnel.MeshLog(a.Bus))
+	for _, n := range config.TakeMigrationNotes() {
+		a.Bus.Infof("Настройки: %s", n)
+	}
 	a.machine = core.NewMachine((*driver)(a), core.Options{
 		Save:      a.saveWant,
 		Changed:   a.publishState,
@@ -232,6 +238,11 @@ func (a *App) ReplaceConfig(cfg config.Config) error {
 
 func (a *App) SetConfig(cfg config.Config) (string, error) {
 	a.mu.Lock()
+	if a.cfg.PrefsV >= config.PrefsVersion {
+		// Прислали настройки старого формата (без prefs) — переезд, как при
+		// загрузке, иначе общие настройки потерялись бы до перезапуска.
+		cfg.MigratePrefs()
+	}
 	old, running := a.cfg, a.running
 	a.cfg = cfg
 	tun := a.tun
@@ -439,6 +450,32 @@ func (a *App) StopNow() {
 	// Связь могла подниматься мимо ядра (переход на запасной сервер) —
 	// добиваем всё, что осталось.
 	a.stop(false)
+}
+
+// QuitWindow — «Выход» в трее окна VPN-версии Windows. Ядро живёт в
+// службе, и её процесс остаётся (это служба Windows), но туннель и сеть
+// устройств выключаются — как при выходе из программы: резко и без
+// запоминания выбора человека («как при закрытии» вернёт то, что было).
+func (a *App) QuitWindow() {
+	a.quitSeq.Store(a.machine.HumanSeq() + 1)
+	a.Bus.Infof("Выход из окна: туннель и сеть устройств выключены, служба ждёт окно")
+	a.StopNow()
+}
+
+// WindowOpened — окно службы открылось. Если до этого был «Выход» и с тех
+// пор кнопки никто не трогал, включаем их по настройкам запуска — как при
+// запуске программы. true — запуск начат.
+func (a *App) WindowOpened() bool {
+	q := a.quitSeq.Swap(0)
+	if q == 0 || a.machine.HumanSeq()+1 != q {
+		return false
+	}
+	cfg := a.Config()
+	if !cfg.ConnectOnStart(cfg.AutoStart) || cfg.Active().Host == "" {
+		return false
+	}
+	go a.StartOnLaunch()
+	return true
 }
 
 // startLink поднимает связь с сервером (core.Driver.Connect). Без автовыбора

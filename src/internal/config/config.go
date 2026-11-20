@@ -118,6 +118,13 @@ type Profile struct {
 	IPVersion         string `json:"ipVersion,omitempty"`
 	ShareLAN          bool   `json:"shareLan,omitempty"`
 
+	// OwnRules — «Свои правила для этого сервера» (ТЗ 32): правила
+	// (списки, программы, локальная сеть) и тонкая настройка связи берутся из
+	// полей профиля, а не из общих настроек программы (Config.Prefs). По
+	// умолчанию выключено. Для чего: серверу внутри страны нужна другая
+	// маршрутизация, чем зарубежному.
+	OwnRules bool `json:"ownRules,omitempty"`
+
 	// ExitVia — «Выход через» (цепочка выхода, ТЗ 8): id других профилей
 	// по порядку, от 0 до MaxExitHops. Подключаемся к этому серверу, а в
 	// интернет выходим только через последний из списка; он недоступен —
@@ -182,6 +189,8 @@ func (c Config) ExitChain(p Profile) []Profile {
 			hop = Profile{ID: id, Name: "нужен профиль сервера " + key}
 		} else if !ok {
 			hop = Profile{ID: id, Name: "удалённый сервер"}
+		} else {
+			hop = c.Resolve(hop)
 		}
 		out = append(out, hop)
 	}
@@ -374,6 +383,14 @@ type Config struct {
 	AdBlockSources   string `json:"adBlockSources,omitempty"`
 	AdBlockAllowlist string `json:"adBlockAllowlist,omitempty"`
 
+	// Prefs — настройки программы, одни на все серверы (ТЗ 32): списки
+	// «напрямую»/«через сервер», программы, имя устройства, тонкая настройка
+	// связи. Поля профиля с теми же именами — его «свои правила»
+	// (Profile.OwnRules) и чтение старых настроек. PrefsV — версия раздела:
+	// 0 — конфиг старого формата, при загрузке он переезжает (MigratePrefs).
+	Prefs  Prefs `json:"prefs"`
+	PrefsV int   `json:"prefsV,omitempty"`
+
 	// Language — язык интерфейса панели: "ru" или "en".
 	Language string `json:"language"`
 	// ShowServerPicker — показывать ли на главном экране виджет с текущим
@@ -450,7 +467,10 @@ func (c Config) MeshOnStart(legacy bool) bool {
 // ActiveProfile почему-то не указывает ни на один известный профиль (файл
 // правили руками, id устарел), возвращается первый — так подключаться есть
 // куда, а не в никуда.
-func (c Config) Active() Profile {
+func (c Config) Active() Profile { return c.Resolve(c.rawActive()) }
+
+// rawActive — активный профиль как он лежит в файле (без общих настроек).
+func (c Config) rawActive() Profile {
 	for _, p := range c.Profiles {
 		if p.ID == c.ActiveProfile {
 			return p
@@ -480,7 +500,7 @@ func (c Config) MeshServers(p Profile) []Profile {
 			continue
 		}
 		seen[addr] = true
-		out = append(out, q)
+		out = append(out, c.Resolve(q))
 	}
 	return out
 }
@@ -549,6 +569,8 @@ func Default() Config {
 		SysProxy:      true,
 		SetEnvVars:    true,
 		Language:      "ru",
+		Prefs:         prefsOf(p),
+		PrefsV:        PrefsVersion,
 	}
 }
 
@@ -565,6 +587,10 @@ func NewProfile(name, flag string) Profile {
 	return p
 }
 
+// defaultPoolSize — каналов SSH у нового сервера и при «авто» в общих
+// настройках.
+const defaultPoolSize = 4
+
 func defaultProfile(n int) Profile {
 	name := "Сервер " + itoa(n)
 	return Profile{
@@ -578,7 +604,7 @@ func defaultProfile(n int) Profile {
 		SSHPort:    22,
 		SocksPort:  1080,
 		HTTPPort:   1081,
-		PoolSize:   4,
+		PoolSize:   defaultPoolSize,
 		FilterMode: "all",
 	}
 }
@@ -768,6 +794,8 @@ func Load() Config {
 		return cfg // битый конфиг не должен ронять запуск
 	}
 	if _, hasProfiles := raw["profiles"]; hasProfiles {
+		// Файл без раздела prefs — старого формата: переезжает в normalize.
+		cfg.Prefs, cfg.PrefsV = Prefs{}, 0
 		_ = json.Unmarshal(data, &cfg)
 	} else {
 		cfg = migrateLegacy(data)
@@ -781,6 +809,7 @@ func Load() Config {
 // нерабочее — исправлено.
 func Parse(data []byte) (Config, error) {
 	cfg := Default()
+	cfg.Prefs, cfg.PrefsV = Prefs{}, 0 // снимок без prefs — старого формата
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
@@ -815,6 +844,8 @@ func (c *Config) normalize() {
 	for i := range c.Profiles {
 		c.Profiles[i].ExitVia = c.cleanExitVia(c.Profiles[i])
 	}
+	c.MigratePrefs()
+	c.Prefs.normalize()
 	if c.Language != "en" {
 		c.Language = "ru"
 	}

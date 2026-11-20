@@ -27,6 +27,10 @@
   .edge.srv{stroke-width:2.6}
   .edge.srv.on{stroke-dasharray:9 8;animation-duration:.9s}
   .edge.off{stroke:var(--dim);opacity:.28;stroke-dasharray:2 6}
+  /* Устройство на связи и через другие серверы — к ним пунктир (ТЗ 32);
+     офлайн — едва заметная линия к серверу, который видел его последним. */
+  .edge.alt.on{stroke-dasharray:3 7;opacity:.6}
+  .edge.faint{opacity:.13}
   /* Прямое соединение между устройствами (минуя сервер). */
   .edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;animation:flow .7s linear infinite;
     filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent))}
@@ -109,6 +113,7 @@ const hidePop = () => {};
 $('mapZoomIn').title = L('Приблизить', 'Zoom in');
 $('mapZoomOut').title = L('Отдалить', 'Zoom out');
 $('mapZoomFit').title = L('Показать всё', 'Show all');
+// Легенда — как в панели сервера (ТЗ 32).
 $('legend').innerHTML =
   `<span><i style="background:var(--ok)"></i>${L('связь хорошая', 'good link')}</span>` +
   `<span><i style="background:var(--warn)"></i>${L('средняя', 'fair')}</span>` +
@@ -648,11 +653,28 @@ function serverNodes(){
   return list.length ? list
     : [{name: L('Сервер', 'Server'), host: 'server', ip: '', platform: 'server', online: !!DATA.self && DATA.state === 'online', server: true}];
 }
-// hubOf — к какому серверу тянуть линию устройства: первый из его
-// d.servers (имена), который есть на карте; иначе — первый сервер.
+// srvOfName — сервер карты по имени (без учёта регистра) или адресу.
+function srvOfName(servers, name){
+  const k = String(name || '').toLowerCase();
+  return servers.find(s => (s.name || '').toLowerCase() === k || (s.host || '').toLowerCase() === k ||
+    (s.ip && s.ip === name));
+}
+// serversOf — все серверы карты, с которыми устройство на связи: d.servers
+// (через мои серверы) и d.elsewhere (через те, к которым я не подключён).
+// Раньше elsewhere не рисовался — London висел в углу без линий (ТЗ 32).
+function serversOf(d, servers){
+  const out = [];
+  [...(d.servers || []), ...(d.elsewhere || [])].forEach(n => {
+    const s = srvOfName(servers, n);
+    if(s && !out.includes(s)) out.push(s);
+  });
+  return out;
+}
+// hubOf — к какому серверу тянуть основную линию: первый из serversOf; у
+// офлайн — сервер, через который его знаем (via), иначе первый сервер. Офлайн
+// рисуется бледно — это «где видели последним», а не связь.
 function hubOf(d, servers){
-  const names = d.servers || [];
-  return servers.find(s => names.includes(s.name)) || servers[0];
+  return serversOf(d, servers)[0] || srvOfName(servers, d.via) || servers[0];
 }
 
 function renderMap(){
@@ -663,7 +685,8 @@ function renderMap(){
   // Раскладка меняется только от состава сети; задержки и «в сети»
   // обновляются на месте — иначе схема мигала бы при каждом опросе.
   const sig = [W, H, LANG, servers.map(n => keyOf(n) + '/' + n.name).join(','),
-    list.map(n => n.ip + '/' + n.name + '/' + n.platform + '/' + keyOf(hubOf(n, servers)) + '/' + (n.servers || []).join('+')).join(',')].join('|');
+    list.map(n => n.ip + '/' + n.name + '/' + n.platform + '/' + n.online + '/' + keyOf(hubOf(n, servers)) + '/' +
+      serversOf(n, servers).map(keyOf).join('+')).join(',')].join('|');
   if(sig !== MAP_SIG){
     const first = !MAP_SIG;
     MAP_SIG = sig;
@@ -682,7 +705,8 @@ function renderMap(){
     // Через сервер — цифры на линии к серверу; напрямую — на прямой линии.
     r.edge.g.setAttribute('class', 'edge ' + qClass(n.online, n.direct || n.self ? 'good' : q));
     setEdgeText(r.edge, n.online && !n.direct && !n.self ? edgeMs(n.rttMs) : '', qColor(n.online, q));
-    (r.extra || []).forEach(e => e.g.setAttribute('class', 'edge ' + qClass(n.online, 'good')));
+    if(!n.online) r.edge.g.setAttribute('class', 'edge off faint');
+    (r.extra || []).forEach(e => e.g.setAttribute('class', 'edge alt ' + qClass(n.online, 'good')));
     // Прямое соединение с этим устройством, мимо сервера.
     const want = n.online && n.direct && !n.self;
     if(want && !r.p2p){
@@ -717,6 +741,17 @@ function renderMap(){
       kickSim(0.35);
     }
     setEdgeText(e, edgeMs(w.l.rttMs), 'var(--accent)');
+  });
+  // Сервер—сервер: цвет и цифры — из общей карты сервера (serverLinks),
+  // если она есть; нет — линия без цифр, как «на связи, задержка неизвестна».
+  (sim.srv || []).forEach(({e, a, b}) => {
+    const l = (DATA.serverLinks || []).find(x =>
+      [x.a, x.b].map(v => (v || '').toLowerCase()).sort().join('|') ===
+      [a.name, b.name].map(v => (v || '').toLowerCase()).sort().join('|'));
+    const online = l ? l.online : (a.online !== false && b.online !== false);
+    const q = l && l.rttMs ? quality(l.rttMs) : 'unknown';
+    e.g.setAttribute('class', 'edge srv ' + qClass(online, q));
+    setEdgeText(e, online && l ? edgeMs(l.rttMs) : '', qColor(online, q));
   });
   servers.forEach(s => {
     const m = MAP_REFS[keyOf(s)];
@@ -794,6 +829,13 @@ function buildMap(svg, W, H, servers, list, animate){
       GLYPH.main, s.name || s.host, s.host ? s.host + '.mesh' : '', s, true).n;
     hubs[keyOf(s)].main = i === 0; // к центру тянется только первый
   });
+  // Серверы одной сети серверов связаны все со всеми (ТЗ 31: все равны) —
+  // как на схеме панели. Заглушка «сервер» (нет ни одного) — без линий.
+  sim.srv = [];
+  const real = servers.filter(s => s.ip);
+  for (let i = 0; i < real.length; i++)
+    for (let j = i + 1; j < real.length; j++)
+      sim.srv.push({e: mapEdge(sim, hubs[keyOf(real[i])], hubs[keyOf(real[j])], 'srv', true), a: real[i], b: real[j]});
   list.forEach((d, j) => {
     const sp = hubs[keyOf(hubOf(d, servers))];
     const a = j * 2.4 + 0.7; // золотой угол — соседи не друг на друге
@@ -803,8 +845,9 @@ function buildMap(svg, W, H, servers, list, animate){
       glyphOf(d.platform), d.name || d.host, sub, d, false);
     r.edge = mapEdge(sim, r.n, sp, 'dev', !many);
     // Устройство на связи и через другие серверы (одна сеть на нескольких
-    // серверах) — к ним тоже линия, без цифр.
-    r.extra = servers.filter(s => sp !== hubs[keyOf(s)] && (d.servers || []).includes(s.name))
+    // серверах) — к каждому пунктир, без цифр. У офлайн — только бледная
+    // линия к серверу, который видел его последним.
+    r.extra = !d.online ? [] : serversOf(d, servers).filter(s => sp !== hubs[keyOf(s)])
       .map(s => mapEdge(sim, r.n, hubs[keyOf(s)], 'dev', false));
   });
   // Новые узлы сначала «досчитываются» без показа, дальше — анимацией.
@@ -873,10 +916,9 @@ async function refresh(){
                                          'The device network is off. Turn it on with the «Device network» button on the main screen.')
     : st === 'connecting' ? L('Подключаюсь к сети устройств…', 'Connecting to the device network…')
     : st === 'error' ? L('Ошибка сети устройств: ', 'Device network error: ') + (DATA.error || '')
-    : L('Только просмотр: имена меняются в панели главного сервера. Узлы можно таскать, колесо — масштаб.',
-        'View only: names are changed in the main server panel. Drag the nodes, wheel to zoom.') +
-      (DATA.links ? '' : L(' Соединения между другими устройствами видны, если в панели сервера этому клиенту дано право создавать пользователей.',
-        ' Links between other devices are shown if this client may create users (set in the server panel).'));
+    : L('Только просмотр, имена — в панели сервера.', 'View only, names are set in the server panel.') +
+      (DATA.links ? '' : L(' Чужие прямые соединения и задержки между серверами — с правом создавать пользователей.',
+        ' Other devices\' direct links and server delays need the right to create users.'));
   if(SEL && DATA.self){
     const n = ring().concat(serverNodes()).find(x => keyOf(x) === keyOf(SEL));
     if(n) SEL = n;

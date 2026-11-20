@@ -43,6 +43,18 @@ type Map struct {
 	// сервера). Только тем, кому в панели дано право создавать
 	// пользователей; остальным nil — видны лишь свои соединения.
 	Links []Link `json:"links"`
+	// ServerLinks — связь сервер—сервер с задержкой (ТЗ 32), по именам
+	// серверов; с той же общей карты сервера. nil — не знаем (нет права,
+	// старая панель): карта рисует линии между серверами без цифр.
+	ServerLinks []ServerLink `json:"serverLinks,omitempty"`
+}
+
+// ServerLink — линия между двумя серверами сети (имена — как у узлов карты).
+type ServerLink struct {
+	A      string  `json:"a"`
+	B      string  `json:"b"`
+	Online bool    `json:"online"`
+	RTTMs  float64 `json:"rttMs,omitempty"`
 }
 
 // Link — прямое соединение двух устройств (адреса сети устройств).
@@ -122,7 +134,7 @@ func Build() Map {
 		}
 		m.Nodes = append(m.Nodes, n)
 	}
-	m.Links = sharedLinks()
+	m.Links, m.ServerLinks = sharedLinks()
 	return m
 }
 
@@ -135,6 +147,7 @@ const (
 
 var (
 	shareMu    sync.Mutex
+	shareSrv   []ServerLink
 	shareLinks []Link
 	shareAt    time.Time
 	shareWait  = shareEvery
@@ -143,31 +156,73 @@ var (
 
 // sharedLinks — прямые соединения между устройствами с сервера (кэш;
 // обновляется в фоне, чтобы карта не ждала сервер).
-func sharedLinks() []Link {
+func sharedLinks() ([]Link, []ServerLink) {
 	shareMu.Lock()
 	defer shareMu.Unlock()
 	if !shareBusy && time.Since(shareAt) > shareWait {
 		shareBusy = true
 		go func() {
-			links, err := fetchLinks()
+			links, srv, err := fetchLinks()
 			shareMu.Lock()
 			shareBusy, shareAt = false, time.Now()
 			if err != nil {
-				shareLinks, shareWait = nil, deniedEvery
+				shareLinks, shareSrv, shareWait = nil, nil, deniedEvery
 			} else {
-				shareLinks, shareWait = links, shareEvery
+				shareLinks, shareSrv, shareWait = links, srv, shareEvery
 			}
 			shareMu.Unlock()
 		}()
 	}
-	return shareLinks
+	return shareLinks, shareSrv
 }
 
-func fetchLinks() ([]Link, error) {
+func fetchLinks() ([]Link, []ServerLink, error) {
 	out, err := serverusers.Call(devnet.DialServer, "map", nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	links, err := parseMap(out)
+	if err != nil {
+		return nil, nil, err
+	}
+	return links, parseServerLinks(out), nil
+}
+
+// parseServerLinks — линии сервер—сервер из общей карты (панель ТЗ 32+):
+// id серверов → имена. Старая панель — nil.
+func parseServerLinks(out map[string]any) []ServerLink {
+	var r struct {
+		Servers []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"servers"`
+		ServerLinks []struct {
+			A      string  `json:"a"`
+			B      string  `json:"b"`
+			Online bool    `json:"online"`
+			RTTMs  float64 `json:"rttMs"`
+		} `json:"serverLinks"`
+	}
+	b, _ := json.Marshal(out)
+	if json.Unmarshal(b, &r) != nil || r.Servers == nil {
+		return nil
+	}
+	name := map[string]string{}
+	for _, s := range r.Servers {
+		name[s.ID] = s.Name
+	}
+	res := []ServerLink{}
+	for _, l := range r.ServerLinks {
+		if name[l.A] == "" || name[l.B] == "" {
+			continue
+		}
+		res = append(res, ServerLink{A: name[l.A], B: name[l.B], Online: l.Online, RTTMs: l.RTTMs})
+	}
+	return res
+}
+
+// parseMap — прямые соединения между устройствами из общей карты.
+func parseMap(out map[string]any) ([]Link, error) {
 	var r struct {
 		Devices []struct {
 			IP     string `json:"ip"`

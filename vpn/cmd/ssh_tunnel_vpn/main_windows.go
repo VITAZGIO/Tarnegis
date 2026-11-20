@@ -48,6 +48,7 @@ func main() {
 	appdata := flag.String("appdata", "", "для -service: папка AppData\\Roaming этого пользователя")
 	install := flag.Bool("install-service", false, "установить или обновить службу (нужны права администратора)")
 	uninstall := flag.Bool("uninstall-service", false, "удалить службу (нужны права администратора)")
+	restart := flag.Bool("restart-service", false, "перезапустить службу (нужны права администратора; так делает кнопка в окне)")
 	relaunch := flag.Bool("relaunch", false, "после -uninstall-service снова открыть окно")
 	waitInstance := flag.Bool("wait-instance", false, "дождаться, пока закроется прежняя копия программы")
 	killStuck := flag.Bool("kill-stuck", false, "закрыть зависшую прежнюю копию (нужны права администратора)")
@@ -62,6 +63,12 @@ func main() {
 		return
 	case *install:
 		os.Exit(cmdInstall())
+	case *restart:
+		if err := winsvc.Restart(); err != nil {
+			showMessage("Не удалось перезапустить службу:\n\n"+err.Error(), mbIconError)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	case *uninstall:
 		os.Exit(cmdUninstall(*relaunch))
 	}

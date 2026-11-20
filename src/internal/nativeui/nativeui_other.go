@@ -10,15 +10,18 @@ import (
 )
 
 type Options struct {
-	Title       string
-	URL         string
-	Width       int
-	Height      int
-	Running     func() bool
-	Toggle      func()
-	OnQuit      func()
-	DataPath    string
-	StartHidden bool
+	Title   string
+	URL     string
+	Width   int
+	Height  int
+	Running func() bool
+	Toggle  func()
+	OnQuit  func()
+	// OnCloseWindow, Lang — см. версию для Windows.
+	OnCloseWindow func()
+	Lang          func() string
+	DataPath      string
+	StartHidden   bool
 }
 
 func Run(opts Options) error {

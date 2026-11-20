@@ -48,31 +48,28 @@ func runInProcess(tray, noWindow bool) {
 	}
 	e.srv.Addons().SetOpener(nativeui.Opener("http://"+e.srv.Addr(), config.Dir()))
 	e.srv.Addons().SetCloser(nativeui.CloseWindow)
-	runWindow(url, tray, a.Running, toggleApp(a), a.StopNow)
+	runWindow(url, tray, nativeui.Options{
+		Running: a.Running, Toggle: toggleApp(a), OnQuit: a.StopNow,
+		Lang: func() string { return a.Config().Language },
+	})
 }
 
 // toggleApp — значок в трее: только круглая кнопка, сеть устройств он не
 // трогает.
 func toggleApp(a *app.App) func() { return a.ToggleTunnel }
 
-func runWindow(url string, tray bool, running func() bool, toggle, onQuit func()) {
+// runWindow — окно с меню у значка; o задаёт меню (Running, Toggle, OnQuit,
+// OnCloseWindow, Lang), остальное — здесь.
+func runWindow(url string, tray bool, o nativeui.Options) {
 	if !nativeui.WebView2Installed() {
 		fatal("Не найден компонент WebView2, на котором рисуется окно.\n\n" +
 			"Поставь «Microsoft Edge WebView2 Runtime» с сайта Microsoft\n" +
 			"или запусти так: ssh_tunnel_vpn.exe -nowindow")
 	}
 	phonelink.Notify = nativeui.Notify // уведомления с телефона — у часов
-	err := nativeui.Run(nativeui.Options{
-		Title:       windowTitle,
-		URL:         url,
-		Width:       420,
-		Height:      700,
-		DataPath:    config.Dir(),
-		Running:     running,
-		Toggle:      toggle,
-		OnQuit:      onQuit,
-		StartHidden: tray,
-	})
+	o.Title, o.URL, o.Width, o.Height = windowTitle, url, 420, 700
+	o.DataPath, o.StartHidden = config.Dir(), tray
+	err := nativeui.Run(o)
 	if err != nil {
 		fatal(err.Error())
 	}

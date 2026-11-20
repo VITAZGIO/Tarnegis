@@ -43,6 +43,9 @@ func (s *Server) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 		SetEnvVars:       cfg.SetEnvVars,
 	}
 	for i, p := range cfg.Profiles {
+		// В выгрузке у каждого сервера — действующие правила (общие
+		// настройки программы, ТЗ 32): так её поймут и прежние версии.
+		p = cfg.Resolve(p)
 		doc := share.Doc{
 			Name: p.Name, Flag: p.Flag, Host: p.Host, SSHPort: p.SSHPort, User: p.User,
 			SocksPort: p.SocksPort, HTTPPort: p.HTTPPort, PoolSize: p.PoolSize,
@@ -160,6 +163,11 @@ func (s *Server) handleSettingsImport(w http.ResponseWriter, r *http.Request) {
 		exitMissing = append(exitMissing, missing...)
 	}
 
+	// Общие настройки программы (ТЗ 32) — из серверов выгрузки, как при
+	// переезде старого конфига: списки объединяются, остальное — у
+	// активного. В выгрузке у каждого сервера уже действующие правила.
+	cfg.Prefs, cfg.PrefsV = config.Prefs{}, 0
+	cfg.MigratePrefs()
 	if _, err := s.app.SetConfig(cfg); err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})
 		return

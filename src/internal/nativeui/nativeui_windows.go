@@ -45,6 +45,15 @@ type Options struct {
 	Toggle  func() // «Подключить»/«Отключить» из меню
 	OnQuit  func() // вызывается перед выходом: снять прокси, закрыть туннель
 
+	// OnCloseWindow — есть у окна службы (VPN-версия): тогда в меню два
+	// пункта — «Выход» (OnQuit: выключить туннель и сеть устройств в
+	// службе) и «Закрыть окно» (это: окно закрывается, туннель остаётся).
+	// nil — только «Выход»: туннель живёт в самом процессе окна.
+	OnCloseWindow func()
+
+	// Lang — язык подписей меню ("ru" / "en"); nil — русский.
+	Lang func() string
+
 	// DataPath — куда WebView2 складывает свой кэш. По умолчанию он пишет
 	// рядом с exe, а если программу положили в Program Files, туда писать
 	// нельзя и окно просто не откроется. Поэтому указываем папку настроек.
@@ -172,6 +181,7 @@ const (
 	menuOpen = 1001 + iota
 	menuToggle
 	menuQuit
+	menuCloseWindow
 )
 
 type notifyIconData struct {
@@ -704,14 +714,20 @@ func (u *ui) showMenu() {
 	}
 	defer pDestroyMenu.Call(menu)
 
-	appendItem(menu, menuOpen, "Открыть")
-	toggle := "Подключить"
+	t := menuText(u.opts.Lang)
+	appendItem(menu, menuOpen, t["open"])
+	toggle := t["connect"]
 	if u.running() {
-		toggle = "Отключить"
+		toggle = t["disconnect"]
 	}
 	appendItem(menu, menuToggle, toggle)
 	pAppendMenu.Call(menu, mfSeparator, 0, 0)
-	appendItem(menu, menuQuit, "Выход")
+	if u.opts.OnCloseWindow != nil {
+		appendItem(menu, menuCloseWindow, t["close"])
+		appendItem(menu, menuQuit, t["quitOff"])
+	} else {
+		appendItem(menu, menuQuit, t["quit"])
+	}
 
 	var pt point
 	pGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
@@ -732,6 +748,8 @@ func (u *ui) showMenu() {
 		}
 	case menuQuit:
 		u.quit()
+	case menuCloseWindow:
+		u.quitWith(u.opts.OnCloseWindow)
 	}
 }
 
@@ -745,18 +763,37 @@ func appendItem(menu uintptr, id int, text string) {
 // процесс висел без значка, и новый запуск упирался в «уже запущено».
 const quitGrace = 5 * time.Second
 
-func (u *ui) quit() {
+// menuText — подписи меню у значка.
+func menuText(lang func() string) map[string]string {
+	if lang != nil && lang() == "en" {
+		return map[string]string{
+			"open": "Open", "connect": "Connect", "disconnect": "Disconnect",
+			"quit": "Quit", "quitOff": "Quit (turn VPN and device network off)",
+			"close": "Close window (VPN stays on)",
+		}
+	}
+	return map[string]string{
+		"open": "Открыть", "connect": "Подключить", "disconnect": "Отключить",
+		"quit": "Выход", "quitOff": "Выход (выключить VPN и сеть устройств)",
+		"close": "Закрыть окно (VPN остаётся)",
+	}
+}
+
+func (u *ui) quit() { u.quitWith(u.opts.OnQuit) }
+
+// quitWith — закрыть окно и выйти из процесса, перед этим — onQuit.
+func (u *ui) quitWith(onQuit func()) {
 	u.once.Do(func() {
 		// Сначала исчезаем с глаз: значок и окно убираются сразу, что бы ни
 		// происходило дальше.
 		u.removeTrayIcon()
 		pShowWindow.Call(u.hwnd, swHide)
-		if u.opts.OnQuit != nil {
+		if onQuit != nil {
 			// Снять системный прокси и закрыть туннель — но не дольше
 			// quitGrace: зависшая сеть не должна держать процесс.
 			done := make(chan struct{})
 			go func() {
-				u.opts.OnQuit()
+				onQuit()
 				close(done)
 			}()
 			select {
