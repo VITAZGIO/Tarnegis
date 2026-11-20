@@ -31,6 +31,11 @@
   #dlg[hidden]{display:none}
   #dlg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px}
   #dlg .card{width:100%;max-width:460px;display:flex;flex-direction:column;gap:8px}
+  .nv{display:flex;flex-direction:column;gap:6px;text-align:left}
+  .nv label{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+  .lk{color:var(--dim);font-size:12.5px;text-decoration:underline;cursor:pointer;background:none;border:0;padding:4px}
+  .warn{color:var(--warn,#d9a03f)}
+  .lock [hidden],#mainV [hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -41,9 +46,13 @@
     <input type="password" id="m1" autocomplete="off"><input type="password" id="m2" autocomplete="off" hidden>
     <button class="btn primary" id="mGo" style="justify-content:center"></button>
     <div class="hint" id="mNote"></div>
+    <div class="nv" id="netV" hidden></div>
+    <button class="lk" id="mAlt" hidden></button>
   </div>
 
   <div id="mainV" hidden style="display:flex;flex-direction:column;gap:10px">
+    <div class="card" id="noticeCard" hidden></div>
+    <div class="card" id="mergeCard" hidden></div>
     <div class="bar"><input id="q" type="search"><button class="btn primary" id="add"></button><button class="ico" id="lockBtn"></button></div>
     <div class="card" id="list"></div>
     <div class="bar"><button class="btn" id="sync"></button><span class="hint" id="syncS"></span></div>
@@ -77,6 +86,9 @@
 /* Пароли. Всё хранится зашифрованным (главный пароль → ключ); пароли
    страница получает по одному (get) — список приходит без них. */
 let ST = null, CUR = null;
+// NET — хранилища на устройствах сети (null — ещё не спрашивали), JOIN —
+// какое открыть здесь, NEW — человек выбрал «создать новое».
+let NET = null, JOIN = '', NEW = false, MODE = '';
 const call = body => api('/api/vault', body).catch(e => ({error: String(e)}));
 
 async function load(){
@@ -86,16 +98,50 @@ async function load(){
   $('lockV').hidden = !locked; $('mainV').hidden = locked;
   $('mainV').style.display = locked ? 'none' : 'flex';
   if(locked){
-    const create = !ST.exists;
-    $('lockT').textContent = create ? L('Новое хранилище паролей', 'New password vault') : L('Пароли закрыты', 'Passwords are locked');
-    $('lockH').textContent = create ? L('Придумай главный пароль — им открываются все остальные. Его нигде не хранят: забудешь — пароли не открыть. На других своих устройствах открой «Пароли» тем же главным паролем, и записи синхронизируются сами.', 'Pick a master password — it opens all others. It is not stored anywhere. Use the same one on your other devices and entries sync themselves.')
-      : L('Главный пароль — тот же на всех своих устройствах.', 'The master password — the same on all your devices.');
+    if(!ST.exists && NET === null){
+      // Сначала — нет ли хранилища у других устройств сети (ТЗ 33).
+      $('lockT').textContent = L('Пароли', 'Passwords');
+      $('lockH').textContent = L('Ищу хранилище паролей на устройствах сети…', 'Looking for a password vault on your devices…');
+      ['m1', 'm2', 'mGo'].forEach(id => $(id).hidden = true);
+      const r = await call({op: 'network'});
+      NET = (r && r.vaults) || [];
+      if(NET.length && !NET.some(v => v.id === JOIN)) JOIN = NET[0].id;
+    }
+    ['m1', 'mGo'].forEach(id => $(id).hidden = false);
+    const join = !ST.exists && NET && NET.length > 0 && !NEW;
+    const create = !ST.exists && !join;
+    const hasNet = !ST.exists && NET && NET.length > 0;
+    MODE = join ? 'join' : create ? 'create' : 'unlock';
+    $('netV').hidden = !join || NET.length < 2; $('mAlt').hidden = !hasNet;
+    let title, hint;
+    if(join){
+      const v = NET.find(x => x.id === JOIN) || NET[0];
+      title = L('В сети есть хранилище паролей', 'Your network has a password vault');
+      hint = NET.length > 1
+        ? L('В сети несколько хранилищ — выбери, какое открыть здесь, и введи его главный пароль.', 'Several vaults — pick one and enter its master password.')
+        : L(`На устройствах: ${v.devices.join(', ')}. Введите главный пароль, чтобы открыть его здесь.`, `On: ${v.devices.join(', ')}. Enter the master password to open it here.`);
+      $('netV').innerHTML = NET.map(x => `<label><input type="radio" name="nv" value="${esc(x.id)}"${x.id === JOIN ? ' checked' : ''}><span>${esc(L('на устройствах: ', 'on: ') + x.devices.join(', '))}</span></label>`).join('');
+      $('netV').querySelectorAll('input').forEach(i => i.onchange = () => { JOIN = i.value; });
+      $('mAlt').textContent = L('Создать новое хранилище', 'Create a new vault');
+    } else if(create){
+      title = L('Новое хранилище паролей', 'New password vault');
+      hint = hasNet
+        ? L('Это будет отдельное хранилище: пароли с других устройств в нём не появятся, а их устройства не увидят эти. Обычно нужно открыть хранилище сети.', 'This will be a separate vault: passwords from your other devices will not appear in it.')
+        : L('Придумай главный пароль — им открываются все остальные. Его нигде не хранят: забудешь — пароли не открыть. На других своих устройствах «Пароли» сами найдут это хранилище и попросят тот же главный пароль.', 'Pick a master password — it opens all others. It is not stored anywhere. Your other devices will find this vault and ask for the same password.');
+      $('mAlt').textContent = L('← Открыть хранилище сети', '← Open the network vault');
+    } else {
+      title = L('Пароли закрыты', 'Passwords are locked');
+      hint = L('Главный пароль — тот же на всех своих устройствах.', 'The master password — the same on all your devices.');
+    }
+    $('lockT').textContent = title; $('lockH').textContent = hint;
+    $('lockH').className = create && hasNet ? 'hint warn' : 'hint';
     $('m1').placeholder = L('главный пароль', 'master password');
     $('m2').hidden = !create; $('m2').placeholder = L('ещё раз', 'again');
     $('mGo').textContent = create ? L('Создать', 'Create') : L('Открыть', 'Unlock');
     return;
   }
   draw();
+  drawNotice(); drawMerge();
   $('syncS').textContent = ST.lastSync ? L('синхронизировано ', 'synced ') + new Date(ST.lastSync * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU') : '';
   drawFill();
 }
@@ -138,11 +184,12 @@ function drawFill(){
   $('xk').onclick = async () => { const r = await call({op: 'extkey'}); if(r.key){ $('xn').innerHTML = `<div class="key">${esc(r.key)}</div>`; try { await navigator.clipboard.writeText(r.key); } catch(_) {} } };
 }
 
+$('mAlt').onclick = () => { NEW = !NEW; $('mNote').textContent = ''; load(); };
 $('mGo').onclick = async () => {
-  const create = !ST.exists;
+  const create = MODE === 'create';
   if(create && $('m1').value !== $('m2').value){ $('mNote').className = 'hint err'; $('mNote').textContent = L('Пароли не совпадают.', 'Passwords differ.'); return; }
   $('mNote').className = 'hint'; $('mNote').textContent = L('Открываю…', 'Unlocking…');
-  const r = await call({op: create ? 'create' : 'unlock', master: $('m1').value});
+  const r = await call(MODE === 'join' ? {op: 'join', vault: JOIN, master: $('m1').value} : {op: create ? 'create' : 'unlock', master: $('m1').value});
   if(r.error){ $('mNote').className = 'hint err'; $('mNote').textContent = r.error; return; }
   $('m1').value = $('m2').value = ''; $('mNote').textContent = '';
   load();
@@ -157,6 +204,36 @@ $('add').onclick = () => edit(null);
 $('sync').innerHTML = icon('sync') + esc(L('Синхронизировать', 'Sync'));
 $('sync').onclick = async () => { $('syncS').textContent = L('синхронизирую…', 'syncing…'); const r = await call({op: 'sync'});
   $('syncS').textContent = r.error || L(`устройств: ${r.devices}, изменений: ${r.changed}`, `devices: ${r.devices}, changes: ${r.changed}`); load(); };
+
+// Объединение с хранилищем сети (ТЗ 33): переход те устройства делают сами.
+function drawNotice(){
+  const c = $('noticeCard');
+  c.hidden = !ST.notice;
+  if(!ST.notice) return;
+  c.innerHTML = `<span class="hint ok">${esc(ST.notice)}</span> <button class="btn" id="ntOk">${esc(L('Понятно', 'OK'))}</button>`;
+  $('ntOk').onclick = async () => { await call({op: 'notice'}); c.hidden = true; };
+}
+async function drawMerge(){
+  const r = await call({op: 'network'});
+  const other = ((r && r.vaults) || []).filter(v => !v.mine);
+  const c = $('mergeCard');
+  c.hidden = !other.length;
+  if(!other.length) return;
+  const v = other[0];
+  c.innerHTML = `<b>${esc(L('В сети есть другое хранилище паролей', 'Another password vault in your network'))}</b>
+    <div class="hint" style="margin:6px 0">${esc(L(`На устройствах: ${v.devices.join(', ')}. Его можно слить с этим: записи обоих окажутся здесь, а те устройства сами перейдут на это хранилище — дальше там нужен главный пароль этого. Введи главный пароль того хранилища.`, `On: ${v.devices.join(', ')}. Merge it into this one: entries of both end up here, and those devices switch to this vault by themselves (then they need this vault's master password). Enter that vault's master password.`))}</div>
+    <div class="bar"><input type="password" id="mgP" autocomplete="off" placeholder="${esc(L('главный пароль того хранилища', 'its master password'))}"><button class="btn primary" id="mgGo">${esc(L('Объединить', 'Merge'))}</button></div>
+    <div class="hint" id="mgN"></div>`;
+  $('mgGo').onclick = async () => {
+    $('mgN').className = 'hint'; $('mgN').textContent = L('Объединяю…', 'Merging…');
+    const m = await call({op: 'merge', vault: v.id, other: $('mgP').value});
+    $('mgP').value = '';
+    if(m.error){ $('mgN').className = 'hint err'; $('mgN').textContent = m.error; return; }
+    $('mgN').className = 'hint ok'; $('mgN').textContent = L(`Готово, новых и обновлённых записей: ${m.changed}.`, `Done, new or updated entries: ${m.changed}.`);
+    setTimeout(load, 1500);
+  };
+  $('mgP').addEventListener('keydown', e => { if(e.key === 'Enter') $('mgGo').click(); });
+}
 
 async function edit(id){
   CUR = id;

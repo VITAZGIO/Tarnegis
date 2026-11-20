@@ -107,7 +107,7 @@ func ImportCSV(data []byte) (added, updated, skipped int, err error) {
 		if err := save(); err != nil {
 			return 0, 0, 0, err
 		}
-		go Sync()
+		kick()
 	}
 	return added, updated, skipped, nil
 }

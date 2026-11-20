@@ -500,6 +500,7 @@ class TunnelService : VpnService(), Callbacks {
                 onLog("сеть серверов: ответ не сохранился: ${e.message}")
                 return
             } ?: return
+            c.skipped.forEach { onLog("сеть серверов: $it") }
             // Новые серверы — сразу дополнительными серверами сети устройств.
             try {
                 tunnel.setProfiles(s.coreProfilesJson(), s.active().id, s.udpRelayEnabled)
@@ -724,6 +725,11 @@ class TunnelService : VpnService(), Callbacks {
                 // detachFd, а не getFd: дальше дескриптором распоряжается Go и
                 // закрывает его сам. Иначе его закрыли бы дважды.
                 tunnel.startStack(iface.detachFd().toLong(), MTU.toLong())
+
+                // Сеть серверов (ТЗ 33): список мог прийти, пока служба ещё
+                // поднималась, а ошибка разбора тогда терялась. Повторить —
+                // дёшево: нового нет — Go отвечает пустой строкой.
+                applyNetServers()
 
                 ticker.post { if (!stopping) ticker.post(poll) }
             } catch (e: Exception) {

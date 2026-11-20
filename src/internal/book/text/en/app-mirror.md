@@ -31,7 +31,7 @@ tick them for it.**
    folders each one sees.
 2. Tap a device → tick folders. A tick is saved at once; «All» and «None»
    do it in one go.
-3. A new device is not listed yet — «Refresh».
+3. A new device is not listed yet — «Refresh device list».
 
 On the «Sharing» tab each folder says which devices see it.
 
@@ -107,7 +107,22 @@ editor temp files, Syncthing conflicts (`*.sync-conflict-*`), `.DS_Store`,
 `Thumbs.db`. Own exclusions — the settings button of a folder on the
 «Sharing» tab (one pattern per line, e.g. `*.log`).
 
-Empty folders and links are not transferred. Names that differ only in
+Links are not transferred. Folders are, empty ones too.
+
+**A deleted folder is deleted on every device.** If another device still has
+its own file in it that the server lacks, the folder comes back with that
+file (own data beats a delete; the log names the file). The program's temp
+files and system junk (`desktop.ini`, `Thumbs.db`) do not block the delete.
+If the folder holds excluded files, it stays on that device only. Empty
+folders left on other devices by older versions are removed by the next
+sync after the update.
+
+Obsidian says «Could not move … to the system trash» — Windows did not take
+the folder into its recycle bin (network drives, very long paths). In
+Obsidian: Settings → «Files and links» → «Deleted files» → «Move to Obsidian
+trash (.trash folder)». Exclude `.trash` with a pattern if you like.
+
+Names that differ only in
 letter case do not coexist on Windows and phones — such a file shows up as
 «waiting».
 
