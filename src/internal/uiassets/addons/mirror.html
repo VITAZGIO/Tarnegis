@@ -58,6 +58,9 @@
   .chk input{width:18px;height:18px;margin:0;flex:none}
   .chk .tx{flex:1;min-width:0}
   .back{display:none}
+  /* Зазор между карточками папок (раньше стояли вплотную). */
+  #subs > .card + .card,#found > .card + .card,#serve > .card + .card{margin-top:10px}
+  #found > .card:last-child,#snapRootCard,#serve > .card:last-child{margin-bottom:10px}
   /* Снимки папки (ТЗ 36). */
   .snaps{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}
   .snaps summary{cursor:pointer;font-weight:600;padding:4px 0;font-size:14px}
