@@ -454,7 +454,13 @@ func (r *Replica) push(ctx context.Context, p, lh string, lst stat, s repFile) e
 	return nil
 }
 
-const chunk = 4 << 20
+// chunk — кусок загрузки; переменная только ради теста больших файлов.
+var chunk int64 = 4 << 20
+
+// uploadStall — сколько кусков подряд без продвижения считать «загрузка не
+// идёт». Раньше считались все куски: файл больше 50 кусков (200 МБ) не
+// загружался никогда.
+const uploadStall = 50
 
 func (r *Replica) upload(ctx context.Context, p, hash string, size int64) error {
 	var part struct {
@@ -473,8 +479,8 @@ func (r *Replica) upload(ctx context.Context, p, hash string, size int64) error 
 	if have > size {
 		have = 0 // чужой хвост: сервер скажет правильное место
 	}
-	for tries := 0; have < size || (size == 0 && tries == 0); tries++ {
-		if tries > 50 {
+	for tries, stall := 0, 0; have < size || (size == 0 && tries == 0); tries++ {
+		if stall > uploadStall {
 			return errors.New("загрузка не идёт")
 		}
 		if _, err := fh.Seek(have, io.SeekStart); err != nil {
@@ -497,6 +503,11 @@ func (r *Replica) upload(ctx context.Context, p, hash string, size int64) error 
 		resp.Body.Close()
 		switch resp.StatusCode {
 		case 200, http.StatusConflict:
+			if out.Have > have {
+				stall = 0
+			} else {
+				stall++
+			}
 			have = out.Have
 		default:
 			return &RemoteError{resp.StatusCode, out.Error}
