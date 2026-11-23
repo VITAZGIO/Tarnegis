@@ -2621,6 +2621,13 @@ function applyI18n(){
   renderHomePicker();
   if(typeof setState === 'function') setState(lastState);
   if(typeof renderBootState === 'function' && lastBootState) renderBootState(lastBootState);
+  // Сводки и подписи, которые пишутся кодом, а не data-i18n: без этого
+  // после смены языка оставались на прежнем («Device network: Включена»).
+  for(const f of ['renderMeshSummary', 'renderServersSummary', 'renderAdvSummary', 'renderOwnRulesNote',
+                  'renderNetModes', 'renderExitChainStatus', 'renderExitMainStatus', 'renderLangBtn']){
+    try { if(typeof window[f] === 'function') window[f](); } catch(e) {}
+  }
+  try { if(typeof meshLast !== 'undefined' && meshLast && typeof renderMesh === 'function') renderMesh(meshLast); } catch(e) {}
 }
 $('language').addEventListener('change', () => {
   LANG = $('language').value === 'en' ? 'en' : 'ru';
