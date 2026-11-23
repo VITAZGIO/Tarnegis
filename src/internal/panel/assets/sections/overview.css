@@ -6,6 +6,15 @@
 .ov-top{min-width:0}
 .ov-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-areas:"tiles" "map" "clients"}
 .ov-tiles{grid-area:tiles;margin:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Плитки: всё по центру, у всех четырёх одинаковые подписи; число — одного
+   размера у всех и крупное, по ширине плитки (cqw), чтобы не терялось в
+   пустом прямоугольнике. На широком экране плитки высокие — там число ещё и
+   по высоте (cqh, ниже). */
+.ov-tiles .box{container-type:inline-size;text-align:center;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;padding:14px 10px}
+.ov-tiles .box .k{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;letter-spacing:.7px}
+.ov-tiles .box .v{font-size:clamp(22px,17cqw,56px);line-height:1.05;margin:0;white-space:nowrap}
+.ov-tiles .box .s{font-size:12px;margin:0}
 .ov-map{grid-area:map;min-width:0} .ov-clients{grid-area:clients;min-width:0}
 .ov-bot{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);grid-template-areas:"traffic" "status"}
 .ov-status{grid-area:status;min-width:0} .ov-traffic{grid-area:traffic;min-width:0}
@@ -41,7 +50,11 @@
   .ov-grid{height:100%;grid-template-rows:minmax(0,1fr);grid-template-areas:"tiles map clients";
     grid-template-columns:210px minmax(640px,200cqh) minmax(540px,1fr)}
   .ov-tiles{grid-template-columns:minmax(0,1fr);grid-auto-rows:minmax(0,1fr);min-height:0}
-  .ov-tiles .box{display:flex;flex-direction:column;justify-content:center;min-height:0}
+  .ov-tiles .box{display:flex;flex-direction:column;justify-content:center;min-height:0;container-type:size;gap:8px}
+  /* «72 мс» / «3.7 ГБ» — 5 знаков моноширинного ≈ 3em: 22cqw ≈ 65–80% ширины (и «123.4 ГБ» влезает);
+     и не выше трети плитки. */
+  .ov-tiles .box .v{font-size:min(22cqw,34cqh)}
+  .ov-tiles .box .k,.ov-tiles .box .s{font-size:13px}
   .ov-map{min-height:0}
   .ov-map .map-card{height:100%;display:flex;flex-direction:column;min-height:0}
   .ov-map .map-wrap{flex:1 1 0;min-height:0}
