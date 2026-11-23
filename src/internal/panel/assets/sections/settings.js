@@ -242,11 +242,29 @@ $('autostartCheck').addEventListener('change', async e => {
   $('autostartCheck').checked = !!data.enabled;
 });
 
-function renderJob(job){
-  const recent = job && (job.running || job.error ||
+// Журнал установки meshd / ретранслятора UDP / «Перейти» (ТЗ 34) — внутри
+// карточки, чья кнопка его начала, под её кнопками: отдельная карточка
+// появлялась между другими и перекладывала их по столбцам. Увиденный на
+// этой странице журнал остаётся до перезагрузки или «×»; после
+// перезагрузки — как раньше: идёт, с ошибкой или закончился меньше минуты назад.
+let JOB_SEEN = '', JOB_HIDDEN = '';
+function jobHost(role){
+  if (role === 'main') return $('meshServiceCard');
+  if (role === 'secondary') return $('meshSecView');
+  return $('meshRoleCard');
+}
+$('meshJobClose').addEventListener('click', () => {
+  JOB_HIDDEN = $('meshJobLog').dataset.started || '';
+  $('meshJob').hidden = true;
+});
+function renderJob(job, role){
+  const box = $('meshJob'), host = jobHost(role);
+  if (box.parentNode !== host) host.appendChild(box);
+  const recent = job && job.started !== JOB_HIDDEN && (job.running || job.error || job.started === JOB_SEEN ||
     (job.finished && Date.now() - new Date(job.finished) < 60000));
-  $('meshJobCard').hidden = !recent;
+  box.hidden = !recent;
   if (!recent) return;
+  JOB_SEEN = job.started;
   const title = $('meshJobTitle');
   title.innerHTML = '';
   if (job.running){
@@ -413,7 +431,7 @@ onPanel('show:Settings', () => { loadAutostart(); loadCapacity(); loadEgress(); 
 onPanel('status', st => { $('setVersion').textContent = st.version; });
 onPanel('mesh', (m, role) => {
   const isMain = role === 'main';
-  renderJob(m.job);
+  renderJob(m.job, role);
   $('meshServiceCard').hidden = !isMain;
   $('meshSecView').hidden = role !== 'secondary';
   if (isMain) renderMeshService(m);

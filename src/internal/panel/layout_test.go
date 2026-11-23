@@ -385,7 +385,7 @@ func TestСкопированоНичегоНеДвигает(t *testing.T) {
 	if strings.Contains(core, "node.after(tip)") {
 		t.Error("core.js: «Скопировано» снова вставляется рядом со значением")
 	}
-	if !strings.Contains(core, "function copyFlash(anchor, ok)") || !strings.Contains(core, "document.body.appendChild(tip)") {
+	if !strings.Contains(core, "function copyFlash(anchor, ok, place)") || !strings.Contains(core, "document.body.appendChild(tip)") {
 		t.Error("core.js: нет copyFlash с облачком в <body>")
 	}
 	if !strings.Contains(css, ".copy-tip{position:fixed;") {
@@ -443,6 +443,62 @@ func TestСетиРаскладкаВиталия(t *testing.T) {
 	for _, want := range []string{".card.instr{", ".card.instr::before{content:\"i\"", ".card.instr > h1{color:var(--accent)}"} {
 		if !strings.Contains(core, want) {
 			t.Errorf("core.css: рамка инструкции — нет %q", want)
+		}
+	}
+}
+
+// ТЗ 34: в «Настройках» карточки не перескакивают из столбца в столбец,
+// когда появляется журнал установки: столбцы постоянные, журнал — внутри
+// карточки с кнопкой, отдельной карточки журнала нет.
+func TestНастройкиЖурналНеДвигаетКарточки(t *testing.T) {
+	css := assetString(t, "sections/settings.css")
+	if strings.Contains(css, "columns:2") {
+		t.Error("settings.css: снова газета columns:2 — карточки прыгают по столбцам")
+	}
+	if !strings.Contains(css, "grid-template-columns:minmax(0,1fr) minmax(0,1fr)") {
+		t.Error("settings.css: нет постоянных двух столбцов .set-col")
+	}
+	for _, f := range []string{"sections/settings.html", "sections/plugins.html"} {
+		html := assetString(t, f)
+		for _, bad := range []string{`id="meshJobCard"`, `id="nodeJobCard"`} {
+			if strings.Contains(html, bad) {
+				t.Errorf("%s: снова отдельная карточка журнала %s", f, bad)
+			}
+		}
+	}
+	if !strings.Contains(assetString(t, "sections/settings.js"), "host.appendChild(box)") ||
+		!strings.Contains(assetString(t, "sections/plugins.js"), "host.appendChild(box)") {
+		t.Error("журнал установки не переносится в карточку с кнопкой")
+	}
+}
+
+// ТЗ 34: «Устройства» — адрес и имя в сети копируются каждый своим щелчком,
+// «Скопировано» в пустом месте строки, без пунктира; значки систем из Simple
+// Icons; пустая правая половина — сплошная карточка с одним знаком VG.
+func TestУстройстваКопированиеЗначкиФон(t *testing.T) {
+	core := assetString(t, "core.js")
+	css := assetString(t, "core.css")
+	js := assetString(t, "sections/devices.js")
+	dcss := assetString(t, "sections/devices.css")
+	if !strings.Contains(css, ".copy{cursor:copy}\n") {
+		t.Error("core.css: у копируемых значений снова пунктир")
+	}
+	for _, want := range []string{"const OS_ICON = {", "windows:'M0,0H11.377", "function osIcon(platform)"} {
+		if !strings.Contains(core, want) {
+			t.Errorf("core.js: нет %q", want)
+		}
+	}
+	for _, want := range []string{"{hint: 'copy_name_hint', place}", "{hint: 'copy_ip_hint', place}", "osIcon(itemPlatform(it))"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("devices.js: нет %q", want)
+		}
+	}
+	for _, want := range []string{
+		".dbrand .brand-bg{min-height:0;background:var(--card);border:1px solid var(--line)}",
+		".dbrand .brand-bg > svg:first-child:not(.brand-vg){display:none}",
+	} {
+		if !strings.Contains(dcss, want) {
+			t.Errorf("devices.css: нет %q", want)
 		}
 	}
 }

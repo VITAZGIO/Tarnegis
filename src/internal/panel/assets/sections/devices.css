@@ -17,7 +17,13 @@ body:has(#tabDevices:not([hidden])) main{min-height:0;display:flex;flex-directio
 .dscroll{flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;margin-right:-10px;padding-right:6px}
 .ddetail{display:flex;flex-direction:column;min-height:0;min-width:0}
 .dbrand{flex:1 1 0;min-height:0;display:flex}
-.dbrand .brand-bg{min-height:0}
+/* ТЗ 34: пустая правая половина — сплошная карточка, как список слева
+   (var(--card), та же рамка), и один большой знак VG по центру в цветах
+   темы. Мелкого узора нет: он ложился поверх обоев страницы. */
+.dbrand .brand-bg{min-height:0;background:var(--card);border:1px solid var(--line)}
+.dbrand .brand-bg > svg:first-child:not(.brand-vg){display:none}
+.dbrand .brand-bg .brand-vg{filter:drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 30%, transparent))}
+.dbrand .brand-bg .brand-vg > g:first-of-type{fill:var(--accent)}
 .dpane{display:none;flex:1 1 0;min-height:0;flex-direction:column;gap:14px;overflow-y:auto;overflow-x:hidden;padding-right:2px}
 .dpane > *{flex:none}
 /* ТЗ 30: правая половина — одна рамка, как список слева: верх на одном
@@ -70,7 +76,11 @@ button.drow.on{background:color-mix(in srgb, var(--accent-muted) 22%, var(--card
 .drow .nm .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drow .nm .h{font-size:11.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drow .c-ip{font:12.5px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Сама строка адреса — только по тексту: справа от него пусто, там
+   показывается «Скопировано» (ТЗ 34). */
+.drow .c-ip .v{display:inline}
 .drow .c-sys{color:var(--dim);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow .c-sys .os-ic,.ddetail .idrow .sys .os-ic{margin-right:5px}
 .drow .c-ms{font:12px var(--mono);color:var(--dim);white-space:nowrap;text-align:right}
 .drow .badge{margin-left:6px;vertical-align:1px}
 @container (max-width:560px){

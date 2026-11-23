@@ -33,8 +33,11 @@
       <button class="btn ghost small" id="plHostMore" hidden data-i18n="pl_host_more">Хост и место</button>
     </div>
     <div class="msg err" id="nodeErr" hidden></div>
-    <div class="card" id="nodeJobCard" hidden>
-      <h1 id="nodeJobTitle"></h1>
+    <!-- Журнал установки хоста — внутри карточки, чья кнопка нажата (ТЗ 34):
+         строка хоста на сетке, «Хост плагинов» на «+». Переносит plugins.js. -->
+    <div class="job-box" id="nodeJob" hidden>
+      <div class="job-head"><span id="nodeJobTitle"></span>
+        <button class="job-x" id="nodeJobClose" type="button" data-i18n-title="job_close" title="Скрыть журнал" aria-label="close">×</button></div>
       <div class="console" id="nodeJobLog"></div>
     </div>
     <div class="card" id="nodeWarnCard" hidden>

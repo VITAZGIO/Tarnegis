@@ -54,6 +54,9 @@ type demoBackend struct {
 	look  PanelLook
 	stats *demoStats
 
+	// meshJob, nodeJob — выдуманные установки (demo_job.go, ТЗ 34).
+	meshJob, nodeJob demoJob
+
 	clients  []Client
 	access   AccessSettings
 	newDev   string // «Новое устройство» (ТЗ 28)
@@ -907,7 +910,11 @@ func (d *demoBackend) routes() http.Handler {
 	})
 
 	// --- сеть устройств ---
-	h("/api/mesh/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, d.state()) })
+	h("/api/mesh/state", func(w http.ResponseWriter, r *http.Request) {
+		st := d.state()
+		st.Job = d.meshJob.snapshot()
+		writeJSON(w, http.StatusOK, st)
+	})
 	h("/api/mesh/role", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Role string `json:"role"`
@@ -926,10 +933,20 @@ func (d *demoBackend) routes() http.Handler {
 	h("/api/mesh/reinstall", func(w http.ResponseWriter, r *http.Request) {
 		// Старый meshd — «обновляется», свежий — «уже последняя» (ТЗ 25).
 		latest := !d.oldMeshd
+		if !latest && !d.meshJob.start("install") {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errJobRunning.Error()})
+			return
+		}
 		d.oldMeshd = false
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "latest": latest})
 	})
-	h("/api/udprelay/install", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, ok) })
+	h("/api/udprelay/install", func(w http.ResponseWriter, r *http.Request) {
+		if !d.meshJob.start("udprelay") {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errJobRunning.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, ok)
+	})
 	h("/api/egress", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, d.egressStatus()) })
 	h("/api/egress/apply", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -1184,9 +1201,15 @@ func (d *demoBackend) routes() http.Handler {
 
 	// --- плагины сервера (ТЗ 9) ---
 	h("/api/node/state", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, d.nodeStatus())
+		st := d.nodeStatus()
+		st.Job = d.nodeJob.snapshot()
+		writeJSON(w, http.StatusOK, st)
 	})
 	h("/api/node/install", func(w http.ResponseWriter, r *http.Request) {
+		if !d.nodeJob.start("node") {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errJobRunning.Error()})
+			return
+		}
 		d.nodeInstalled = true
 		writeJSON(w, http.StatusOK, ok)
 	})

@@ -22,6 +22,18 @@ There are three ways to pass the settings on:
 - on a computer, paste the link with the **Paste** button in the program;
 - download the file and open it with the **Import** button.
 
+## The list: address, name, system
+
+Two values in a device row are copied with a click: the **network address**
+(the **Address** column, for example `198.19.0.4`) and the **network name** under
+the device name (for example `noutbuk.mesh`). Each click copies only its own
+value. "Copied" appears in the same row, in the empty space between **Address**
+and **System**, and moves nothing. A click on the rest of the row opens the
+device card.
+
+The system has an icon in front of it: Windows, Android or Linux. An unknown
+system has no icon.
+
 ## Freeze, disconnect, delete
 
 Each device has three actions. They differ in strength:

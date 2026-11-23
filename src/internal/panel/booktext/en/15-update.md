@@ -44,6 +44,10 @@ there too: "7 · v1.10.6" — the protocol number and the release meshd was buil
 from. A hand-built one shows "7 · file from …". If it is the same release as the
 panel, the button answers "meshd is already the latest: … Nothing to install".
 
+The install progress is shown in the same **Network service** card, under its
+buttons; the same goes for **Install UDP relay** and **Install plugin host**. The other cards do not move. The log stays until the page is reloaded or
+until the **×** in its corner.
+
 While meshd restarts, the device network on this server is gone for a few
 seconds. If the panel is open through the device network of this same server, the
 page reconnects by itself.
