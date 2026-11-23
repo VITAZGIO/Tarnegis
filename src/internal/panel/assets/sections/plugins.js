@@ -193,11 +193,22 @@ function plJournal(box, evs){
   });
 }
 
+// Журнал установки хоста (ТЗ 34) — внутри карточки с кнопкой: на сетке —
+// строка хоста, на «+» — карточка «Хост плагинов». Увиденный журнал
+// остаётся до перезагрузки или «×».
+let NODE_JOB_SEEN = '', NODE_JOB_HIDDEN = '';
+$('nodeJobClose').addEventListener('click', () => {
+  NODE_JOB_HIDDEN = NODE_JOB_SEEN;
+  $('nodeJob').hidden = true;
+});
 function renderNodeJob(job){
-  const recent = job && (job.running || job.error ||
+  const box = $('nodeJob'), host = SUB.Plugins === 'add' ? $('nodeHostCard') : $('plHostBar');
+  if (box.parentNode !== host) host.appendChild(box);
+  const recent = job && job.started !== NODE_JOB_HIDDEN && (job.running || job.error || job.started === NODE_JOB_SEEN ||
     (job.finished && Date.now() - new Date(job.finished) < 60000));
-  $('nodeJobCard').hidden = !recent;
+  box.hidden = !recent;
   if (!recent) return;
+  NODE_JOB_SEEN = job.started;
   const title = $('nodeJobTitle');
   title.innerHTML = '';
   if (job.running){

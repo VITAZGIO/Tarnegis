@@ -8,6 +8,10 @@
     <button type="button" data-sub="book" data-i18n="sub_set_book">Книга</button>
   </div>
   <div class="sub" data-sub="net">
+    <!-- ТЗ 34: два постоянных столбца. Слева сеть и служба сети — журнал
+         установки растёт внизу своей карточки, под ней ничего нет; справа
+         ёмкость. Ни одна карточка не перескакивает в другой столбец. -->
+    <div class="set-col">
     <!-- сеть устройств на этом сервере (ТЗ 22: ролей нет) -->
     <div class="card" id="meshRoleCard" hidden>
       <h1><span data-i18n="srv_dn_title">Сеть устройств на этом сервере</span><button class="hint" data-hint="hint_srv_dn">?</button></h1>
@@ -39,12 +43,6 @@
       </div>
     </div>
 
-    <!-- установка -->
-    <div class="card" id="meshJobCard" hidden>
-      <h1 id="meshJobTitle"></h1>
-      <div class="console" id="meshJobLog"></div>
-    </div>
-
     <!-- служба сети (главный сервер) -->
     <div class="card" id="meshServiceCard" hidden>
       <h1><span data-i18n="mesh_service_title">Служба сети</span><button class="hint" data-hint="hint_service">?</button></h1>
@@ -58,7 +56,17 @@
         <button class="btn danger" id="meshOffBtn" data-i18n="mesh_off">Выключить сеть на сервере</button>
       </div>
     </div>
+    <!-- Журнал установки — внутри карточки, чья кнопка нажата (ТЗ 34):
+         settings.js переносит этот блок в «Сеть устройств» (включение),
+         «Служба сети» (обновление, ретранслятор) или «Перейти». -->
+    <div class="job-box" id="meshJob" hidden>
+      <div class="job-head"><span id="meshJobTitle"></span>
+        <button class="job-x" id="meshJobClose" type="button" data-i18n-title="job_close" title="Скрыть журнал" aria-label="close">×</button></div>
+      <div class="console" id="meshJobLog"></div>
+    </div>
+    </div>
 
+    <div class="set-col">
     <div class="card">
       <h1><span data-i18n="cap_title">Ёмкость сервера</span><button class="hint" data-hint="hint_capacity">?</button></h1>
       <p class="note" data-i18n="cap_note">Сколько устройств могут подключаться к серверу одновременно. Меняет настройку
@@ -73,6 +81,7 @@
       <div class="kv"><span class="k" data-i18n="cap_effective">Действует сейчас (sshd -T)</span>
         <span class="v" id="capEffective">—</span></div>
       <button class="btn" id="capSaveBtn" style="margin-top:12px" data-i18n="cap_save">Применить</button>
+    </div>
     </div>
   </div>
   <div class="sub" data-sub="egress" hidden>
@@ -127,6 +136,9 @@
 
   </div>
   <div class="sub" data-sub="panel" hidden>
+    <!-- ТЗ 34: столбцы постоянные — слева версия (растёт ход обновления),
+         справа автозапуск и учётная запись (внизу раскрывается пароль). -->
+    <div class="set-col">
     <div class="card">
       <h1 data-i18n="version_label">Версия панели</h1>
       <div class="kv"><span class="k" data-i18n="version_installed">Установлена</span>
@@ -152,6 +164,8 @@
              data-i18n="update_open_release">Открыть страницу релиза</a></p>
       </div>
     </div>
+    </div>
+    <div class="set-col">
     <div class="card">
       <h1><span data-i18n="autostart_title">Автозапуск</span><button class="hint" data-hint="hint_autostart">?</button></h1>
       <p class="note" id="autostartNote" hidden data-i18n="autostart_note">Включено — панель поднимется сама после
@@ -191,6 +205,7 @@
           <button class="btn ghost" id="cancelPassBtn" data-i18n="cancel">Отмена</button>
         </div>
       </div>
+    </div>
     </div>
   </div>
   <!-- Вид (ТЗ 25): тот же выбор темы и фона, что в программе. -->

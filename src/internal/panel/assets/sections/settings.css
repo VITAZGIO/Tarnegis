@@ -2,12 +2,16 @@
 /* «Вид»: строки «Тема» / «Фон». */
 .look-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0}
 .look-k{width:70px;color:var(--dim);font-size:13px}
-/* Формы настроек не растягиваются на всю ширину широкого окна: карточки
-   идут двумя столбцами газетой (ширина раздела от этого не меняется). */
-@media (min-width:1500px){
-  #tabSettings > .sub:not([data-sub="book"]){display:block;columns:2;column-gap:14px}
-  #tabSettings > .sub:not([data-sub="book"]) > *{break-inside:avoid;margin-bottom:14px;display:block}
-  #tabSettings > .sub:not([data-sub="book"]) > [hidden]{display:none}
+/* Формы настроек не растягиваются на всю ширину широкого окна: два
+   постоянных столбца (.set-col), у каждой карточки свой (ТЗ 34). Не газета
+   (CSS columns): там появление журнала установки перекладывало карточки из
+   столбца в столбец. С 1100 px (как .row2) — два столбца; уже — один,
+   тот же порядок: журнал растёт вниз, карточки под ним опускаются, но
+   столбец не меняют. */
+.set-col{display:grid;gap:14px;align-content:start;min-width:0}
+.set-col:empty{display:none}
+@media (min-width:1100px){
+  #tabSettings > .sub:has(> .set-col){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px;align-items:start}
 }
 
 /* «Обновить на всех серверах» (ТЗ 31): строка на сервер — имя, версии, шаг. */

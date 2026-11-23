@@ -58,16 +58,35 @@ function renderDevList(){
     const n = el('div', 'n', itemName(it));
     if (it.client && it.client.state !== 'active') n.appendChild(stateBadge(it.client.state));
     nm.appendChild(n);
-    const sub = el('div', 'h', it.mesh ? it.mesh.host + '.mesh'
-      : t('device_' + it.client.deviceType) + ' · ' + onlineText(it.client));
+    // ТЗ 34: адрес в сети и имя в сети — каждое копируется своим щелчком;
+    // «Скопировано» — в той же строке, в пустом месте между «Адрес» и «Система».
+    const ipCell = el('span', 'c-ip'), ipVal = el('span', 'v', (it.mesh && it.mesh.ip) || '—');
+    ipCell.appendChild(ipVal);
+    const sysCell = el('span', 'c-sys');
+    // Узкий список (адрес и система скрыты) — справа от имени до задержки.
+    const ms = el('span', 'c-ms');
+    const place = () => {
+      const rr = row.getBoundingClientRect();
+      if (ipCell.offsetWidth){
+        return {left: ipVal.getBoundingClientRect().right, right: sysCell.getBoundingClientRect().left, top: rr.top, bottom: rr.bottom};
+      }
+      const nv = nm.querySelector('.copy');
+      return {left: (nv || nm).getBoundingClientRect().right, right: ms.getBoundingClientRect().left, top: rr.top, bottom: rr.bottom};
+    };
+    const sub = el('div', 'h');
+    if (it.mesh) sub.appendChild(copyable(el('span', 'v', it.mesh.host + '.mesh'), it.mesh.host + '.mesh', {hint: 'copy_name_hint', place}));
+    else sub.textContent = t('device_' + it.client.deviceType) + ' · ' + onlineText(it.client);
     // «Ждёт одобрения» / «заморожено» — под именем: длинное имя его не спрячет.
     const hb = holdBadge(it.mesh);
     if (hb){ hb.style.margin = '0 6px 0 0'; sub.prepend(hb); }
     nm.appendChild(sub);
     row.appendChild(nm);
-    row.appendChild(copyable(el('span', 'c-ip', (it.mesh && it.mesh.ip) || '—'), it.mesh && it.mesh.ip));
-    row.appendChild(el('span', 'c-sys', itemSystem(it) || '—'));
-    const ms = el('span', 'c-ms');
+    copyable(ipVal, it.mesh && it.mesh.ip, {hint: 'copy_ip_hint', place});
+    row.appendChild(ipCell);
+    const ic = osIcon(itemPlatform(it));
+    if (ic) sysCell.appendChild(ic);
+    sysCell.appendChild(document.createTextNode(itemSystem(it) || '—'));
+    row.appendChild(sysCell);
     if (it.mesh && it.mesh.online){
       ms.appendChild(qualBars(it.mesh.quality));
       ms.appendChild(document.createTextNode(fmtMs(it.mesh.rttMs)));
@@ -160,7 +179,7 @@ function renderDetail(){
   if (hb){ hb.style.marginLeft = '8px'; nn.appendChild(hb); }
   nm.appendChild(nn);
   const hh = el('div', 'h');
-  hh.appendChild(d ? copyable(el('span', '', d.host + '.mesh'), d.host + '.mesh') : document.createTextNode(c.username || ''));
+  hh.appendChild(d ? copyable(el('span', '', d.host + '.mesh'), d.host + '.mesh', {hint: 'copy_name_hint'}) : document.createTextNode(c.username || ''));
   nm.appendChild(hh);
   top.appendChild(nm);
   if (d){
@@ -178,9 +197,15 @@ function renderDetail(){
     const part = el('div', 'dpart');
     part.appendChild(el('h2', '', t('dev_part_mesh')));
     const idrow = el('div', 'idrow');
-    idrow.appendChild(copyable(el('span', 'ip', d.ip || '—'), d.ip));
+    idrow.appendChild(copyable(el('span', 'ip', d.ip || '—'), d.ip, {hint: 'copy_ip_hint'}));
     const sys = systemText(d);
-    if (sys) idrow.appendChild(el('span', 'sys', sys));
+    if (sys){
+      const sy = el('span', 'sys');
+      const ic = osIcon(d.platform);
+      if (ic) sy.appendChild(ic);
+      sy.appendChild(document.createTextNode(sys));
+      idrow.appendChild(sy);
+    }
     part.appendChild(idrow);
     const facts = el('div', 'facts');
     if (d.online){

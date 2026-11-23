@@ -33,6 +33,8 @@
 .pl-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
 .pl-bar i.full{background:var(--warn)}
 .pl-hostbar .btn{margin-left:auto}
+/* Журнал установки в строке хоста — отдельной строкой во всю ширину. */
+.pl-hostbar .job-box{flex:1 0 100%;margin-top:2px}
 
 /* --- сетка карточек: все одной высоты и одного вида, на всю ширину --- */
 .pl-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
