@@ -6,6 +6,11 @@
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);
      font:14px/1.5 "Segoe UI",-apple-system,Roboto,sans-serif}
+/* Страница внутри главного окна (фрейм «Плагинов»): фон прозрачный, как у
+   главного экрана, — сквозь неё видны цвет темы и узор/«код» окна. Раньше
+   сплошной --bg замазывал фон под страницей плагина. В отдельном окне и на
+   телефоне своим экраном фон остаётся сплошным. */
+html.embed body{background:transparent}
 button{font:inherit;color:inherit}
 a{color:var(--accent)}
 

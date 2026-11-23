@@ -16,6 +16,29 @@ const SOLO = Q.get('solo') === '1';
 document.documentElement.lang = LANG;
 if(Q.get('theme')) document.documentElement.dataset.theme = Q.get('theme');
 if(ANDROID) document.documentElement.classList.add('android');
+if(EMBED) document.documentElement.classList.add('embed');
+
+// Смена темы в главном окне, пока страница открыта: от родителя (встроена)
+// или по общему каналу (отдельное окно). Дальше — во фреймы этой страницы
+// (страница плагина внутри «Плагинов»). Тема «Оригинал» — без атрибута.
+function applyTheme(th){
+  if(th) document.documentElement.dataset.theme = th;
+  else delete document.documentElement.dataset.theme;
+  for(const f of document.querySelectorAll('iframe')){
+    try { if(f.contentWindow) f.contentWindow.postMessage({sshtunnel: 'look', theme: th}, '*'); } catch(e) {}
+  }
+}
+window.addEventListener('message', ev => {
+  if(!EMBED || ev.source !== window.parent || !ev.data || ev.data.sshtunnel !== 'look') return;
+  applyTheme(String(ev.data.theme || ''));
+});
+if(!EMBED && typeof BroadcastChannel === 'function'){
+  try {
+    new BroadcastChannel('sshtunnel-look').onmessage = ev => {
+      if(ev.data && ev.data.sshtunnel === 'look') applyTheme(String(ev.data.theme || ''));
+    };
+  } catch(e) {}
+}
 
 const $ = id => document.getElementById(id);
 const L = (ru, en) => LANG === 'en' ? en : ru;

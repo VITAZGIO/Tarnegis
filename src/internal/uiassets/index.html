@@ -699,15 +699,20 @@
                 stroke-linecap:round;stroke-linejoin:round}
 
   /* ---------- фон ---------- */
-  #backdrop{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  /* Фон (узор «Автор», «Код») — только в колонке программы: #backdrop внутри
+     .app и занимает её рамку. В широком браузере (Linux с -web) по бокам от
+     колонки — сплошной цвет темы (фон body), а не узор на всю ширину.
+     z-index:-1 — под содержимым, но над фоном самой колонки: .app со своим
+     z-index — отдельный слой, ниже body фон не уходит. */
+  #backdrop{position:absolute;inset:0;pointer-events:none;z-index:-1;overflow:hidden}
   #backdrop canvas{width:100%;height:100%;display:block;opacity:.18}
   #backdrop svg{position:absolute;inset:0;width:100%;height:100%;fill:var(--accent);opacity:.06}
   .app{position:relative;z-index:1}
 </style>
 </head>
 <body>
-<div id="backdrop" aria-hidden="true"></div>
 <div class="app">
+<div id="backdrop" aria-hidden="true"></div>
 
   <div class="bar">
     <div class="brand">
@@ -5087,6 +5092,17 @@ function applyLook(){
   renderSeg('themeSeg', uiTheme);
   renderSeg('bgSeg', uiBg);
   renderBackdrop();
+  sendLook();
+}
+// sendLook — новая тема открытым страницам плагинов: встроенной (фрейм
+// «Плагинов») — сообщением, отдельным окнам — общим каналом. Страница сама
+// передаёт её дальше во фрейм плагина (pages.js).
+function sendLook(){
+  const msg = {sshtunnel: 'look', theme: uiTheme || ''};
+  try { const w = $('addonsFrame').contentWindow; if(w) w.postMessage(msg, location.origin); } catch(e) {}
+  if(typeof BroadcastChannel === 'function'){
+    try { const bus = new BroadcastChannel('sshtunnel-look'); bus.postMessage(msg); bus.close(); } catch(e) {}
+  }
 }
 
 
@@ -5490,10 +5506,13 @@ async function loadAddons(){
 // перебивал — стрелка торчала всегда). Иначе создаём их и заполняем.
 // placeQuick — панель под шапкой (высота шапки на телефоне больше), правым
 // краем по шестерёнке: выезжает вниз и кнопок шапки не закрывает.
+// Считается только у открытой панели: у скрытой нет offsetParent, и раньше
+// отсчёт шёл от края окна, а не колонки .app — в широком браузере панель
+// уезжала влево за колонку (в узком окне ПК края совпадают, и было не видно).
 function placeQuick(){
   const p = $('quickPanel'), g = $('btnSettings');
-  if(!p || !g) return;
-  const host = p.offsetParent ? p.offsetParent.getBoundingClientRect() : {top: 0, right: innerWidth};
+  if(!p || !g || p.hidden || !p.offsetParent) return;
+  const host = p.offsetParent.getBoundingClientRect();
   const hr = g.parentNode.getBoundingClientRect(), gr = g.getBoundingClientRect();
   if(!hr.height) return;
   p.style.top = (hr.bottom - host.top + 6) + 'px';
@@ -5504,6 +5523,7 @@ function setQuick(open){
   const p = $('quickPanel'), b = $('quickBtn');
   if(p) p.hidden = !open;
   if(b) b.classList.toggle('open', !!open);
+  if(open) placeQuick();
 }
 function closeQuick(){ setQuick(false); }
 function renderQuick(list){
@@ -5544,6 +5564,13 @@ function renderQuick(list){
 document.addEventListener('click', ev => {
   const p = $('quickPanel');
   if(p && !p.hidden && !p.contains(ev.target)) closeQuick();
+});
+// Esc закрывает быстрый доступ и выпадающие меню (в браузере и окне ПК).
+document.addEventListener('keydown', ev => {
+  if(ev.key !== 'Escape') return;
+  if(menuEl){ closeMenu(); return; }
+  if($('quickPanel') && !$('quickPanel').hidden) closeQuick();
+  if(!$('langMenu').hidden) $('langMenu').hidden = true;
 });
 $('toAddons').onclick = () => showAddons();
 // Не подключилось — «Кто трогает трафик» (добавляется по этому нажатию).
