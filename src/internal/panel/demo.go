@@ -95,6 +95,8 @@ type demoBackend struct {
 	// остались»).
 	nodeBackups map[string][]nodeapi.BackupSet
 	nodeOrphan  string
+	// nodeSnaps — снимки зеркальных папок (ТЗ 36): «сеть/папка» → список.
+	nodeSnaps map[string]*nodeapi.SnapList
 	// ТЗ 15: общий список блокировки, стёртая история машин, последняя
 	// проверка сайта с сервера.
 	nodeAd        nodeapi.AdblockState
@@ -551,6 +553,7 @@ func (d *demoBackend) nodeStatus() NodeStatus {
 		}
 		for _, f := range d.nodeFolders[n.ID] {
 			f.UsedBytes = int64(len(f.Name)) << 20 // выдуманное, но не ноль
+			f.Snap = d.demoSnaps(n.ID, f.ID, f.Name)
 			net.Folders = append(net.Folders, f)
 		}
 		if items := d.nodeClipboard[n.ID]; items > 0 {
@@ -1327,6 +1330,7 @@ func (d *demoBackend) routes() http.Handler {
 		d.nodeMachClear[req.Net] = true
 		writeJSON(w, http.StatusOK, ok)
 	})
+	d.snapRoutes(h)
 	h("/api/node/folder/add", func(w http.ResponseWriter, r *http.Request) {
 		var req nodeapi.FolderReq
 		if !decodePost(w, r, &req) {

@@ -20,6 +20,11 @@
 //	POST /sitecheck         SiteReq              → проверка сайта с сервера (probe.ServerResult)
 //	POST /machines/clear    {net}                → {"ok":true}  стереть историю машин сети
 //	POST /files/clear       {net}                → {"ok":true}  стереть общую папку сети (ТЗ 29)
+//	GET  /folder/snap/list?net=&id=              → SnapList     снимки папки (ТЗ 36)
+//	GET  /folder/snap/get?net=&id=&snap=         → zip          скачать снимок
+//	POST /folder/snap/cfg   SnapReq {net,id,daily,time,keep} → SnapList
+//	POST /folder/snap/now   SnapReq {net,id}     → SnapList
+//	POST /folder/snap/restore SnapReq {net,id,snap} → RestoreResult
 //
 // Ошибки — HTTP 400 {"error":"<текст>"}.
 package nodeapi
@@ -35,6 +40,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -187,6 +193,54 @@ type Folder struct {
 	// обновления (MigrateAccess).
 	Devices []string `json:"devices"`
 	Old     bool     `json:"old,omitempty"`
+	// Snap — снимки папки (ТЗ 36); nil — старый хост без снимков.
+	Snap *SnapList `json:"snap,omitempty"`
+}
+
+// SnapConfig — расписание снимков папки (как mirror.SnapConfig).
+type SnapConfig struct {
+	Daily bool   `json:"daily"`
+	Time  string `json:"time"`
+	Keep  int    `json:"keep"`
+}
+
+// Snapshot — снимок папки (как mirror.Snapshot). Reason: auto | manual | pre.
+type Snapshot struct {
+	File   string `json:"file,omitempty"`
+	Time   int64  `json:"time"`
+	Size   int64  `json:"size"`
+	Files  int    `json:"files"`
+	Reason string `json:"reason"`
+	Seq    int64  `json:"seq,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// SnapList — снимки папки и где они лежат.
+type SnapList struct {
+	Config    SnapConfig `json:"config"`
+	Dir       string     `json:"dir"`
+	Total     int64      `json:"total"`
+	LastRun   int64      `json:"lastRun"`
+	Snapshots []Snapshot `json:"snapshots"`
+}
+
+// SnapReq — запрос к снимкам папки.
+type SnapReq struct {
+	Net   string `json:"net"`
+	ID    string `json:"id"`
+	Daily bool   `json:"daily,omitempty"`
+	Time  string `json:"time,omitempty"`
+	Keep  int    `json:"keep,omitempty"`
+	Snap  string `json:"snap,omitempty"`
+}
+
+// RestoreResult — итог восстановления папки из снимка.
+type RestoreResult struct {
+	Changed int    `json:"changed"`
+	Deleted int    `json:"deleted"`
+	Added   int    `json:"added"`
+	Pre     string `json:"pre,omitempty"`
+	Text    string `json:"text"`
 }
 
 // Clipboard — буфер сети на сервере.
@@ -339,6 +393,13 @@ type API interface {
 	// ClearFiles — стереть общую папку сети (ТЗ 29). Старый хост отвечает
 	// 404 — панель просит его обновить.
 	ClearFiles(ctx context.Context, net string) error
+	// Снимки зеркальных папок (ТЗ 36). Старый хост отвечает 404.
+	Snapshots(ctx context.Context, net, id string) (SnapList, error)
+	SnapConfig(ctx context.Context, r SnapReq) (SnapList, error)
+	SnapNow(ctx context.Context, r SnapReq) (SnapList, error)
+	SnapRestore(ctx context.Context, r SnapReq) (RestoreResult, error)
+	// OpenSnapshot — архив снимка потоком (закрыть после чтения).
+	OpenSnapshot(ctx context.Context, net, id, snap string) (io.ReadCloser, int64, error)
 }
 
 // AccessReq — дать (On) или забрать у устройства зеркальную папку сети
@@ -488,6 +549,57 @@ func (c *Client) ClearMachines(ctx context.Context, n string) error {
 
 func (c *Client) ClearFiles(ctx context.Context, n string) error {
 	return c.do(ctx, http.MethodPost, "/files/clear", map[string]string{"net": n}, nil)
+}
+
+func (c *Client) Snapshots(ctx context.Context, n, id string) (SnapList, error) {
+	var out SnapList
+	err := c.do(ctx, http.MethodGet, "/folder/snap/list?"+url.Values{"net": {n}, "id": {id}}.Encode(), nil, &out)
+	return out, err
+}
+
+func (c *Client) SnapConfig(ctx context.Context, r SnapReq) (SnapList, error) {
+	var out SnapList
+	err := c.do(ctx, http.MethodPost, "/folder/snap/cfg", r, &out)
+	return out, err
+}
+
+func (c *Client) SnapNow(ctx context.Context, r SnapReq) (SnapList, error) {
+	var out SnapList
+	err := c.do(ctx, http.MethodPost, "/folder/snap/now", r, &out)
+	return out, err
+}
+
+func (c *Client) SnapRestore(ctx context.Context, r SnapReq) (RestoreResult, error) {
+	var out RestoreResult
+	err := c.do(ctx, http.MethodPost, "/folder/snap/restore", r, &out)
+	return out, err
+}
+
+// OpenSnapshot — архив снимка потоком; второе — размер (-1 — неизвестен).
+func (c *Client) OpenSnapshot(ctx context.Context, n, id, snap string) (io.ReadCloser, int64, error) {
+	q := url.Values{"net": {n}, "id": {id}, "snap": {snap}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://node/folder/snap/get?"+q, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	hc := *c.hc
+	hc.Timeout = 10 * time.Minute // архив может быть большим
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: %v", ErrNotRunning, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		var e struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(b, &e) != nil || e.Error == "" {
+			e.Error = resp.Status
+		}
+		return nil, 0, errors.New(e.Error)
+	}
+	return resp.Body, resp.ContentLength, nil
 }
 
 // PeerID — постоянный id устройства для прав зеркальных папок (ТЗ 18) по

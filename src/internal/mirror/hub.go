@@ -109,6 +109,7 @@ type hfolder struct {
 	ig  *Ignore
 
 	mu      sync.Mutex // всё изменение папки — под ним
+	snap    sync.Mutex // снимки папки (snapshot.go) — по одному
 	ix      *hindex
 	journal *os.File
 	jlines  int

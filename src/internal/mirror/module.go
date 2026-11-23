@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -39,7 +40,7 @@ func init() {
 	addons.Register("mirror", func() addons.Module { return &module{} })
 	addons.RegisterRoutes("mirror",
 		addons.Route{Path: "/api/mirror", Methods: "GET, POST",
-			Desc: "Зеркальные папки: раздаваемые (serve, у каждой devices — кому видна), подключённые (subs) со статусом, найденные серверы (found), доступ (access: устройства сети, сколько папок у каждого). POST {\"op\":\"serve\",\"path\",\"name\"} | {\"op\":\"unserve\",\"id\"} | {\"op\":\"grant\",\"device\":\"<id устройства>\",\"id\":\"hub:<id>|*\",\"on\":true|false} | {\"op\":\"ignore\",\"id\",\"list\":[…]} | {\"op\":\"join\",\"peer\",\"host\",\"folder\",\"name\",\"path\",\"mode\":\"both|recv|send\"} | {\"op\":\"leave\",\"id\"} | {\"op\":\"mode\",\"id\",\"mode\"} | {\"op\":\"sync\",\"id\"} | {\"op\":\"resolve\",\"id\",\"path\",\"keep\":\"orig|copy|both\"} | {\"op\":\"restore\",\"id\",\"blob\"}. id раздаваемой — «hub:<id>».",
+			Desc: "Зеркальные папки: раздаваемые (serve, у каждой devices — кому видна), подключённые (subs) со статусом, найденные серверы (found), доступ (access: устройства сети, сколько папок у каждого). POST {\"op\":\"serve\",\"path\",\"name\"} | {\"op\":\"unserve\",\"id\"} | {\"op\":\"grant\",\"device\":\"<id устройства>\",\"id\":\"hub:<id>|*\",\"on\":true|false} | {\"op\":\"ignore\",\"id\",\"list\":[…]} | {\"op\":\"join\",\"peer\",\"host\",\"folder\",\"name\",\"path\",\"mode\":\"both|recv|send\",\"existing\":\"|server|merge\"} (папка не пустая и existing пуст — ответ {error, nonEmpty:{files,bytes,sample,zip}}) | {\"op\":\"snap_cfg\",\"id\":\"hub:<id>\",\"daily\",\"time\":\"03:00\",\"keep\":3} | {\"op\":\"snap_now\",\"id\"} | {\"op\":\"snap_restore\",\"id\",\"snap\":\"<файл>\"} | {\"op\":\"snap_save\",\"id\",\"snap\"} (копия в «Загрузки») | {\"op\":\"leave\",\"id\"} | {\"op\":\"mode\",\"id\",\"mode\"} | {\"op\":\"sync\",\"id\"} | {\"op\":\"resolve\",\"id\",\"path\",\"keep\":\"orig|copy|both\"} | {\"op\":\"restore\",\"id\",\"blob\"}. id раздаваемой — «hub:<id>».",
 			H:    handleAPI},
 		addons.Route{Path: "/api/mirror/versions", Methods: "GET",
 			Desc: "Версии и корзина папки ?id=<hub:id|id подключённой>[&p=путь] (30 дней).",
@@ -47,6 +48,12 @@ func init() {
 		addons.Route{Path: "/api/mirror/file", Methods: "GET",
 			Desc: "Содержимое файла папки для просмотра ?id=&p= или старой версии ?id=&blob= (до 2 МБ).",
 			H:    handleFile},
+		addons.Route{Path: "/api/mirror/snapshots", Methods: "GET",
+			Desc: "Снимки раздаваемой папки ?id=hub:<id>: config {daily,time,keep}, dir (где лежат), total, snapshots [{file,time,size,files,reason:auto|manual|pre,seq,error}] — новые сверху.",
+			H:    handleSnapshots},
+		addons.Route{Path: "/api/mirror/snapshot", Methods: "GET",
+			Desc: "Скачать снимок ?id=hub:<id>&snap=<файл> (zip: файлы папки и snapshot.json).",
+			H:    handleSnapshot},
 	)
 }
 
@@ -228,6 +235,7 @@ func (m *module) hubLoop() {
 		for _, f := range m.hub.Folders() {
 			_ = m.hub.Scan(f.ID)
 		}
+		m.hub.SnapTick() // снимки по расписанию (ТЗ 36)
 		if time.Since(lastPrune) > time.Hour {
 			m.hub.Prune()
 			lastPrune = time.Now()
@@ -511,41 +519,78 @@ func (m *module) overlaps(p string) error {
 	return nil
 }
 
-func (m *module) join(s Sub) error {
+// errNonEmpty — в выбранной папке уже есть файлы, нужен выбор человека.
+var errNonEmpty = errors.New("в этой папке уже есть файлы — выбери, что с ними сделать")
+
+// join — подключить папку. В непустую папку — только с выбором existing
+// (ТЗ 36): без него ответ errNonEmpty и что там лежит.
+func (m *module) join(s Sub, existing string) (*NonEmpty, string, error) {
 	switch s.Mode {
 	case "":
 		s.Mode = ModeBoth
 	case ModeBoth, ModeRecv, ModeSend:
 	default:
-		return errors.New("mode: both, recv или send")
+		return nil, "", errors.New("mode: both, recv или send")
+	}
+	switch existing {
+	case JoinAsk, JoinServer, JoinMerge:
+	default:
+		return nil, "", errors.New("existing: server или merge")
 	}
 	if s.Peer == "" || s.Folder == "" || strings.TrimSpace(s.Path) == "" {
-		return errors.New("нужны peer, folder и path")
+		return nil, "", errors.New("нужны peer, folder и path")
 	}
 	abs, err := filepath.Abs(localPath(s.Path))
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	if err := m.overlaps(abs); err != nil {
-		return err
+		return nil, "", err
 	}
 	m.mu.Lock()
 	for _, r := range m.subs {
 		if r.Folder == s.Folder && (r.Host == s.Host || r.Peer == s.Peer) {
 			m.mu.Unlock()
-			return errors.New("эта папка уже подключена: " + r.Path)
+			return nil, "", errors.New("эта папка уже подключена: " + r.Path)
 		}
 	}
 	m.mu.Unlock()
-	// Существующую папку можно: совпадающие файлы не передаются, разные
-	// становятся конфликт-копиями — ничего не затирается.
+	text := ""
+	ne, err := checkNonEmpty(abs, time.Now())
+	if err != nil {
+		return nil, "", err
+	}
+	if ne != nil {
+		switch existing {
+		case JoinAsk:
+			return ne, "", errNonEmpty
+		case JoinServer:
+			// Своё — в архив рядом с папкой; не вышло (нет прав) — в данные
+			// программы.
+			zp := ne.Zip
+			n, err := moveToZip(abs, zp)
+			if err != nil && n == 0 {
+				zp = joinZipPath(filepath.Join(dataDir(), "before-join", filepath.Base(abs)), time.Now())
+				n, err = moveToZip(abs, zp)
+			}
+			if err != nil {
+				return nil, "", err
+			}
+			text = fmt.Sprintf("Свои файлы папки (%d) убраны в архив %s; папка берётся с сервера", n, zp)
+			notify("join", text)
+		case JoinMerge:
+			// Как раньше: совпадающие файлы не передаются, разные становятся
+			// конфликт-копиями — ничего не затирается, но всё уходит в общую
+			// папку.
+		}
+	}
 	if err := os.MkdirAll(abs, 0o755); err != nil {
-		return err
+		return nil, "", err
 	}
 	s.Path = abs
 	s.ID = randHex(5)
 	m.startSub(s)
-	return m.saveSubs()
+	return nil, text, m.saveSubs()
 }
 
 func (m *module) leave(id string) error {
@@ -635,6 +680,8 @@ func (m *module) state() map[string]any {
 		// версии, пока видна всем (ждёт id устройств от meshd).
 		Devices []string `json:"devices"`
 		Old     bool     `json:"old,omitempty"`
+		// Snap — снимки папки (ТЗ 36).
+		Snap *SnapList `json:"snap,omitempty"`
 	}
 	m.migrate()
 	serve := []serveItem{}
@@ -647,6 +694,9 @@ func (m *module) state() map[string]any {
 				}
 			}
 			it.Conflicts = r.Conflicts
+		}
+		if sl, err := m.hub.Snapshots(f.ID); err == nil {
+			it.Snap = &sl
 		}
 		serve = append(serve, it)
 	}
@@ -710,16 +760,23 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			Host   string   `json:"host"`
 			Folder string   `json:"folder"`
 			Mode   string   `json:"mode"`
-			Keep   string   `json:"keep"`
+			Keep   keepArg  `json:"keep"` // resolve: "orig|copy|both"; snap_cfg: число
 			Blob   string   `json:"blob"`
 			Device string   `json:"device"`
 			On     bool     `json:"on"`
+			// ТЗ 36.
+			Existing string `json:"existing"`
+			Daily    bool   `json:"daily"`
+			Time     string `json:"time"`
+			Snap     string `json:"snap"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			writeJSON(w, map[string]string{"error": "нужен JSON {\"op\"}"})
 			return
 		}
 		var err error
+		var text string // что сказать человеку (всплывашка)
+		var ne *NonEmpty
 		hubID, isHub := strings.CutPrefix(req.ID, "hub:")
 		switch req.Op {
 		case "serve":
@@ -742,7 +799,40 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		case "ignore":
 			err = m.hub.SetIgnore(hubID, req.List)
 		case "join":
-			err = m.join(Sub{Peer: req.Peer, Host: req.Host, Folder: req.Folder, Name: req.Name, Path: req.Path, Mode: req.Mode})
+			ne, text, err = m.join(Sub{Peer: req.Peer, Host: req.Host, Folder: req.Folder, Name: req.Name, Path: req.Path, Mode: req.Mode}, req.Existing)
+		case "snap_cfg":
+			if !isHub {
+				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
+			} else {
+				_, err = m.hub.SetSnapConfig(hubID, SnapConfig{Daily: req.Daily, Time: req.Time, Keep: req.Keep.n})
+			}
+		case "snap_now":
+			if !isHub {
+				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
+			} else {
+				var s Snapshot
+				if s, err = m.hub.SnapNow(hubID, SnapManual); err == nil {
+					text = "Снимок готов: " + s.File
+				}
+			}
+		case "snap_restore":
+			if !isHub {
+				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
+			} else {
+				var res RestoreResult
+				res, err = m.hub.RestoreSnapshot(hubID, selfName(), req.Snap)
+				text = res.Text
+			}
+		case "snap_save":
+			// Телефон: у WebView своих загрузок нет — копия снимка в «Загрузки».
+			if !isHub {
+				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
+			} else {
+				var p string
+				if p, err = m.hub.SaveSnapshot(hubID, req.Snap, downloadsDir()); err == nil {
+					text = "Снимок сохранён: " + p
+				}
+			}
 		case "leave":
 			err = m.leave(req.ID)
 		case "mode":
@@ -758,10 +848,10 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		case "resolve":
 			if isHub {
-				err = m.hub.Resolve(hubID, selfName(), req.Path, req.Keep)
+				err = m.hub.Resolve(hubID, selfName(), req.Path, req.Keep.s)
 			} else if s, ok := m.sub(req.ID); ok {
 				ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-				err = s.rep.Resolve(ctx, req.Path, req.Keep)
+				err = s.rep.Resolve(ctx, req.Path, req.Keep.s)
 				cancel()
 				select {
 				case s.kick <- struct{}{}:
@@ -780,14 +870,73 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 				err = errors.New("нет такой папки")
 			}
 		default:
-			err = errors.New("op: serve, unserve, grant, ignore, join, leave, mode, sync, resolve или restore")
+			err = errors.New("op: serve, unserve, grant, ignore, join, leave, mode, sync, resolve, restore, snap_cfg, snap_now или snap_restore")
 		}
 		if err != nil {
-			writeJSON(w, map[string]string{"error": err.Error()})
+			out := map[string]any{"error": err.Error()}
+			if ne != nil {
+				out["nonEmpty"] = ne
+			}
+			writeJSON(w, out)
+			return
+		}
+		if text != "" {
+			st := m.state()
+			st["text"] = text
+			writeJSON(w, st)
 			return
 		}
 	}
 	writeJSON(w, m.state())
+}
+
+// handleSnapshots — список снимков раздаваемой папки.
+func handleSnapshots(w http.ResponseWriter, r *http.Request) {
+	m := current()
+	if m == nil {
+		http.Error(w, "приложение не запущено", http.StatusServiceUnavailable)
+		return
+	}
+	id, ok := strings.CutPrefix(r.URL.Query().Get("id"), "hub:")
+	if !ok {
+		writeJSON(w, map[string]string{"error": "снимки — только у раздаваемой папки (id hub:<id>)"})
+		return
+	}
+	sl, err := m.hub.Snapshots(id)
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, sl)
+}
+
+// handleSnapshot — скачать архив снимка.
+func handleSnapshot(w http.ResponseWriter, r *http.Request) {
+	m := current()
+	if m == nil {
+		http.Error(w, "приложение не запущено", http.StatusServiceUnavailable)
+		return
+	}
+	id, ok := strings.CutPrefix(r.URL.Query().Get("id"), "hub:")
+	if !ok {
+		http.Error(w, "снимки — только у раздаваемой папки", http.StatusNotFound)
+		return
+	}
+	f, s, err := m.hub.OpenSnapshot(id, r.URL.Query().Get("snap"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+	ServeSnapshot(w, r, f, s)
+}
+
+// ServeSnapshot отдаёт архив снимка как скачивание (и панели сервера).
+func ServeSnapshot(w http.ResponseWriter, r *http.Request, f io.ReadSeeker, s Snapshot) {
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(s.File))
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeContent(w, r, "", time.Unix(s.Time, 0), f)
 }
 
 func handleVersions(w http.ResponseWriter, r *http.Request) {
@@ -909,4 +1058,26 @@ func who(r *http.Request) string {
 		return c.Host
 	}
 	return c.IP
+}
+
+// keepArg — поле keep запроса: строка у resolve, число у snap_cfg.
+type keepArg struct {
+	s string
+	n int
+}
+
+func (k *keepArg) UnmarshalJSON(b []byte) error {
+	if json.Unmarshal(b, &k.s) == nil {
+		return nil
+	}
+	return json.Unmarshal(b, &k.n)
+}
+
+// downloadsDir — «Загрузки» этого устройства (как у «Файлов устройства»).
+func downloadsDir() string {
+	if runtime.GOOS == "android" {
+		return "/storage/emulated/0/Download"
+	}
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, "Downloads")
 }

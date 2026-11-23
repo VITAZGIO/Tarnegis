@@ -58,6 +58,32 @@
   .chk input{width:18px;height:18px;margin:0;flex:none}
   .chk .tx{flex:1;min-width:0}
   .back{display:none}
+  /* Снимки папки (ТЗ 36). */
+  .snaps{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}
+  .snaps summary{cursor:pointer;font-weight:600;padding:4px 0;font-size:14px}
+  .snaps summary .d{font-weight:400;color:var(--dim);font-size:12px}
+  .snaps .cfg{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  .snaps .cfg label{display:flex;gap:6px;align-items:center;font-size:13px}
+  .snaps .cfg input[type=checkbox]{width:18px;height:18px;margin:0}
+  .snaps .cfg input[type=number]{width:64px}
+  .snaps .cfg input[type=time]{width:110px}
+  .srow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 2px;font-size:13px}
+  .srow .d{color:var(--dim);font-size:12px}
+  .srow.bad .d{color:var(--warn)}
+  .snaps .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
+  .snaps .where code{font-family:var(--mono);font-size:11.5px}
+  @media (max-width:480px){ .srow{grid-template-columns:1fr 1fr} .srow > div:first-child{grid-column:1/-1} }
+  /* Окно «в папке уже есть файлы» (ТЗ 36). */
+  .ovl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+  .ovl .card{max-width:520px;width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box}
+  .ovl h3{margin:0 0 6px;font-size:16px}
+  .ovl .p{font-family:var(--mono);font-size:12px;color:var(--dim);word-break:break-all}
+  .ovl .opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;margin-top:8px;
+            border:1px solid var(--line);background:var(--card2);border-radius:10px;padding:10px 12px;cursor:pointer;color:var(--text);font:inherit}
+  .ovl .opt.main{border-color:var(--accent)}
+  .ovl .opt b{font-size:14px}
+  .ovl .opt span{font-size:12.5px;color:var(--dim)}
+  .ovl .opt.warn span{color:var(--warn)}
   @media (max-width:760px){
     .acc{grid-template-columns:1fr}
     #vAcc.card-open .list,#vAcc.card-open .accHead,#vAcc.card-open #accHint{display:none}
@@ -202,7 +228,7 @@ $('tabTrash').onclick = () => tab('trash');
 async function post(body){
   const r = await api('/api/mirror', body);
   if(r.error){ msg(r.error, 'err'); return false; }
-  msg(''); draw(r); return true;
+  msg(r.text || '', r.text ? 'ok' : ''); draw(r); return true;
 }
 
 function when(t){ return t ? new Date(t * 1000).toLocaleString(LANG === 'en' ? 'en-GB' : 'ru-RU') : ''; }
@@ -272,7 +298,7 @@ function draw(r){
       row.querySelector('.jm').onchange = ev => { d.mode = ev.target.value; };
       // Кнопка «Подключить» — .primary: первая кнопка в строке — «Обзор».
       row.querySelector('button.primary').onclick = async () => {
-        if(await post({op: 'join', peer: f.peer, host: f.host, folder: x.id, name: x.name, path: d.path.trim(), mode: d.mode}))
+        if(await join({op: 'join', peer: f.peer, host: f.host, folder: x.id, name: x.name, path: d.path.trim(), mode: d.mode}))
           delete drafts[key];
       };
       c.appendChild(row);
@@ -323,6 +349,7 @@ function draw(r){
       if(confirm(L(`Перестать раздавать «${f.name}»? Сама папка не тронется; у других устройств синхронизация остановится.`, `Stop sharing «${f.name}»? The folder itself is untouched; other devices stop syncing.`)))
         post({op: 'unserve', id: 'hub:' + f.id});
     };
+    c.appendChild(snapBlock(f));
     vb.appendChild(c);
   }
 
@@ -334,6 +361,124 @@ function draw(r){
   const sig = JSON.stringify(allConflicts());
   if(TAB === 'conf' && sig !== CONF_SIG) drawConflicts();
   CONF_SIG = sig;
+}
+
+// ---- Снимки папки (ТЗ 36) ----
+// Раскрытые блоки — страница перерисовывается раз в 5 с, раскрытое не
+// схлопывается.
+const SNAP_OPEN = new Set();
+const REASON = {auto: L('по расписанию', 'scheduled'), manual: L('вручную', 'manual'), pre: L('перед восстановлением', 'before restore')};
+function size(n){
+  n = Number(n) || 0;
+  const u = L('Б КБ МБ ГБ ТБ', 'B KB MB GB TB').split(' ');
+  let i = 0;
+  while(n >= 1024 && i < u.length - 1){ n /= 1024; i++; }
+  return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i];
+}
+function snapBlock(f){
+  const sl = f.snap;
+  const box = document.createElement('details');
+  box.className = 'snaps';
+  box.open = SNAP_OPEN.has(f.id);
+  box.ontoggle = () => { if(box.open) SNAP_OPEN.add(f.id); else SNAP_OPEN.delete(f.id); };
+  if(!sl){ box.innerHTML = `<summary>${esc(L('Снимки', 'Snapshots'))}</summary>`; return box; }
+  const good = (sl.snapshots || []).filter(s => !s.error);
+  const head = (sl.config.daily ? L('каждую ночь в ', 'every night at ') + sl.config.time : L('по расписанию выключены', 'schedule off')) +
+    ' · ' + good.length + ' ' + L('шт.', 'kept') + ', ' + size(sl.total);
+  box.innerHTML = `<summary>${esc(L('Снимки', 'Snapshots'))} <span class="d">· ${esc(head)}</span></summary>
+    <div class="hint">${esc(L('Архив всей папки (zip) в данных программы — не в самой папке, поэтому он никуда не синхронизируется. «Восстановить» возвращает всю папку; один файл можно достать из архива самому.',
+      'A zip of the whole folder in the app data — not inside the folder, so it never syncs. «Restore» brings back the whole folder; take a single file out of the zip yourself.'))}</div>
+    <div class="cfg">
+      <label><input type="checkbox" data-c="daily"${sl.config.daily ? ' checked' : ''}>${esc(L('Каждую ночь', 'Every night'))}</label>
+      <input type="time" data-c="time" value="${esc(sl.config.time || '03:00')}" aria-label="${esc(L('Время снимка', 'Snapshot time'))}">
+      <label>${esc(L('Хранить', 'Keep'))} <input type="number" min="1" max="30" data-c="keep" value="${sl.config.keep || 3}"></label>
+      <button class="btn" data-a="save">${esc(L('Сохранить', 'Save'))}</button>
+      <button class="btn primary" data-a="now">${icon('add')}${esc(L('Сделать сейчас', 'Take now'))}</button>
+    </div>
+    <div class="rows"></div>
+    <div class="where">${esc(L('Лежат в:', 'Stored in:'))} <code>${esc(sl.dir)}</code></div>`;
+  const q = s => box.querySelector(`[data-c=${s}]`);
+  box.querySelector('[data-a=save]').onclick = () => post({op: 'snap_cfg', id: 'hub:' + f.id, daily: q('daily').checked, time: q('time').value || '03:00', keep: Number(q('keep').value) || 3})
+    .then(ok => ok && msg(L('Расписание снимков сохранено', 'Snapshot schedule saved'), 'ok'));
+  box.querySelector('[data-a=now]').onclick = async ev => {
+    ev.target.disabled = true;
+    msg(L('Делаю снимок…', 'Taking a snapshot…'));
+    await post({op: 'snap_now', id: 'hub:' + f.id});
+    ev.target.disabled = false;
+  };
+  const rows = box.querySelector('.rows');
+  if(!(sl.snapshots || []).length) rows.innerHTML = `<div class="empty" style="padding:10px">${esc(L('Снимков пока нет.', 'No snapshots yet.'))}</div>`;
+  for(const s of sl.snapshots || []){
+    const row = document.createElement('div');
+    row.className = 'srow' + (s.error ? ' bad' : '');
+    row.innerHTML = `<div>${esc(when(s.time))} · ${esc(REASON[s.reason] || s.reason)}<div class="d">${esc(s.error || size(s.size) + ' · ' + s.files + ' ' + L('файлов', 'files'))}</div></div>` +
+      (s.error ? '' : `<button class="btn" data-a="dl">${icon('download')}${esc(L('Скачать', 'Download'))}</button>
+        <button class="btn" data-a="rs">${icon('sync')}${esc(L('Восстановить', 'Restore'))}</button>`);
+    if(!s.error){
+      row.querySelector('[data-a=dl]').onclick = () => snapDownload(f, s);
+      row.querySelector('[data-a=rs]').onclick = () => snapRestore(f, s);
+    }
+    rows.appendChild(row);
+  }
+  return box;
+}
+async function snapDownload(f, s){
+  if(ANDROID){
+    // У WebView своих загрузок нет — ядро кладёт копию в «Загрузки».
+    await post({op: 'snap_save', id: 'hub:' + f.id, snap: s.file});
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = `/api/mirror/snapshot?id=${encodeURIComponent('hub:' + f.id)}&snap=${encodeURIComponent(s.file)}&t=${T}`;
+  a.download = s.file;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function snapRestore(f, s){
+  if(!confirm(L(`Вернуть всю папку «${f.name}» к снимку от ${when(s.time)}?\n\nСначала сделается снимок «перед восстановлением». Файлы, которых нет в снимке, уйдут в корзину (30 дней), изменённые заменятся, недостающие вернутся — все устройства получат это обычной синхронизацией. Неотправленные правки на устройствах станут конфликт-копиями.`,
+    `Restore the whole folder «${f.name}» to the snapshot from ${when(s.time)}?\n\nA «before restore» snapshot is taken first. Files missing from the snapshot go to the trash (30 days), changed ones are replaced, missing ones come back — every device gets this through normal sync. Unsent edits on devices become conflict copies.`))) return;
+  msg(L('Возвращаю папку…', 'Restoring the folder…'));
+  await post({op: 'snap_restore', id: 'hub:' + f.id, snap: s.file});
+}
+
+// ---- Подключение к непустой папке (ТЗ 36) ----
+// join — «Подключить»; в папке уже есть файлы — спросить, что с ними.
+async function join(body){
+  let r = await api('/api/mirror', body).catch(e => ({error: e.message}));
+  if(r.error && r.nonEmpty){
+    const choice = await askNonEmpty(r.nonEmpty);
+    if(!choice){ msg(''); return false; }
+    msg(choice === 'server' ? L('Убираю свои файлы в архив…', 'Moving own files to a zip…') : '');
+    r = await api('/api/mirror', {...body, existing: choice}).catch(e => ({error: e.message}));
+  }
+  if(r.error){ msg(r.error, 'err'); return false; }
+  msg(r.text || '', 'ok'); draw(r); return true;
+}
+// askNonEmpty — окно «В папке уже есть файлы»: 'server', 'merge' или null (отмена).
+function askNonEmpty(ne){
+  return new Promise(res => {
+    const o = document.createElement('div');
+    o.className = 'ovl';
+    const sample = (ne.sample || []).join(', ') + (ne.files > (ne.sample || []).length ? ', …' : '');
+    o.innerHTML = `<div class="card" role="dialog" aria-modal="true">
+      <h3>${esc(L('В этой папке уже есть файлы', 'This folder already has files'))}</h3>
+      <div class="p">${esc(shortPath(ne.path))}</div>
+      <div class="hint" style="margin:6px 0">${esc(ne.files + ' ' + L('файлов', 'files') + ', ' + size(ne.bytes) + ': ' + sample)}</div>
+      <button class="opt main" data-c="server"><b>${esc(L('Взять с сервера', 'Take from the server'))}</b>
+        <span>${esc(L('Свои файлы уберутся в архив рядом с папкой — его откроет любой архиватор. Потом в папку придёт содержимое сервера.', 'Your files go to a zip next to the folder — any archiver opens it. Then the server content comes into the folder.'))}</span>
+        <span class="p">${esc(shortPath(ne.zip))}</span></button>
+      <button class="opt warn" data-c="merge"><b>${esc(L('Объединить', 'Merge'))}</b>
+        <span>${esc(L('Все эти файлы уйдут в общую папку на всех устройствах.', 'All these files go into the shared folder on every device.'))}</span></button>
+      <button class="opt" data-c=""><b>${esc(L('Отмена', 'Cancel'))}</b>
+        <span>${esc(L('Выбрать другую папку.', 'Pick another folder.'))}</span></button>
+    </div>`;
+    const done = v => { o.remove(); document.removeEventListener('keydown', esc_); res(v); };
+    const esc_ = ev => { if(ev.key === 'Escape') done(null); };
+    o.querySelectorAll('[data-c]').forEach(b => b.onclick = () => done(b.dataset.c || null));
+    o.onclick = ev => { if(ev.target === o) done(null); };
+    document.addEventListener('keydown', esc_);
+    document.body.appendChild(o);
+    o.querySelector('.opt.main').focus();
+  });
 }
 
 // ---- Доступ к папкам (ТЗ 18) ----

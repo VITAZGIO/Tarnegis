@@ -70,8 +70,21 @@ Modes:
 - **send only** — a backup, e.g. phone photos: deleting on the phone does
   **not** delete the file on the server.
 
-You can connect a folder that already has files: identical ones are not
-transferred, different ones become conflict copies — nothing is overwritten.
+If the chosen folder already has files (system junk and empty folders do
+not count), the app asks what to do with them:
+
+- **Take from the server** (default) — your files go to a zip
+  «<folder> до подключения <date>.zip» **next to the folder** (the path is
+  shown in the dialog; if that place is not writable — into the app data,
+  `before-join`), then the server content comes into the folder. Nothing of
+  yours is sent to the server.
+- **Merge** — as before: identical files are not transferred, different ones
+  become conflict copies, nothing is overwritten, but **all these files go
+  into the shared folder on every device**.
+- **Cancel** — pick another folder.
+
+The same on the phone. «Share a folder» that already has files asks nothing:
+that is what sharing is for.
 
 «Disconnect» stops syncing; the files on the device stay.
 
@@ -99,6 +112,44 @@ Delete vs. edit: **the edit wins** — the file comes back.
 Everything replaced or deleted is kept on the server for **30 days**.
 «Trash & versions» tab → «Restore». A restore can be undone too: the
 current version goes to versions itself.
+
+## Folder snapshots
+
+Like Home Assistant backups: on the device that **shares** the folder, the
+**«Sharing»** tab → the folder's **«Snapshots»** block.
+
+- **Every night** and a time (03:00 by default, this device's clock) — a
+  snapshot of the whole folder once a day. If the device was off at that
+  time, the snapshot is taken at the next start — just one, however many
+  nights were missed.
+- **Keep** — how many latest snapshots to keep (3 by default, 1 to 30).
+  «Before restore» snapshots are kept on top of that, but no more than 3.
+- **Take now** — a snapshot on demand.
+- The list shows the date, size, file count and why it was taken
+  («scheduled», «manual», «before restore»), with **Download** (on the
+  phone a copy goes to «Download») and **Restore**.
+
+A snapshot is a plain **zip**: the folder's files at their paths plus
+`snapshot.json` (folder, time, change number, file list with hashes, app
+version). Any archiver opens it — take a single file out yourself.
+Snapshots live in the app data next to the versions — **not inside the
+folder**, so they never sync; the path is written under the list
+(«Stored in: …»). A snapshot is taken from the folder server's state at one
+moment: edits arriving meanwhile just wait, they are not lost. Excluded and
+temporary files are left out. If the disk is full, no snapshot is taken, the
+list shows the error and old snapshots are **not deleted**. Snapshots do not
+count against the folder quota; their total size is shown in the block
+header.
+
+**Restore** brings the **whole folder** back to the snapshot. A «before
+restore» snapshot is taken first (if that fails, the folder is untouched).
+Then the folder server makes normal changes: extra files go to the trash
+(30 days), changed ones are replaced (the old ones go to versions), missing
+files and empty folders come back. Every device gets it through normal sync.
+An edit on a device that has not reached the server yet is not lost — it
+becomes a conflict copy. At the end — a message and a log line «Folder
+restored to snapshot <date>: changed N, deleted M, added K» (the text itself
+is in Russian).
 
 ## What is not synced
 

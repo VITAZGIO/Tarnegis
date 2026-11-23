@@ -144,6 +144,23 @@ func (m *NodeManager) SetFolderQuota(ctx context.Context, r nodeapi.FolderReq) e
 	return m.api.SetFolderQuota(ctx, r)
 }
 
+// Снимки зеркальных папок (ТЗ 36).
+func (m *NodeManager) Snapshots(ctx context.Context, netID, id string) (nodeapi.SnapList, error) {
+	return m.api.Snapshots(ctx, netID, id)
+}
+
+func (m *NodeManager) SnapConfig(ctx context.Context, r nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	return m.api.SnapConfig(ctx, r)
+}
+
+func (m *NodeManager) SnapNow(ctx context.Context, r nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	return m.api.SnapNow(ctx, r)
+}
+
+func (m *NodeManager) SnapRestore(ctx context.Context, r nodeapi.SnapReq) (nodeapi.RestoreResult, error) {
+	return m.api.SnapRestore(ctx, r)
+}
+
 func (m *NodeManager) ClearClipboard(ctx context.Context, netID string) error {
 	return m.api.ClearClipboard(ctx, netID)
 }

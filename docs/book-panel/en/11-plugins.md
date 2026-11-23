@@ -74,6 +74,33 @@ internet, on port 443, one request "/" without a body. Local and private address
 are not checked. From one device no more than 5 checks in a row, then one every 10
 seconds.
 
+## Folder snapshots
+
+**Plugins → Mirrored folders**, under a folder row — **Snapshots**. A zip of
+the whole folder on the server, like Home Assistant backups:
+
+- **Every night** and a time (03:00 by default — the server clock, usually
+  UTC); a missed night (server or plugin host was off) runs at the next
+  start, once.
+- **Keep** — how many latest snapshots to keep (3, from 1 to 30); «before
+  restore» snapshots are on top of that, at most 3.
+- **Take now**, a list with date, size, file count and reason, **Download**
+  (through the panel login) and **Restore**.
+
+Snapshots live in the plugin host data next to the folder versions:
+`/var/lib/ssh_tunnel_node/nets/<network>/mirror/hub/<folder>/snapshots/` —
+the path is written under the list, easy to open over SSH (`unzip -l`).
+Snapshots count neither against the folder quota nor against the plugin
+quota. Disk full — no snapshot, the error shows in the list and the plugin
+log, old snapshots are not deleted.
+
+**Restore** brings the whole folder back to the snapshot: first a «before
+restore» snapshot, then normal changes — extra files to the trash (30 days),
+changed ones replaced, missing ones back. Devices get it through normal
+sync; unsent edits on devices become conflict copies. The result — a toast
+and a line in the plugin log. An old plugin host has no snapshots — the
+panel asks to update it.
+
 ## Quotas
 
 The quota is shared by all plugins of the network and by all networks together. If

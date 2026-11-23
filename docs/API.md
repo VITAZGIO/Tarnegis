@@ -336,7 +336,7 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 Отвечают, только пока приложение добавлено и включено. Раздаваемая папка
 этого устройства — `id` вида `hub:<id>`, подключённая — её `id`.
 
-- `GET /api/mirror` — `{"serve":[{id,name,path,ignore,files,conflicts,devices,old}],
+- `GET /api/mirror` — `{"serve":[{id,name,path,ignore,files,conflicts,devices,old,snap}],
   "subs":[{id,peer,host,folder,name,path,mode,status:{state,pending,conflicts,files,error,lastOk}}],
   "found":[{peer,host,folders:[{id,name}],joined}],"self","suggest","platform","devnet",
   "access":{"devices":[{id,name,host,ip,platform,server,online,gone,folders}],"ids","pending"}}`.
@@ -356,6 +356,26 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
   `{"op":"leave","id"}` (файлы остаются), `{"op":"mode","id","mode"}`,
   `{"op":"sync","id"}`, `{"op":"resolve","id","path":<копия конфликта>,"keep":"orig|copy|both"}`,
   `{"op":"restore","id","blob"}`.
+- Подключение к непустой папке (ТЗ 36): в `join` поле `existing`: пусто —
+  если в папке уже есть свои файлы (без мусора и пустых папок), ответ
+  `{"error","nonEmpty":{path,files,bytes,sample:[…],zip}}` и ничего не
+  делается; `"server"` — свои файлы в архив `zip` (рядом с папкой, иначе в
+  данные программы `before-join/`), потом содержимое сервера; `"merge"` — как
+  раньше, всё уходит в общую папку. Удачный ответ — состояние и `text`.
+- Снимки раздаваемой папки (ТЗ 36), `id` — `hub:<id>`:
+  `{"op":"snap_cfg","id","daily":bool,"time":"ЧЧ:ММ","keep":1…30}`,
+  `{"op":"snap_now","id"}`, `{"op":"snap_restore","id","snap":<файл>}`
+  (сначала снимок `pre`, потом разница обычными изменениями; `text` —
+  «Папка … возвращена к снимку …: изменено N, удалено M, добавлено K»),
+  `{"op":"snap_save","id","snap"}` — копия архива в «Загрузки» (телефон).
+  `serve[].snap` = `{config:{daily,time,keep},dir,total,lastRun,snapshots:[{file,time,size,files,reason,seq,error}]}`,
+  `reason`: `auto` | `manual` | `pre`; запись с `error` — неудачная попытка
+  (файла нет). Новые сверху.
+- `GET /api/mirror/snapshots?id=hub:<id>` — то же, что `serve[].snap`.
+- `GET /api/mirror/snapshot?id=hub:<id>&snap=<файл>` — архив (zip: файлы
+  папки и `snapshot.json` {folder,id,time,unix,seq,epoch,reason,version,files:[{path,hash,size,ver,mtime}],dirs};
+  если в корне папки свой `snapshot.json`, служебный зовётся
+  `snapshot.ssh_tunnel.json`, имя — в комментарии архива).
 - `GET /api/mirror/versions?id=[&p=]` — версии и корзина (30 дней), новые сверху.
 - `GET /api/mirror/file?id=&p=` или `?id=&blob=` — текст файла или версии
   для просмотра (до 2 МБ).
@@ -442,6 +462,16 @@ meshd: `{id,name,host,user,online,gone,folders}`); `POST /api/node/folder/access
 - `POST /api/node/sitecheck` `{"site","lang"}` — проверка с сервера, ответ —
   как у устройств (`{site,host,server:{steps…},verdict,text}`).
 - `POST /api/node/machines/clear` `{"net"}` — стереть историю машин сети.
+- Снимки зеркальных папок (ТЗ 36): `state.networks[].folders[].snap` —
+  `{config:{daily,time,keep},dir,total,lastRun,snapshots:[…]}` (нет — старый
+  хост); `GET /api/node/folder/snapshots?net=&id=` — то же;
+  `GET /api/node/folder/snapshot?net=&id=&snap=` — скачать zip (по сессии);
+  `POST /api/node/folder/snap/cfg` `{"net","id","daily","time","keep"}` →
+  список; `POST /api/node/folder/snap/now` `{"net","id"}` → список;
+  `POST /api/node/folder/snap/restore` `{"net","id","snap"}` →
+  `{changed,deleted,added,pre,text}`. Управляющий вход хоста:
+  `GET /folder/snap/list`, `GET /folder/snap/get`, `POST /folder/snap/{cfg,now,restore}`;
+  старый хост отвечает 404 — панель просит его обновить.
 - `POST /api/node/plugin/remove` `{"plugin":"mirror|files|clipboard|backup|machines|adblock|sitecheck","deleteData":bool}`
   → `state` (ТЗ 29) — убрать плагин: выключить; с `deleteData` — ещё и
   стереть его данные во всех сетях сервера (папки, общую папку, буфер,
