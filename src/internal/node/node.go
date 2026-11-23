@@ -1491,7 +1491,7 @@ func (h *Host) snapHub(netID, id string) (*mirror.Hub, error) {
 }
 
 func snapListOut(sl mirror.SnapList) *nodeapi.SnapList {
-	out := &nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: sl.Config.Daily, Time: sl.Config.Time, Keep: sl.Config.Keep},
+	out := &nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: sl.Config.Daily, Every: sl.Config.Every, Time: sl.Config.Time, Keep: sl.Config.Keep},
 		Dir: sl.Dir, Total: sl.Total, LastRun: sl.LastRun, Snapshots: []nodeapi.Snapshot{}}
 	for _, s := range sl.Snapshots {
 		out.Snapshots = append(out.Snapshots, nodeapi.Snapshot{File: s.File, Time: s.Time, Size: s.Size,
@@ -1519,7 +1519,7 @@ func (h *Host) SnapConfig(req nodeapi.SnapReq) (nodeapi.SnapList, error) {
 	if err != nil {
 		return nodeapi.SnapList{}, err
 	}
-	if _, err := hub.SetSnapConfig(req.ID, mirror.SnapConfig{Daily: req.Daily, Time: req.Time, Keep: req.Keep}); err != nil {
+	if _, err := hub.SetSnapConfig(req.ID, mirror.SnapConfig{Daily: req.Daily, Every: req.Every, Time: req.Time, Keep: req.Keep}); err != nil {
 		return nodeapi.SnapList{}, err
 	}
 	return h.Snapshots(req.Net, req.ID)

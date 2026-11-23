@@ -118,10 +118,10 @@ current version goes to versions itself.
 Like Home Assistant backups: on the device that **shares** the folder, the
 **«Sharing»** tab → the folder's **«Snapshots»** block.
 
-- **Every night** and a time (03:00 by default, this device's clock) — a
-  snapshot of the whole folder once a day. If the device was off at that
-  time, the snapshot is taken at the next start — just one, however many
-  nights were missed.
+- **How often** — «Manual only», «Every day», «Every 3 days» or «Every
+  week», and a time (03:00 by default, this device's clock). If the device
+  was off at that time, the snapshot is taken at the next start — just one,
+  however many were missed.
 - **Keep** — how many latest snapshots to keep (3 by default, 1 to 30).
   «Before restore» snapshots are kept on top of that, but no more than 3.
 - **Take now** — a snapshot on demand.
@@ -132,9 +132,16 @@ Like Home Assistant backups: on the device that **shares** the folder, the
 A snapshot is a plain **zip**: the folder's files at their paths plus
 `snapshot.json` (folder, time, change number, file list with hashes, app
 version). Any archiver opens it — take a single file out yourself.
-Snapshots live in the app data next to the versions — **not inside the
-folder**, so they never sync; the path is written under the list
-(«Stored in: …»). A snapshot is taken from the folder server's state at one
+Snapshots are **not inside the folder**, so they never sync; the path is
+written under the list («Stored in: …»).
+
+**Snapshot folder** — above the shared folders, one per device, like Home
+Assistant backups in a container folder. For example
+`/DATA/AppData/ssh_tunnel/backups`: each shared folder gets its own
+subfolder (`backups/Server/`), snapshots in it are named by date
+(`2026-11-24 03-00.zip`). Empty — snapshots stay in the app data next to the
+versions. Existing snapshots move when you change it; it cannot be inside a
+shared folder (the archives would sync to every device). A snapshot is taken from the folder server's state at one
 moment: edits arriving meanwhile just wait, they are not lost. Excluded and
 temporary files are left out. If the disk is full, no snapshot is taken, the
 list shows the error and old snapshots are **not deleted**. Snapshots do not

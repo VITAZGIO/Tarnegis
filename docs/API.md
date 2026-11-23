@@ -363,12 +363,18 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
   данные программы `before-join/`), потом содержимое сервера; `"merge"` — как
   раньше, всё уходит в общую папку. Удачный ответ — состояние и `text`.
 - Снимки раздаваемой папки (ТЗ 36), `id` — `hub:<id>`:
-  `{"op":"snap_cfg","id","daily":bool,"time":"ЧЧ:ММ","keep":1…30}`,
+  `{"op":"snap_cfg","id","daily":bool,"every":1|3|7,"time":"ЧЧ:ММ","keep":1…30}`
+  (`every` — раз в сколько дней),
+  `{"op":"snap_root","dir":"<полный путь>|"}` — общая папка снимков устройства:
+  `<dir>/<имя папки>/<ГГГГ-ММ-ДД ЧЧ-ММ>.zip`; пусто — в данных программы
+  (`hub/<id>/snapshots/`, имя «<папка> <дата>.zip»); уже сделанные снимки
+  переезжают; внутри раздаваемой папки нельзя. В состоянии — `snapRoot` и
+  подсказка `snapRootSuggest` (`backups` рядом с папкой раздаваемых папок),
   `{"op":"snap_now","id"}`, `{"op":"snap_restore","id","snap":<файл>}`
   (сначала снимок `pre`, потом разница обычными изменениями; `text` —
   «Папка … возвращена к снимку …: изменено N, удалено M, добавлено K»),
   `{"op":"snap_save","id","snap"}` — копия архива в «Загрузки» (телефон).
-  `serve[].snap` = `{config:{daily,time,keep},dir,total,lastRun,snapshots:[{file,time,size,files,reason,seq,error}]}`,
+  `serve[].snap` = `{config:{daily,every,time,keep},dir,total,lastRun,snapshots:[{file,time,size,files,reason,seq,error}]}`,
   `reason`: `auto` | `manual` | `pre`; запись с `error` — неудачная попытка
   (файла нет). Новые сверху.
 - `GET /api/mirror/snapshots?id=hub:<id>` — то же, что `serve[].snap`.
@@ -463,7 +469,7 @@ meshd: `{id,name,host,user,online,gone,folders}`); `POST /api/node/folder/access
   как у устройств (`{site,host,server:{steps…},verdict,text}`).
 - `POST /api/node/machines/clear` `{"net"}` — стереть историю машин сети.
 - Снимки зеркальных папок (ТЗ 36): `state.networks[].folders[].snap` —
-  `{config:{daily,time,keep},dir,total,lastRun,snapshots:[…]}` (нет — старый
+  `{config:{daily,every,time,keep},dir,total,lastRun,snapshots:[…]}` (нет — старый
   хост); `GET /api/node/folder/snapshots?net=&id=` — то же;
   `GET /api/node/folder/snapshot?net=&id=&snap=` — скачать zip (по сессии);
   `POST /api/node/folder/snap/cfg` `{"net","id","daily","time","keep"}` →

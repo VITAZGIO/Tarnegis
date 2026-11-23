@@ -47,9 +47,23 @@ const (
 
 // SnapConfig — расписание снимков папки.
 type SnapConfig struct {
-	Daily bool   `json:"daily"`
-	Time  string `json:"time"` // «ЧЧ:ММ», местное время устройства
+	Daily bool   `json:"daily"` // по расписанию (иначе — только вручную)
+	Every int    `json:"every"` // раз в сколько дней: 1, 3 или 7
+	Time  string `json:"time"`  // «ЧЧ:ММ», местное время устройства
 	Keep  int    `json:"keep"`
+}
+
+// snapEvery — допустимые «раз в N дней».
+func snapEvery(n int) bool { return n == 1 || n == 3 || n == 7 }
+
+// snapDue — пора ли снимок по расписанию: последнее «ЧЧ:ММ» позже, чем
+// прошлый снимок по расписанию + (N−1) дней. Пропущенное — один раз.
+func snapDue(now time.Time, c SnapConfig, lastRun int64) bool {
+	if !c.Daily {
+		return false
+	}
+	slot := lastSlot(now, c.Time)
+	return slot.Unix() > time.Unix(lastRun, 0).Add(time.Duration(c.Every-1)*24*time.Hour).Unix()
 }
 
 // Snapshot — один снимок (или неудачная попытка — Error).
@@ -61,6 +75,8 @@ type Snapshot struct {
 	Reason string `json:"reason"`
 	Seq    int64  `json:"seq,omitempty"` // номер изменения Hub
 	Error  string `json:"error,omitempty"`
+	// Folder — имя папки (только для скачивания: имя файла «<папка> <дата>»).
+	Folder string `json:"-"`
 }
 
 // SnapList — всё о снимках папки для страницы.
@@ -106,6 +122,10 @@ type snapFile struct {
 // snapState — snapshots.json в папке снимков.
 type snapState struct {
 	Config  SnapConfig `json:"config"`
+	// Dir — подпапка этой папки в общей папке снимков устройства (SnapRoot);
+	// запоминается при первом снимке, чтобы переименование папки не теряло
+	// старые архивы.
+	Dir     string     `json:"dir,omitempty"`
 	LastRun int64      `json:"lastRun"`
 	List    []Snapshot `json:"list"`
 }
@@ -114,7 +134,59 @@ type snapState struct {
 // (индекс папки при этом под своим f.mu).
 func (f *hfolder) snapMu() *sync.Mutex { return &f.snap }
 
+// snapDir — служебные данные снимков (snapshots.json); архивы — в zipDir.
 func (f *hfolder) snapDir() string { return filepath.Join(f.dir, "snapshots") }
+
+// zipDir — где лежат архивы снимков папки. Папка снимков устройства не
+// задана — рядом с данными (snapshots/), как в ТЗ 36. Задана (как резервные
+// копии Home Assistant в папке контейнера) — <папка снимков>/<имя папки>/.
+// Пустой st.Dir заполняется (сохранит вызывающий вместе с остальным).
+func (h *Hub) zipDir(f *hfolder, st *snapState) string {
+	return h.zipDirAt(h.SnapRoot(), f, st)
+}
+
+func (h *Hub) zipDirAt(root string, f *hfolder, st *snapState) string {
+	if root == "" {
+		return f.snapDir()
+	}
+	if st.Dir == "" {
+		st.Dir = h.snapSubName(f)
+	}
+	return filepath.Join(root, st.Dir)
+}
+
+// snapSubName — имя подпапки снимков: имя папки безопасными символами; если
+// так же называется другая раздаваемая папка — с началом id.
+func (h *Hub) snapSubName(f *hfolder) string {
+	name := safeFileName(f.Name)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, o := range h.folders {
+		if o != f && strings.EqualFold(safeFileName(o.Name), name) {
+			id := f.ID
+			if len(id) > 6 {
+				id = id[:6]
+			}
+			return name + " " + id
+		}
+	}
+	return name
+}
+
+// safeFileName — имя без символов, запрещённых в именах файлов.
+func safeFileName(name string) string {
+	safe := strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`/\:*?"<>|`, r) || r < 32 {
+			return '_'
+		}
+		return r
+	}, strings.TrimSpace(name))
+	safe = strings.Trim(safe, ". ")
+	if safe == "" {
+		safe = "папка"
+	}
+	return safe
+}
 
 func (f *hfolder) loadSnap() snapState {
 	var st snapState
@@ -136,6 +208,9 @@ func normSnapConfig(c SnapConfig) SnapConfig {
 	}
 	if c.Keep > snapMaxKeep {
 		c.Keep = snapMaxKeep
+	}
+	if !snapEvery(c.Every) {
+		c.Every = 1
 	}
 	return c
 }
@@ -183,11 +258,17 @@ func (h *Hub) SetSnapConfig(id string, c SnapConfig) (SnapConfig, error) {
 	if c.Keep < 1 || c.Keep > snapMaxKeep {
 		return SnapConfig{}, fmt.Errorf("хранить — от 1 до %d снимков", snapMaxKeep)
 	}
+	if c.Every == 0 {
+		c.Every = 1
+	}
+	if !snapEvery(c.Every) {
+		return SnapConfig{}, errors.New("как часто — раз в 1, 3 или 7 дней")
+	}
 	mu := f.snapMu()
 	mu.Lock()
 	defer mu.Unlock()
 	st := f.loadSnap()
-	if c.Daily && (!st.Config.Daily || st.Config.Time != c.Time) {
+	if c.Daily && (!st.Config.Daily || st.Config.Time != c.Time || st.Config.Every != c.Every) {
 		// Только что включили (или сдвинули время) — первый снимок в
 		// ближайшую ночь, а не «догонять» сразу.
 		st.LastRun = h.now().Unix()
@@ -196,7 +277,7 @@ func (h *Hub) SetSnapConfig(id string, c SnapConfig) (SnapConfig, error) {
 	if err := os.MkdirAll(f.snapDir(), 0o700); err != nil {
 		return SnapConfig{}, err
 	}
-	st.List = rotateSnaps(f.snapDir(), st.List, c.Keep)
+	st.List = rotateSnaps(h.zipDir(f, &st), st.List, c.Keep)
 	return c, f.saveSnap(st)
 }
 
@@ -210,13 +291,14 @@ func (h *Hub) Snapshots(id string) (SnapList, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	st := f.loadSnap()
-	out := SnapList{Config: st.Config, Dir: f.snapDir(), LastRun: st.LastRun, Snapshots: []Snapshot{}}
+	zd := h.zipDir(f, &st)
+	out := SnapList{Config: st.Config, Dir: zd, LastRun: st.LastRun, Snapshots: []Snapshot{}}
 	if abs, err := filepath.Abs(out.Dir); err == nil {
 		out.Dir = abs
 	}
 	for _, s := range st.List {
 		if s.Error == "" {
-			fi, err := os.Stat(filepath.Join(f.snapDir(), s.File))
+			fi, err := os.Stat(filepath.Join(zd, s.File))
 			if err != nil {
 				continue // убрали руками
 			}
@@ -241,12 +323,15 @@ func (h *Hub) OpenSnapshot(id, file string) (*os.File, Snapshot, error) {
 	}
 	mu := f.snapMu()
 	mu.Lock()
-	s, ok := findSnap(f.loadSnap().List, file)
+	st := f.loadSnap()
+	s, ok := findSnap(st.List, file)
+	zd := h.zipDir(f, &st)
 	mu.Unlock()
 	if !ok {
 		return nil, Snapshot{}, errors.New("такого снимка нет")
 	}
-	fh, err := os.Open(filepath.Join(f.snapDir(), s.File))
+	s.Folder = f.Name
+	fh, err := os.Open(filepath.Join(zd, s.File))
 	if err != nil {
 		return nil, Snapshot{}, errors.New("такого снимка нет")
 	}
@@ -289,7 +374,7 @@ func (h *Hub) SnapTick() {
 		mu.Lock()
 		st := f.loadSnap()
 		now := h.now()
-		if st.Config.Daily && lastSlot(now, st.Config.Time).Unix() > st.LastRun {
+		if snapDue(now, st.Config, st.LastRun) {
 			st.LastRun = now.Unix()
 			if err := os.MkdirAll(f.snapDir(), 0o700); err == nil && f.saveSnap(st) == nil {
 				_, _ = h.snapshotLocked(f, SnapAuto)
@@ -312,6 +397,10 @@ func (h *Hub) snapshotLocked(f *hfolder, reason string) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	st := f.loadSnap()
+	f.zdir = h.zipDir(f, &st)
+	if err := os.MkdirAll(f.zdir, 0o700); err != nil {
+		return Snapshot{}, fmt.Errorf("папка снимков %s: %w", f.zdir, err)
+	}
 	s, err := h.buildSnap(f, reason)
 	if err != nil {
 		why := err.Error()
@@ -320,7 +409,7 @@ func (h *Hub) snapshotLocked(f *hfolder, reason string) (Snapshot, error) {
 		}
 		s = Snapshot{Time: h.now().Unix(), Reason: reason, Error: why}
 		st.List = append(st.List, s)
-		st.List = rotateSnaps(f.snapDir(), st.List, st.Config.Keep)
+		st.List = rotateSnaps(f.zdir, st.List, st.Config.Keep)
 		_ = f.saveSnap(st)
 		if h.OnEvent != nil {
 			go h.OnEvent("snapshot", fmt.Sprintf("Снимок папки «%s» не сделан: %s", f.Name, why))
@@ -328,7 +417,7 @@ func (h *Hub) snapshotLocked(f *hfolder, reason string) (Snapshot, error) {
 		return s, errors.New(why)
 	}
 	st.List = append(st.List, s)
-	st.List = rotateSnaps(f.snapDir(), st.List, st.Config.Keep)
+	st.List = rotateSnaps(f.zdir, st.List, st.Config.Keep)
 	if err := f.saveSnap(st); err != nil {
 		return s, err
 	}
@@ -372,17 +461,10 @@ func rotateSnaps(dir string, list []Snapshot, keep int) []Snapshot {
 // snapFileName — «<имя папки> ГГГГ-ММ-ДД ЧЧ-ММ.zip», только безопасные
 // символы; занято — « (2)», « (3)»…
 func snapFileName(dir, name string, t time.Time) string {
-	safe := strings.Map(func(r rune) rune {
-		if strings.ContainsRune(`/\:*?"<>|`, r) || r < 32 {
-			return '_'
-		}
-		return r
-	}, strings.TrimSpace(name))
-	safe = strings.Trim(safe, ". ")
-	if safe == "" {
-		safe = "папка"
+	base := t.Format("2006-01-02 15-04")
+	if name != "" {
+		base = safeFileName(name) + " " + base
 	}
-	base := safe + " " + t.Format("2006-01-02 15-04")
 	for i := 1; ; i++ {
 		n := base + ".zip"
 		if i > 1 {
@@ -485,7 +567,7 @@ func (c *capWriter) Write(p []byte) (int, error) {
 
 // writeSnap пишет архив во временный файл и переименовывает его в готовый.
 func (h *Hub) writeSnap(f *hfolder, meta snapMeta, blobs map[string]string) (Snapshot, error) {
-	dir := f.snapDir()
+	dir := f.zdir
 	tmp := filepath.Join(dir, tmpPrefix+randHex(6)+".zip.part")
 	work := filepath.Join(dir, tmpPrefix+randHex(6)+".work")
 	defer os.Remove(work)
@@ -560,7 +642,13 @@ func (h *Hub) writeSnap(f *hfolder, meta snapMeta, blobs map[string]string) (Sna
 	if err := out.Close(); err != nil {
 		return Snapshot{}, err
 	}
-	name := snapFileName(dir, meta.Folder, time.Unix(meta.Unix, 0).In(h.now().Location()))
+	// В своей подпапке общей папки снимков — просто дата: имя папки уже в
+	// имени подпапки. Рядом с данными (по умолчанию) — «<папка> <дата>».
+	prefix := meta.Folder
+	if !samePath(dir, f.snapDir()) {
+		prefix = ""
+	}
+	name := snapFileName(dir, prefix, time.Unix(meta.Unix, 0).In(h.now().Location()))
 	if err := os.Rename(tmp, filepath.Join(dir, name)); err != nil {
 		return Snapshot{}, err
 	}
@@ -660,11 +748,12 @@ func (h *Hub) RestoreSnapshot(id, dev, file string) (RestoreResult, error) {
 	mu := f.snapMu()
 	mu.Lock()
 	defer mu.Unlock()
-	s, ok := findSnap(f.loadSnap().List, file)
+	rst := f.loadSnap()
+	s, ok := findSnap(rst.List, file)
 	if !ok {
 		return RestoreResult{}, errors.New("такого снимка нет")
 	}
-	zr, err := zip.OpenReader(filepath.Join(f.snapDir(), s.File))
+	zr, err := zip.OpenReader(filepath.Join(h.zipDir(f, &rst), s.File))
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("снимок не открылся: %w", err)
 	}
@@ -872,12 +961,13 @@ func (h *Hub) SaveSnapshot(id, file, dir string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	dst := filepath.Join(dir, s.File)
+	base := snapDownloadName(s)
+	dst := filepath.Join(dir, base)
 	for i := 2; ; i++ {
 		if _, err := os.Lstat(dst); errors.Is(err, os.ErrNotExist) {
 			break
 		}
-		dst = filepath.Join(dir, fmt.Sprintf("%s (%d).zip", strings.TrimSuffix(s.File, ".zip"), i))
+		dst = filepath.Join(dir, fmt.Sprintf("%s (%d).zip", strings.TrimSuffix(base, ".zip"), i))
 	}
 	tmp := dst + ".part"
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
@@ -896,4 +986,13 @@ func (h *Hub) SaveSnapshot(id, file, dir string) (string, error) {
 		return "", err
 	}
 	return dst, nil
+}
+
+// snapDownloadName — имя архива вне папки снимков: в своей подпапке снимок
+// назван датой, а скачанному нужно и имя папки.
+func snapDownloadName(s Snapshot) string {
+	if s.Folder != "" && !strings.HasPrefix(s.File, safeFileName(s.Folder)) {
+		return safeFileName(s.Folder) + " " + s.File
+	}
+	return s.File
 }

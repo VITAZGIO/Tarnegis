@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -89,7 +90,8 @@ func TestApplyCapacityПишетИПеречитывает(t *testing.T) {
 	if !strings.Contains(string(data), "MaxStartups 120:30:240") {
 		t.Fatalf("значение не записано:\n%s", data)
 	}
-	if info, _ := os.Stat(SSHDPath); info.Mode().Perm() != 0o600 {
+	// В Windows прав Unix нет (файл всегда -rw-rw-rw-) — проверка только там, где они есть.
+	if info, _ := os.Stat(SSHDPath); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("права файла изменились: %v", info.Mode())
 	}
 	d, _ := os.ReadFile(drop)

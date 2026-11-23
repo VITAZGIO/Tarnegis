@@ -79,9 +79,9 @@ seconds.
 **Plugins → Mirrored folders**, under a folder row — **Snapshots**. A zip of
 the whole folder on the server, like Home Assistant backups:
 
-- **Every night** and a time (03:00 by default — the server clock, usually
-  UTC); a missed night (server or plugin host was off) runs at the next
-  start, once.
+- **How often** («Manual only», «Every day», «Every 3 days», «Every week»)
+  and a time (03:00 by default — the server clock, usually UTC); a missed
+  snapshot (server or plugin host was off) runs at the next start, once.
 - **Keep** — how many latest snapshots to keep (3, from 1 to 30); «before
   restore» snapshots are on top of that, at most 3.
 - **Take now**, a list with date, size, file count and reason, **Download**

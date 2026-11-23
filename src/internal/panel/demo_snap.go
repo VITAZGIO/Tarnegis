@@ -31,7 +31,7 @@ func (d *demoBackend) demoSnaps(netID, id, name string) *nodeapi.SnapList {
 	if night.After(now) {
 		night = night.AddDate(0, 0, -1)
 	}
-	sl := &nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: true, Time: "03:00", Keep: 3},
+	sl := &nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: true, Every: 1, Time: "03:00", Keep: 3},
 		Dir: "/var/lib/ssh_tunnel_node/nets/" + netID + "/mirror/hub/" + id + "/snapshots", LastRun: night.Unix()}
 	for i := 2; i >= 0; i-- {
 		t := night.AddDate(0, 0, -i)
@@ -160,7 +160,10 @@ func (d *demoBackend) snapRoutes(h func(string, func(http.ResponseWriter, *http.
 			return
 		}
 		sl := d.demoSnaps(req.Net, f.ID, f.Name)
-		sl.Config = nodeapi.SnapConfig{Daily: req.Daily, Time: req.Time, Keep: req.Keep}
+		if req.Every == 0 {
+			req.Every = 1
+		}
+		sl.Config = nodeapi.SnapConfig{Daily: req.Daily, Every: req.Every, Time: req.Time, Keep: req.Keep}
 		demoRotate(sl)
 		d.sortDemoSnaps(sl)
 		writeJSON(w, http.StatusOK, sl)
