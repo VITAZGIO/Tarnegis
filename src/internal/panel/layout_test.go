@@ -480,7 +480,8 @@ func TestУстройстваКопированиеЗначкиФон(t *testing
 	css := assetString(t, "core.css")
 	js := assetString(t, "sections/devices.js")
 	dcss := assetString(t, "sections/devices.css")
-	if !strings.Contains(css, ".copy{cursor:copy}\n") {
+	// Без "\n": на Windows git отдаёт файлы с \r\n.
+	if !strings.Contains(css, ".copy{cursor:copy}") || strings.Contains(css, "border-bottom:1px dashed color-mix(in srgb, var(--dim)") {
 		t.Error("core.css: у копируемых значений снова пунктир")
 	}
 	for _, want := range []string{"const OS_ICON = {", "windows:'M0,0H11.377", "function osIcon(platform)"} {
