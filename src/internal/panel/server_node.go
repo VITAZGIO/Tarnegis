@@ -3,7 +3,11 @@ package panel
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"sshtunnel/internal/nodeapi"
 )
@@ -23,6 +27,12 @@ func (s *Server) nodeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/node/folder/remove", s.requireAuth(s.withNode(s.handleNodeFolderRemove)))
 	mux.HandleFunc("/api/node/folder/quota", s.requireAuth(s.withNode(s.handleNodeFolderQuota)))
 	mux.HandleFunc("/api/node/folder/access", s.requireAuth(s.withNode(s.handleNodeFolderAccess)))
+	// ТЗ 36: снимки зеркальных папок.
+	mux.HandleFunc("/api/node/folder/snapshots", s.requireAuth(s.withNode(s.handleNodeSnapshots)))
+	mux.HandleFunc("/api/node/folder/snapshot", s.requireAuth(s.withNode(s.handleNodeSnapshotGet)))
+	mux.HandleFunc("/api/node/folder/snap/cfg", s.requireAuth(s.withNode(s.handleNodeSnapCfg)))
+	mux.HandleFunc("/api/node/folder/snap/now", s.requireAuth(s.withNode(s.handleNodeSnapNow)))
+	mux.HandleFunc("/api/node/folder/snap/restore", s.requireAuth(s.withNode(s.handleNodeSnapRestore)))
 	mux.HandleFunc("/api/node/clipboard/clear", s.requireAuth(s.withNode(s.handleNodeClipboardClear)))
 	mux.HandleFunc("/api/node/backup/delete", s.requireAuth(s.withNode(s.handleNodeBackupDelete)))
 	mux.HandleFunc("/api/node/net/delete", s.requireAuth(s.withNode(s.handleNodeNetDelete)))
@@ -196,4 +206,65 @@ func (s *Server) handleNodeClipboardClear(w http.ResponseWriter, r *http.Request
 		return
 	}
 	replyErr(w, s.node.ClearClipboard(r.Context(), req.Net), map[string]bool{"ok": true})
+}
+
+// ---- снимки зеркальных папок (ТЗ 36) ----
+
+// oldNodeSnap — старый хост не знает снимков (404): понятный текст.
+func oldNodeSnap(err error) error {
+	if err != nil && strings.Contains(err.Error(), "404") {
+		return errors.New("хост плагинов на сервере старый и не умеет снимков — обнови его («Обновить на всех серверах»)")
+	}
+	return err
+}
+
+func (s *Server) handleNodeSnapshots(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	sl, err := s.node.Snapshots(r.Context(), q.Get("net"), q.Get("id"))
+	replyErr(w, oldNodeSnap(err), sl)
+}
+
+// handleNodeSnapshotGet — скачать архив снимка через вход в панель.
+func (s *Server) handleNodeSnapshotGet(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	rc, size, err := s.node.api.OpenSnapshot(r.Context(), q.Get("net"), q.Get("id"), q.Get("snap"))
+	if err != nil {
+		replyErr(w, oldNodeSnap(err), nil)
+		return
+	}
+	defer rc.Close()
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(q.Get("snap")))
+	w.Header().Set("Cache-Control", "no-store")
+	if size > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	}
+	_, _ = io.Copy(w, rc)
+}
+
+func (s *Server) handleNodeSnapCfg(w http.ResponseWriter, r *http.Request) {
+	var req nodeapi.SnapReq
+	if !decodePost(w, r, &req) {
+		return
+	}
+	sl, err := s.node.SnapConfig(r.Context(), req)
+	replyErr(w, oldNodeSnap(err), sl)
+}
+
+func (s *Server) handleNodeSnapNow(w http.ResponseWriter, r *http.Request) {
+	var req nodeapi.SnapReq
+	if !decodePost(w, r, &req) {
+		return
+	}
+	sl, err := s.node.SnapNow(r.Context(), req)
+	replyErr(w, oldNodeSnap(err), sl)
+}
+
+func (s *Server) handleNodeSnapRestore(w http.ResponseWriter, r *http.Request) {
+	var req nodeapi.SnapReq
+	if !decodePost(w, r, &req) {
+		return
+	}
+	res, err := s.node.SnapRestore(r.Context(), req)
+	replyErr(w, oldNodeSnap(err), res)
 }

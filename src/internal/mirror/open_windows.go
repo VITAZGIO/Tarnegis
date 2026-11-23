@@ -3,6 +3,7 @@
 package mirror
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"syscall"
@@ -41,4 +42,13 @@ func fixLongPath(p string) string {
 		return `\\?\` + p
 	}
 	return p
+}
+
+// errNoSpace — «на диске нет места» (для тестов снимков).
+var errNoSpace error = syscall.Errno(112) // ERROR_DISK_FULL
+
+// diskFull — ошибка «нет места на диске».
+func diskFull(err error) bool {
+	var en syscall.Errno
+	return errors.As(err, &en) && (en == 112 || en == 39) // ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL
 }

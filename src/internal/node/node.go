@@ -488,6 +488,13 @@ func (h *Host) hubOf(nd *netData) (*mirror.Hub, http.Handler, error) {
 		// сразу после неё (и при копии уже лежащего содержимого).
 		hub.Room = func(folder string, used int64) (int64, string) { return h.room(nd, folder, used) }
 		hub.OnUsage = func(folder string, d int64) { h.grow(nd, folder, d) }
+		// Снимки (ТЗ 36): итог восстановления и неудачный снимок — в журнал
+		// хоста (виден в панели).
+		hub.OnEvent = func(kind, text string) {
+			if kind == "snapshot" || kind == "restore" {
+				h.event(nodeapi.Event{Plugin: nodeapi.PluginMirror, Net: nd.id, Error: kind == "snapshot", Text: text})
+			}
+		}
 		nd.hub = hub
 		nd.mirrorH = hub.Handler(func(r *http.Request) string {
 			c := callerOf(r)
@@ -624,8 +631,16 @@ func (nd *netData) touch(plugin string, now time.Time) {
 // du — сколько байт в папке (файлы, без ссылок).
 func du(dir string) int64 {
 	var n int64
-	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			// Снимки зеркальных папок (mirror/hub/<id>/snapshots) квоту не
+			// занимают (ТЗ 36): их размер виден отдельно.
+			if d.Name() == "snapshots" && filepath.Base(filepath.Dir(filepath.Dir(p))) == "hub" {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if info, err := d.Info(); err == nil && info.Mode().IsRegular() {
@@ -879,6 +894,21 @@ func (h *Host) loop() {
 // одинаково) и чистка версий старше 30 дней, буфера — старше суток.
 func (h *Host) scanAll(prune bool) {
 	h.mu.Lock()
+	var withFolders []string
+	for id, fs := range h.conf.Folders {
+		if len(fs) > 0 {
+			withFolders = append(withFolders, id)
+		}
+	}
+	h.mu.Unlock()
+	// Сеть с папками — сервер папок открыт: иначе снимки по расписанию не
+	// шли бы, пока ни одно устройство не пришло (ТЗ 36).
+	for _, id := range withFolders {
+		if nd, err := h.netFor(id); err == nil {
+			_, _, _ = h.hubOf(nd)
+		}
+	}
+	h.mu.Lock()
 	nets := make([]*netData, 0, len(h.nets))
 	for _, nd := range h.nets {
 		nets = append(nets, nd)
@@ -892,6 +922,7 @@ func (h *Host) scanAll(prune bool) {
 			for _, f := range hub.Folders() {
 				_ = hub.Scan(f.ID)
 			}
+			hub.SnapTick()
 			if prune {
 				hub.Prune()
 			}
@@ -976,6 +1007,9 @@ func (h *Host) State() nodeapi.State {
 						}
 					}
 					out.Conflicts = len(rep.Conflicts)
+				}
+				if sl, err := hub.Snapshots(f.ID); err == nil {
+					out.Snap = snapListOut(sl)
 				}
 			}
 			n.Folders = append(n.Folders, out)
@@ -1382,6 +1416,53 @@ func (h *Host) ControlHandler() http.Handler {
 		}
 		return ok, h.ClearClipboard(req.Net)
 	})
+	// Снимки зеркальных папок (ТЗ 36).
+	snapReq := func(b []byte) (nodeapi.SnapReq, error) {
+		var req nodeapi.SnapReq
+		err := json.Unmarshal(b, &req)
+		return req, err
+	}
+	mux.HandleFunc("/folder/snap/list", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		v, err := h.Snapshots(q.Get("net"), q.Get("id"))
+		reply(w, v, err)
+	})
+	mux.HandleFunc("/folder/snap/get", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		hub, err := h.snapHub(q.Get("net"), q.Get("id"))
+		if err != nil {
+			reply(w, nil, err)
+			return
+		}
+		f, s, err := hub.OpenSnapshot(q.Get("id"), q.Get("snap"))
+		if err != nil {
+			reply(w, nil, err)
+			return
+		}
+		defer f.Close()
+		mirror.ServeSnapshot(w, r, f, s)
+	})
+	post("/folder/snap/cfg", func(b []byte) (any, error) {
+		req, err := snapReq(b)
+		if err != nil {
+			return nil, err
+		}
+		return h.SnapConfig(req)
+	})
+	post("/folder/snap/now", func(b []byte) (any, error) {
+		req, err := snapReq(b)
+		if err != nil {
+			return nil, err
+		}
+		return h.SnapNow(req)
+	})
+	post("/folder/snap/restore", func(b []byte) (any, error) {
+		req, err := snapReq(b)
+		if err != nil {
+			return nil, err
+		}
+		return h.SnapRestore(req)
+	})
 	post("/files/clear", func(b []byte) (any, error) {
 		var req struct {
 			Net string `json:"net"`
@@ -1392,4 +1473,80 @@ func (h *Host) ControlHandler() http.Handler {
 		return ok, h.ClearFiles(req.Net)
 	})
 	return mux
+}
+
+// ---------- снимки зеркальных папок (ТЗ 36) ----------
+
+// snapHub — сервер папок сети, если папка id в ней есть.
+func (h *Host) snapHub(netID, id string) (*mirror.Hub, error) {
+	nd, err := h.netFor(netID)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := h.folder(nd.id, id); !ok {
+		return nil, errors.New("нет такой папки")
+	}
+	hub, _, err := h.hubOf(nd)
+	return hub, err
+}
+
+func snapListOut(sl mirror.SnapList) *nodeapi.SnapList {
+	out := &nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: sl.Config.Daily, Time: sl.Config.Time, Keep: sl.Config.Keep},
+		Dir: sl.Dir, Total: sl.Total, LastRun: sl.LastRun, Snapshots: []nodeapi.Snapshot{}}
+	for _, s := range sl.Snapshots {
+		out.Snapshots = append(out.Snapshots, nodeapi.Snapshot{File: s.File, Time: s.Time, Size: s.Size,
+			Files: s.Files, Reason: s.Reason, Seq: s.Seq, Error: s.Error})
+	}
+	return out
+}
+
+// Snapshots — снимки папки сети.
+func (h *Host) Snapshots(netID, id string) (nodeapi.SnapList, error) {
+	hub, err := h.snapHub(netID, id)
+	if err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	sl, err := hub.Snapshots(id)
+	if err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	return *snapListOut(sl), nil
+}
+
+// SnapConfig — расписание снимков папки.
+func (h *Host) SnapConfig(req nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	hub, err := h.snapHub(req.Net, req.ID)
+	if err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	if _, err := hub.SetSnapConfig(req.ID, mirror.SnapConfig{Daily: req.Daily, Time: req.Time, Keep: req.Keep}); err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	return h.Snapshots(req.Net, req.ID)
+}
+
+// SnapNow — снимок папки сейчас.
+func (h *Host) SnapNow(req nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	hub, err := h.snapHub(req.Net, req.ID)
+	if err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	if _, err := hub.SnapNow(req.ID, mirror.SnapManual); err != nil {
+		return nodeapi.SnapList{}, err
+	}
+	return h.Snapshots(req.Net, req.ID)
+}
+
+// SnapRestore — вернуть всю папку к снимку.
+func (h *Host) SnapRestore(req nodeapi.SnapReq) (nodeapi.RestoreResult, error) {
+	hub, err := h.snapHub(req.Net, req.ID)
+	if err != nil {
+		return nodeapi.RestoreResult{}, err
+	}
+	res, err := hub.RestoreSnapshot(req.ID, "панель", req.Snap)
+	h.recount()
+	if err != nil {
+		return nodeapi.RestoreResult{}, err
+	}
+	return nodeapi.RestoreResult{Changed: res.Changed, Deleted: res.Deleted, Added: res.Added, Pre: res.Pre, Text: res.Text}, nil
 }

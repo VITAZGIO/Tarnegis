@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -164,6 +165,22 @@ func (a *fakeNodeAPI) CheckSite(_ context.Context, r nodeapi.SiteReq) (json.RawM
 }
 
 func (a *fakeNodeAPI) ClearMachines(context.Context, string) error { return nil }
+
+func (a *fakeNodeAPI) Snapshots(context.Context, string, string) (nodeapi.SnapList, error) {
+	return nodeapi.SnapList{Snapshots: []nodeapi.Snapshot{}}, nil
+}
+func (a *fakeNodeAPI) SnapConfig(_ context.Context, r nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	return nodeapi.SnapList{Config: nodeapi.SnapConfig{Daily: r.Daily, Time: r.Time, Keep: r.Keep}, Snapshots: []nodeapi.Snapshot{}}, nil
+}
+func (a *fakeNodeAPI) SnapNow(context.Context, nodeapi.SnapReq) (nodeapi.SnapList, error) {
+	return nodeapi.SnapList{Snapshots: []nodeapi.Snapshot{{File: "x.zip", Reason: "manual"}}}, nil
+}
+func (a *fakeNodeAPI) SnapRestore(context.Context, nodeapi.SnapReq) (nodeapi.RestoreResult, error) {
+	return nodeapi.RestoreResult{Text: "ok"}, nil
+}
+func (a *fakeNodeAPI) OpenSnapshot(context.Context, string, string, string) (io.ReadCloser, int64, error) {
+	return io.NopCloser(strings.NewReader("PK")), 2, nil
+}
 
 func (a *fakeNodeAPI) ClearFiles(_ context.Context, netID string) error {
 	a.mu.Lock()

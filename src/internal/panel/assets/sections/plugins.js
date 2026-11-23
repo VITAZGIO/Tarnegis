@@ -583,6 +583,7 @@ function plMirror(card, n){
     row.appendChild(save);
     row.appendChild(rm);
     card.appendChild(row);
+    card.appendChild(plSnaps(n, f));
   });
   if (!(n.folders || []).length) card.appendChild(el('p', 'note', t('pl_no_folders')));
   const form = el('div', 'row-inline');
@@ -615,6 +616,100 @@ function plMirror(card, n){
   form.appendChild(addBtn);
   card.appendChild(form);
   renderNodeAccess(n, card);
+}
+
+/* ---------- снимки папки (ТЗ 36) ---------- */
+// Раскрытые блоки «Снимки» — страница перерисовывается раз в 4 с, раскрытое
+// не должно схлопываться.
+const PL_SNAP_OPEN = new Set();
+function snapWhen(unix){
+  return new Date(unix * 1000).toLocaleString(LANG === 'ru' ? 'ru-RU' : 'en-US',
+    {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+}
+function snapReason(r){ return t('snap_reason_' + (r || 'manual')); }
+function plSnaps(n, f){
+  const key = n.id + '/' + f.id;
+  const box = el('details', 'pl-snaps');
+  box.open = PL_SNAP_OPEN.has(key);
+  box.addEventListener('toggle', () => { if (box.open) PL_SNAP_OPEN.add(key); else PL_SNAP_OPEN.delete(key); });
+  const sl = f.snap;
+  const good = sl ? (sl.snapshots || []).filter(s => !s.error) : [];
+  const sum = el('summary', '', t('snap_title'));
+  if (sl) sum.appendChild(el('span', 'sub', ' · ' + (sl.config.daily ? fill('snap_daily_at', {t: sl.config.time}) : t('snap_off')) +
+    ' · ' + fill('snap_count', {n: good.length, s: fmtBytes(sl.total)})));
+  box.appendChild(sum);
+  if (!sl){ box.appendChild(el('p', 'note', t('snap_old_host'))); return box; }
+  // Расписание.
+  const cfg = el('div', 'row-inline pl-snapcfg');
+  const daily = document.createElement('input');
+  daily.type = 'checkbox'; daily.checked = !!sl.config.daily;
+  const dl = el('label', 'acchk');
+  dl.appendChild(daily); dl.appendChild(el('span', '', t('snap_daily')));
+  const tm = document.createElement('input');
+  tm.type = 'time'; tm.value = sl.config.time || '03:00';
+  tm.setAttribute('aria-label', t('snap_time'));
+  const kl = el('label', 'pl-snapkeep', t('snap_keep'));
+  const keep = document.createElement('input');
+  keep.type = 'number'; keep.min = '1'; keep.max = '30'; keep.value = sl.config.keep || 3;
+  kl.appendChild(keep);
+  const saveCfg = el('button', 'btn ghost small', t('snap_save'));
+  saveCfg.addEventListener('click', async () => {
+    const {ok, data} = await api('/api/node/folder/snap/cfg', {net: n.id, id: f.id, daily: daily.checked, time: tm.value || '03:00', keep: Number(keep.value) || 3});
+    if (!ok){ toast(data.error || t('err_internal'), 'err'); return; }
+    toast(t('snap_saved'), 'ok');
+    if (document.activeElement) document.activeElement.blur();
+    loadNode();
+  });
+  const now = el('button', 'btn small', t('snap_now'));
+  now.addEventListener('click', async () => {
+    now.disabled = true;
+    const {ok, data} = await api('/api/node/folder/snap/now', {net: n.id, id: f.id});
+    now.disabled = false;
+    if (!ok){ toast(data.error || t('err_internal'), 'err'); loadNode(); return; }
+    toast(t('snap_done'), 'ok');
+    loadNode();
+  });
+  [dl, tm, kl, saveCfg, now].forEach(x => cfg.appendChild(x));
+  box.appendChild(cfg);
+  // Список.
+  const list = sl.snapshots || [];
+  if (!list.length) box.appendChild(el('p', 'note', t('snap_none')));
+  list.forEach(s => {
+    const row = el('div', 'nrow pl-snaprow' + (s.error ? ' bad' : ''));
+    const g = el('div', 'grow');
+    g.appendChild(el('div', '', snapWhen(s.time) + ' · ' + snapReason(s.reason)));
+    g.appendChild(el('div', 'sub', s.error ? s.error : fmtBytes(s.size) + ' · ' + s.files + ' ' + t('folder_files')));
+    row.appendChild(g);
+    if (!s.error){
+      const q = new URLSearchParams({net: n.id, id: f.id, snap: s.file});
+      // Скачивание — по входу в панель (cookie сессии), обычной ссылкой.
+      const dlBtn = el('button', 'btn ghost small', t('snap_download'));
+      dlBtn.addEventListener('click', () => {
+        const a = el('a');
+        a.href = '/api/node/folder/snapshot?' + q.toString();
+        a.download = s.file;
+        document.body.appendChild(a); a.click(); a.remove();
+      });
+      const rs = el('button', 'btn ghost small', t('snap_restore'));
+      rs.addEventListener('click', () => plSnapRestore(n, f, s));
+      row.appendChild(dlBtn);
+      row.appendChild(rs);
+    }
+    box.appendChild(row);
+  });
+  const where = el('p', 'pl-snapdir');
+  where.appendChild(el('span', '', t('snap_dir') + ' '));
+  where.appendChild(el('code', '', sl.dir));
+  box.appendChild(where);
+  return box;
+}
+async function plSnapRestore(n, f, s){
+  const yes = await appConfirm(fill('snap_restore_confirm', {n: f.name, d: snapWhen(s.time)}), t('snap_restore_yes'));
+  if (!yes) return;
+  const {ok, data} = await api('/api/node/folder/snap/restore', {net: n.id, id: f.id, snap: s.file});
+  if (!ok){ toast(data.error || t('err_internal'), 'err'); loadNode(); return; }
+  toast(data.text || t('snap_restored'), 'ok');
+  loadNode();
 }
 
 function plClipboard(card, n){
