@@ -635,16 +635,22 @@ function plSnaps(n, f){
   const sl = f.snap;
   const good = sl ? (sl.snapshots || []).filter(s => !s.error) : [];
   const sum = el('summary', '', t('snap_title'));
-  if (sl) sum.appendChild(el('span', 'sub', ' · ' + (sl.config.daily ? fill('snap_daily_at', {t: sl.config.time}) : t('snap_off')) +
+  if (sl) sum.appendChild(el('span', 'sub', ' · ' + (sl.config.daily ? fill('snap_every_at_' + (sl.config.every || 1), {t: sl.config.time}) : t('snap_off')) +
     ' · ' + fill('snap_count', {n: good.length, s: fmtBytes(sl.total)})));
   box.appendChild(sum);
   if (!sl){ box.appendChild(el('p', 'note', t('snap_old_host'))); return box; }
   // Расписание.
   const cfg = el('div', 'row-inline pl-snapcfg');
-  const daily = document.createElement('input');
-  daily.type = 'checkbox'; daily.checked = !!sl.config.daily;
-  const dl = el('label', 'acchk');
-  dl.appendChild(daily); dl.appendChild(el('span', '', t('snap_daily')));
+  // Как часто: 0 — только вручную, иначе раз в 1, 3 или 7 дней.
+  const dl = document.createElement('select');
+  dl.setAttribute('aria-label', t('snap_how_often'));
+  const curEvery = sl.config.daily ? (sl.config.every || 1) : 0;
+  for (const nDays of [0, 1, 3, 7]){
+    const o = el('option', '', t('snap_every_' + nDays));
+    o.value = String(nDays);
+    if (nDays === curEvery) o.selected = true;
+    dl.appendChild(o);
+  }
   const tm = document.createElement('input');
   tm.type = 'time'; tm.value = sl.config.time || '03:00';
   tm.setAttribute('aria-label', t('snap_time'));
@@ -654,7 +660,7 @@ function plSnaps(n, f){
   kl.appendChild(keep);
   const saveCfg = el('button', 'btn ghost small', t('snap_save'));
   saveCfg.addEventListener('click', async () => {
-    const {ok, data} = await api('/api/node/folder/snap/cfg', {net: n.id, id: f.id, daily: daily.checked, time: tm.value || '03:00', keep: Number(keep.value) || 3});
+    const {ok, data} = await api('/api/node/folder/snap/cfg', {net: n.id, id: f.id, daily: dl.value !== '0', every: Number(dl.value) || 1, time: tm.value || '03:00', keep: Number(keep.value) || 3});
     if (!ok){ toast(data.error || t('err_internal'), 'err'); return; }
     toast(t('snap_saved'), 'ok');
     if (document.activeElement) document.activeElement.blur();

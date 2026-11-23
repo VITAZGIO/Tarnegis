@@ -70,6 +70,8 @@
   .srow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 2px;font-size:13px}
   .srow .d{color:var(--dim);font-size:12px}
   .srow.bad .d{color:var(--warn)}
+  .snaproot .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
+  .snaproot .bar{flex-wrap:wrap}
   .snaps .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
   .snaps .where code{font-family:var(--mono);font-size:11.5px}
   @media (max-width:480px){ .srow{grid-template-columns:1fr 1fr} .srow > div:first-child{grid-column:1/-1} }
@@ -111,6 +113,14 @@
   <!-- Папки, которые раздаёт это устройство. -->
   <div id="vServe" class="box" style="padding:0" hidden>
     <div class="hint" id="serveHint"></div>
+    <!-- Общая папка снимков устройства: <папка>/<имя папки>/<дата>.zip. -->
+    <div class="card snaproot" id="snapRootCard" hidden>
+      <div class="hint" id="snapRootHint"></div>
+      <div class="bar"><span class="pathRow"><input id="snapRootIn"><button class="btn" type="button" data-pick="snapRootIn"></button></span>
+        <button class="btn" type="button" id="snapRootSave"></button>
+        <button class="btn ghost" type="button" id="snapRootReset"></button></div>
+      <div class="where" id="snapRootNow"></div>
+    </div>
     <div id="serve"></div>
     <div class="card"><div class="bar">
       <span class="pathRow"><input id="servePath"><button class="btn" type="button" data-pick="servePath"></button></span>
@@ -253,6 +263,31 @@ function allConflicts(){
   return out;
 }
 
+// Папка снимков устройства: поле не перезаписывается, пока человек его правит.
+let SNAP_ROOT_DIRTY = false;
+$('snapRootIn').addEventListener('input', () => { SNAP_ROOT_DIRTY = true; });
+$('snapRootSave').onclick = async () => {
+  if(await post({op: 'snap_root', dir: $('snapRootIn').value.trim()})) SNAP_ROOT_DIRTY = false;
+};
+$('snapRootReset').onclick = async () => {
+  if(!confirm(L('Вернуть снимки в данные программы? Уже сделанные снимки переедут туда.', 'Move snapshots back to the program data? Existing snapshots move there.'))) return;
+  if(await post({op: 'snap_root', dir: ''})) SNAP_ROOT_DIRTY = false;
+};
+function drawSnapRoot(r){
+  $('snapRootCard').hidden = !r.serve.length;
+  $('snapRootHint').textContent = L(
+    'Папка снимков этого устройства, как резервные копии в Home Assistant: внутри у каждой раздаваемой папки своя подпапка, снимки в ней названы датой. Пусто — снимки лежат в данных программы. При смене папки уже сделанные снимки переезжают.',
+    'Snapshot folder of this device, like Home Assistant backups: each shared folder gets its own subfolder, snapshots in it are named by date. Empty — snapshots stay in the program data. Existing snapshots move when you change it.');
+  $('snapRootSave').textContent = L('Сохранить', 'Save');
+  $('snapRootReset').textContent = L('В данные программы', 'Program data');
+  $('snapRootReset').hidden = !r.snapRoot;
+  $('snapRootIn').placeholder = r.snapRootSuggest || L('/DATA/AppData/ssh_tunnel/backups', '/DATA/AppData/ssh_tunnel/backups');
+  if(!SNAP_ROOT_DIRTY && document.activeElement !== $('snapRootIn')) $('snapRootIn').value = r.snapRoot || '';
+  $('snapRootNow').textContent = r.snapRoot
+    ? L('Сейчас: ', 'Now: ') + r.snapRoot
+    : L('Сейчас: в данных программы', 'Now: in the program data') + (r.snapRootSuggest ? L(' (например, ', ' (e.g. ') + r.snapRootSuggest + ')' : '');
+}
+
 function draw(r){
   S = r;
   if(ANDROID && window.SSHTunnelAndroid.hasAllFiles && !window.SSHTunnelAndroid.hasAllFiles()){
@@ -332,6 +367,7 @@ function draw(r){
     sb.appendChild(c);
   }
 
+  drawSnapRoot(r);
   const vb = $('serve'); vb.innerHTML = '';
   if(!r.serve.length) vb.innerHTML = `<div class="empty" style="padding:20px">${esc(L('Это устройство ничего не раздаёт.', 'This device shares nothing.'))}</div>`;
   for(const f of r.serve){
@@ -375,6 +411,10 @@ function size(n){
   while(n >= 1024 && i < u.length - 1){ n /= 1024; i++; }
   return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i];
 }
+// Как часто снимать: 0 — только вручную.
+const EVERY_OPT = {0: () => L('Только вручную', 'Manual only'), 1: () => L('Каждый день', 'Every day'),
+  3: () => L('Раз в 3 дня', 'Every 3 days'), 7: () => L('Раз в неделю', 'Every week')};
+const EVERY_TXT = {1: () => L('каждый день', 'every day'), 3: () => L('раз в 3 дня', 'every 3 days'), 7: () => L('раз в неделю', 'every week')};
 function snapBlock(f){
   const sl = f.snap;
   const box = document.createElement('details');
@@ -383,13 +423,14 @@ function snapBlock(f){
   box.ontoggle = () => { if(box.open) SNAP_OPEN.add(f.id); else SNAP_OPEN.delete(f.id); };
   if(!sl){ box.innerHTML = `<summary>${esc(L('Снимки', 'Snapshots'))}</summary>`; return box; }
   const good = (sl.snapshots || []).filter(s => !s.error);
-  const head = (sl.config.daily ? L('каждую ночь в ', 'every night at ') + sl.config.time : L('по расписанию выключены', 'schedule off')) +
+  const every = sl.config.daily ? (sl.config.every || 1) : 0;
+  const head = (every ? EVERY_TXT[every]() + L(' в ', ' at ') + sl.config.time : L('по расписанию выключены', 'schedule off')) +
     ' · ' + good.length + ' ' + L('шт.', 'kept') + ', ' + size(sl.total);
   box.innerHTML = `<summary>${esc(L('Снимки', 'Snapshots'))} <span class="d">· ${esc(head)}</span></summary>
-    <div class="hint">${esc(L('Архив всей папки (zip) в данных программы — не в самой папке, поэтому он никуда не синхронизируется. «Восстановить» возвращает всю папку; один файл можно достать из архива самому.',
-      'A zip of the whole folder in the app data — not inside the folder, so it never syncs. «Restore» brings back the whole folder; take a single file out of the zip yourself.'))}</div>
+    <div class="hint">${esc(L('Архив всей папки (zip) в папке снимков — не в самой папке, поэтому он никуда не синхронизируется. «Восстановить» возвращает всю папку; один файл можно достать из архива самому.',
+      'A zip of the whole folder in the snapshot folder — not inside the folder, so it never syncs. «Restore» brings back the whole folder; take a single file out of the zip yourself.'))}</div>
     <div class="cfg">
-      <label><input type="checkbox" data-c="daily"${sl.config.daily ? ' checked' : ''}>${esc(L('Каждую ночь', 'Every night'))}</label>
+      <select data-c="every" aria-label="${esc(L('Как часто', 'How often'))}">${[0, 1, 3, 7].map(n => `<option value="${n}"${n === every ? ' selected' : ''}>${esc(EVERY_OPT[n]())}</option>`).join('')}</select>
       <input type="time" data-c="time" value="${esc(sl.config.time || '03:00')}" aria-label="${esc(L('Время снимка', 'Snapshot time'))}">
       <label>${esc(L('Хранить', 'Keep'))} <input type="number" min="1" max="30" data-c="keep" value="${sl.config.keep || 3}"></label>
       <button class="btn" data-a="save">${esc(L('Сохранить', 'Save'))}</button>
@@ -398,7 +439,7 @@ function snapBlock(f){
     <div class="rows"></div>
     <div class="where">${esc(L('Лежат в:', 'Stored in:'))} <code>${esc(sl.dir)}</code></div>`;
   const q = s => box.querySelector(`[data-c=${s}]`);
-  box.querySelector('[data-a=save]').onclick = () => post({op: 'snap_cfg', id: 'hub:' + f.id, daily: q('daily').checked, time: q('time').value || '03:00', keep: Number(q('keep').value) || 3})
+  box.querySelector('[data-a=save]').onclick = () => post({op: 'snap_cfg', id: 'hub:' + f.id, daily: q('every').value !== '0', every: Number(q('every').value) || 1, time: q('time').value || '03:00', keep: Number(q('keep').value) || 3})
     .then(ok => ok && msg(L('Расписание снимков сохранено', 'Snapshot schedule saved'), 'ok'));
   box.querySelector('[data-a=now]').onclick = async ev => {
     ev.target.disabled = true;

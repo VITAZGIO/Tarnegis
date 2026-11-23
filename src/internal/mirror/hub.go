@@ -43,6 +43,9 @@ type Hub struct {
 
 	mu      sync.Mutex
 	folders map[string]*hfolder
+	// snapRoot — общая папка снимков устройства (snaproot.go); "" — рядом с
+	// данными папки.
+	snapRoot string
 	wake    chan struct{} // закрывается при любом изменении (долгий опрос)
 }
 
@@ -110,6 +113,7 @@ type hfolder struct {
 
 	mu      sync.Mutex // всё изменение папки — под ним
 	snap    sync.Mutex // снимки папки (snapshot.go) — по одному
+	zdir    string     // куда пишется текущий снимок (под snap)
 	ix      *hindex
 	journal *os.File
 	jlines  int
@@ -134,6 +138,7 @@ func OpenHub(dir, host string) (*Hub, error) {
 		}
 		h.folders[c.ID] = f
 	}
+	h.snapRoot = h.loadSnapRoot()
 	return h, nil
 }
 

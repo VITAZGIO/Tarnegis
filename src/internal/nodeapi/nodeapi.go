@@ -200,6 +200,7 @@ type Folder struct {
 // SnapConfig — расписание снимков папки (как mirror.SnapConfig).
 type SnapConfig struct {
 	Daily bool   `json:"daily"`
+	Every int    `json:"every"` // раз в 1, 3 или 7 дней
 	Time  string `json:"time"`
 	Keep  int    `json:"keep"`
 }
@@ -229,6 +230,7 @@ type SnapReq struct {
 	Net   string `json:"net"`
 	ID    string `json:"id"`
 	Daily bool   `json:"daily,omitempty"`
+	Every int    `json:"every,omitempty"`
 	Time  string `json:"time,omitempty"`
 	Keep  int    `json:"keep,omitempty"`
 	Snap  string `json:"snap,omitempty"`

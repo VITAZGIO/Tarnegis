@@ -40,7 +40,7 @@ func init() {
 	addons.Register("mirror", func() addons.Module { return &module{} })
 	addons.RegisterRoutes("mirror",
 		addons.Route{Path: "/api/mirror", Methods: "GET, POST",
-			Desc: "Зеркальные папки: раздаваемые (serve, у каждой devices — кому видна), подключённые (subs) со статусом, найденные серверы (found), доступ (access: устройства сети, сколько папок у каждого). POST {\"op\":\"serve\",\"path\",\"name\"} | {\"op\":\"unserve\",\"id\"} | {\"op\":\"grant\",\"device\":\"<id устройства>\",\"id\":\"hub:<id>|*\",\"on\":true|false} | {\"op\":\"ignore\",\"id\",\"list\":[…]} | {\"op\":\"join\",\"peer\",\"host\",\"folder\",\"name\",\"path\",\"mode\":\"both|recv|send\",\"existing\":\"|server|merge\"} (папка не пустая и existing пуст — ответ {error, nonEmpty:{files,bytes,sample,zip}}) | {\"op\":\"snap_cfg\",\"id\":\"hub:<id>\",\"daily\",\"time\":\"03:00\",\"keep\":3} | {\"op\":\"snap_now\",\"id\"} | {\"op\":\"snap_restore\",\"id\",\"snap\":\"<файл>\"} | {\"op\":\"snap_save\",\"id\",\"snap\"} (копия в «Загрузки») | {\"op\":\"leave\",\"id\"} | {\"op\":\"mode\",\"id\",\"mode\"} | {\"op\":\"sync\",\"id\"} | {\"op\":\"resolve\",\"id\",\"path\",\"keep\":\"orig|copy|both\"} | {\"op\":\"restore\",\"id\",\"blob\"}. id раздаваемой — «hub:<id>».",
+			Desc: "Зеркальные папки: раздаваемые (serve, у каждой devices — кому видна), подключённые (subs) со статусом, найденные серверы (found), доступ (access: устройства сети, сколько папок у каждого). POST {\"op\":\"serve\",\"path\",\"name\"} | {\"op\":\"unserve\",\"id\"} | {\"op\":\"grant\",\"device\":\"<id устройства>\",\"id\":\"hub:<id>|*\",\"on\":true|false} | {\"op\":\"ignore\",\"id\",\"list\":[…]} | {\"op\":\"join\",\"peer\",\"host\",\"folder\",\"name\",\"path\",\"mode\":\"both|recv|send\",\"existing\":\"|server|merge\"} (папка не пустая и existing пуст — ответ {error, nonEmpty:{files,bytes,sample,zip}}) | {\"op\":\"snap_cfg\",\"id\":\"hub:<id>\",\"daily\",\"every\":1|3|7,\"time\":\"03:00\",\"keep\":3} | {\"op\":\"snap_root\",\"dir\":\"<папка>|\"} (общая папка снимков устройства: <папка>/<имя папки>/<дата>.zip; пусто — в данных программы; снимки переезжают) | {\"op\":\"snap_now\",\"id\"} | {\"op\":\"snap_restore\",\"id\",\"snap\":\"<файл>\"} | {\"op\":\"snap_save\",\"id\",\"snap\"} (копия в «Загрузки») | {\"op\":\"leave\",\"id\"} | {\"op\":\"mode\",\"id\",\"mode\"} | {\"op\":\"sync\",\"id\"} | {\"op\":\"resolve\",\"id\",\"path\",\"keep\":\"orig|copy|both\"} | {\"op\":\"restore\",\"id\",\"blob\"}. id раздаваемой — «hub:<id>».",
 			H:    handleAPI},
 		addons.Route{Path: "/api/mirror/versions", Methods: "GET",
 			Desc: "Версии и корзина папки ?id=<hub:id|id подключённой>[&p=путь] (30 дней).",
@@ -739,6 +739,8 @@ func (m *module) state() map[string]any {
 		ids = ids || !d.Gone
 	}
 	return map[string]any{"serve": serve, "subs": subs, "found": fs, "self": selfName(),
+		// Общая папка снимков устройства ("" — рядом с данными) и подсказка.
+		"snapRoot": m.hub.SnapRoot(), "snapRootSuggest": m.hub.SuggestSnapRoot(),
 		"suggest": suggestBase(), "platform": runtime.GOOS, "devnet": devnet.Status().State,
 		"access": map[string]any{"devices": devs, "ids": ids, "pending": m.acl.Pending()}}
 }
@@ -767,8 +769,10 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			// ТЗ 36.
 			Existing string `json:"existing"`
 			Daily    bool   `json:"daily"`
+			Every    int    `json:"every"`
 			Time     string `json:"time"`
 			Snap     string `json:"snap"`
+			Dir      string `json:"dir"` // snap_root
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 			writeJSON(w, map[string]string{"error": "нужен JSON {\"op\"}"})
@@ -780,7 +784,10 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		hubID, isHub := strings.CutPrefix(req.ID, "hub:")
 		switch req.Op {
 		case "serve":
-			if err = m.overlaps(req.Path); err == nil {
+			if err = m.overlaps(req.Path); err == nil && within(m.hub.SnapRoot(), localPath(req.Path)) {
+				err = errors.New("в этой папке лежат снимки — раздавать её нельзя, архивы разошлись бы по всем устройствам")
+			}
+			if err == nil {
 				_, err = m.hub.AddFolder(localPath(req.Path), req.Name)
 			}
 		case "unserve":
@@ -804,7 +811,16 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			if !isHub {
 				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
 			} else {
-				_, err = m.hub.SetSnapConfig(hubID, SnapConfig{Daily: req.Daily, Time: req.Time, Keep: req.Keep.n})
+				_, err = m.hub.SetSnapConfig(hubID, SnapConfig{Daily: req.Daily, Every: req.Every, Time: req.Time, Keep: req.Keep.n})
+			}
+		case "snap_root":
+			var d string
+			if d, err = m.hub.SetSnapRoot(localPath(req.Dir)); err == nil {
+				if d == "" {
+					text = "Снимки — снова в данных программы"
+				} else {
+					text = "Снимки теперь в " + d
+				}
 			}
 		case "snap_now":
 			if !isHub {
@@ -870,7 +886,7 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 				err = errors.New("нет такой папки")
 			}
 		default:
-			err = errors.New("op: serve, unserve, grant, ignore, join, leave, mode, sync, resolve, restore, snap_cfg, snap_now или snap_restore")
+			err = errors.New("op: serve, unserve, grant, ignore, join, leave, mode, sync, resolve, restore, snap_cfg, snap_root, snap_now или snap_restore")
 		}
 		if err != nil {
 			out := map[string]any{"error": err.Error()}
@@ -934,7 +950,8 @@ func handleSnapshot(w http.ResponseWriter, r *http.Request) {
 // ServeSnapshot отдаёт архив снимка как скачивание (и панели сервера).
 func ServeSnapshot(w http.ResponseWriter, r *http.Request, f io.ReadSeeker, s Snapshot) {
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(s.File))
+	name := snapDownloadName(s)
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
 	w.Header().Set("Cache-Control", "no-store")
 	http.ServeContent(w, r, "", time.Unix(s.Time, 0), f)
 }
