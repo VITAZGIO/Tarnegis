@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -271,7 +272,8 @@ func TestСетьГлавныйИПобочный(t *testing.T) {
 	if err != nil || string(keyData) != inv.Key {
 		t.Fatalf("ключ на побочном: %v", err)
 	}
-	if info, _ := os.Stat(filepath.Join(sec.linkDir(), "id_ed25519")); info.Mode().Perm() != 0o600 {
+	// В Windows прав Unix нет (файл всегда -rw-rw-rw-) — проверка только там, где они есть.
+	if info, _ := os.Stat(filepath.Join(sec.linkDir(), "id_ed25519")); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("права ключа %v", info.Mode())
 	}
 	known, _ := os.ReadFile(filepath.Join(sec.linkDir(), "known_hosts"))
