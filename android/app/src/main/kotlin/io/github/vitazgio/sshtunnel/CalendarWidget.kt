@@ -31,6 +31,7 @@ class CalendarWidget : AppWidgetProvider() {
 
         fun updateAll(ctx: Context) {
             val mgr = AppWidgetManager.getInstance(ctx)
+            CalendarMonthWidget.updateAll(ctx)
             val ids = mgr.getAppWidgetIds(ComponentName(ctx, CalendarWidget::class.java))
             if (ids.isEmpty()) return
             val views = build(ctx)

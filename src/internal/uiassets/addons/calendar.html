@@ -440,7 +440,24 @@ setInterval(async () => {
 // Виджет: смена дня в полночь.
 if(WIDGET) setInterval(render, 10 * 60000);
 
-load();
+// Открытие из месячного виджета (ТЗ 41): ?day=YYYY-MM-DD — список с этого дня;
+// &new=1 — окно нового события на этот день; &ev=<href>|<начало, мс> — это событие.
+async function fromWidget(){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(Q.get('day') || '');
+  if(!m || !st.account || !st.account.url) return;
+  cursor = new Date(+m[1], +m[2] - 1, +m[3]);
+  if(Q.get('new') === '1'){ view = 'month'; await refresh(); editor(null, cursor); return; }
+  const ref = Q.get('ev') || '';
+  if(ref){
+    view = 'month'; await refresh();
+    const i = ref.lastIndexOf('|'), href = ref.slice(0, i), ms = +ref.slice(i + 1);
+    const e = events.find(x => x.href === href && new Date(x.start).getTime() === ms);
+    if(e){ editor(e); return; }
+  }
+  view = 'list'; await refresh();
+}
+
+load().then(fromWidget);
 </script>
 </body>
 </html>
