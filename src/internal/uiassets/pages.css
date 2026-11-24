@@ -36,3 +36,10 @@ a{color:var(--accent)}
 .hint{color:var(--dim);font-size:13px}
 .empty{color:var(--dim);text-align:center;padding:48px 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+
+/* ТЗ 38: «Скопировано» поверх скопированного текста (flashCopied в pages.js). */
+.copiedBadge{position:fixed;z-index:200;pointer-events:none;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;white-space:nowrap;
+  background:var(--card2);color:var(--ok);border:1px solid var(--ok);border-radius:4px;
+  font:600 11px "Segoe UI",-apple-system,Roboto,sans-serif;opacity:1;transition:opacity .35s ease}
+.copiedBadge.out{opacity:0}

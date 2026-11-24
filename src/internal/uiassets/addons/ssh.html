@@ -226,7 +226,7 @@ $('form').onsubmit = async ev => {
 $('addBtn').onclick = () => openForm(null);
 $('keyBtn').onclick = () => { $('keyBox').hidden = !$('keyBox').hidden; };
 $('copyPub').onclick = async () => {
-  try { await navigator.clipboard.writeText($('pub').textContent); msg(L('Скопировано.', 'Copied.'), 'ok'); }
+  try { await navigator.clipboard.writeText($('pub').textContent); flashCopied($('pub')); }
   catch(e) { const r = document.createRange(); r.selectNodeContents($('pub')); getSelection().removeAllRanges(); getSelection().addRange(r); }
 };
 
