@@ -119,6 +119,10 @@ class WebPageActivity : AppCompatActivity() {
         if (s.theme.isNotEmpty()) q.appendQueryParameter("theme", s.theme)
         intent.getStringExtra(EXTRA_OPEN)?.let { q.appendQueryParameter("open", it) }
         intent.getStringExtra(EXTRA_CHAPTER)?.let { q.appendQueryParameter("ch", it) }
+        // Месячный виджет календаря (ТЗ 41): день, новое событие, событие.
+        intent.getStringExtra(EXTRA_DAY)?.let { q.appendQueryParameter("day", it) }
+        intent.getStringExtra(EXTRA_NEW)?.let { q.appendQueryParameter("new", it) }
+        intent.getStringExtra(EXTRA_EVENT)?.let { q.appendQueryParameter("ev", it) }
         val page = intent.getStringExtra(EXTRA_PAGE) ?: PAGE_APPS
         web.loadUrl("$base/$page" + q.build().toString())
     }
@@ -265,6 +269,9 @@ class WebPageActivity : AppCompatActivity() {
         const val EXTRA_PAGE = "page"
         const val EXTRA_OPEN = "open"
         const val EXTRA_CHAPTER = "chapter"
+        const val EXTRA_DAY = "day"
+        const val EXTRA_NEW = "new"
+        const val EXTRA_EVENT = "ev"
         const val PAGE_APPS = "apps.html"
         const val PAGE_BOOK = "book.html"
         private const val REQ_CALENDAR = 71

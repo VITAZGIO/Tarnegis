@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Одна неделя: номер недели (по желанию) и семь клеток. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal">
+
+    <TextView
+        android:id="@+id/wkNum"
+        android:layout_width="16dp"
+        android:layout_height="wrap_content"
+        android:paddingTop="3dp"
+        android:gravity="center_horizontal"
+        android:textColor="@color/dim"
+        android:textSize="9sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/wkCells"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="horizontal" />
+</LinearLayout>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Месячный виджет календаря (CalendarMonthWidget.kt): от 4×3 клеток и до всего
+     экрана; число полосок событий в клетке считается по размеру. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="180dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_calendar_month"
+    android:previewLayout="@layout/widget_calendar_month"
+    android:description="@string/calendar_month_widget_desc"
+    android:widgetCategory="home_screen" />

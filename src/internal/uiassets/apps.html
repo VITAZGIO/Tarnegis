@@ -304,7 +304,10 @@ async function openApp(id, here){
     fr.src = '/' + m.page + '?' + p.toString();
   } else {
     fr.removeAttribute('sandbox');
-    fr.src = pageURL(m.page, {});
+    // Месячный виджет календаря (ТЗ 41) открывает его на дне / событии.
+    const fwd = {};
+    if(id === 'calendar') for(const k of ['day', 'new', 'ev']) if(Q.get(k)) fwd[k] = Q.get(k);
+    fr.src = pageURL(m.page, fwd);
   }
   $('first').hidden = e.seen;
   $('firstText').textContent = appHint(m);

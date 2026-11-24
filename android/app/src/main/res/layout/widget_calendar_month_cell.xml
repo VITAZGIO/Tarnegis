@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Клетка дня: число, до пяти полосок событий, «+N» или (в самом малом размере)
+     до трёх точек. Лишнее код прячет. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cRoot"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:padding="1dp"
+    android:background="@drawable/bg_month_cell">
+
+    <TextView
+        android:id="@+id/cNum"
+        android:layout_width="wrap_content"
+        android:layout_height="15dp"
+        android:layout_marginStart="2dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:gravity="center_vertical"
+        android:textColor="@color/text"
+        android:textSize="11sp"
+        android:maxLines="1" />
+
+    <TextView android:id="@+id/cE0" style="@style/MonthBar" />
+    <TextView android:id="@+id/cE1" style="@style/MonthBar" />
+    <TextView android:id="@+id/cE2" style="@style/MonthBar" />
+    <TextView android:id="@+id/cE3" style="@style/MonthBar" />
+    <TextView android:id="@+id/cE4" style="@style/MonthBar" />
+
+    <TextView
+        android:id="@+id/cMore"
+        android:layout_width="match_parent"
+        android:layout_height="11dp"
+        android:layout_marginTop="1dp"
+        android:paddingStart="3dp"
+        android:textColor="@color/dim"
+        android:textSize="9sp"
+        android:maxLines="1"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/cDots"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_horizontal"
+        android:visibility="gone">
+        <ImageView android:id="@+id/cDot0" android:layout_width="6dp" android:layout_height="6dp" android:layout_margin="1dp" android:src="@drawable/dot_month" android:visibility="gone" />
+        <ImageView android:id="@+id/cDot1" android:layout_width="6dp" android:layout_height="6dp" android:layout_margin="1dp" android:src="@drawable/dot_month" android:visibility="gone" />
+        <ImageView android:id="@+id/cDot2" android:layout_width="6dp" android:layout_height="6dp" android:layout_margin="1dp" android:src="@drawable/dot_month" android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

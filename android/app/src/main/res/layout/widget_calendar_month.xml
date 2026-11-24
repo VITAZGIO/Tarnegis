@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Месячный виджет (CalendarMonthWidget.kt): шапка, дни недели, сетка из шести
+     недель. Сетку собирает код из widget_calendar_month_week и _cell. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="@drawable/bg_widget">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/mTitle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:text="…"
+            android:textColor="@color/text"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/mWeeks"
+            android:layout_width="30dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="№"
+            android:textColor="@color/dim"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/mPrev"
+            android:layout_width="30dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textColor="@color/text"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/mNext"
+            android:layout_width="30dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="›"
+            android:textColor="@color/text"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/mAdd"
+            android:layout_width="30dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="+"
+            android:textColor="@color/accent"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/mSync"
+            android:layout_width="30dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="↻"
+            android:textColor="@color/accent"
+            android:textSize="19sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="16dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/mDowPad"
+            android:layout_width="16dp"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <TextView android:id="@+id/mD0" style="@style/MonthDow" android:text="@string/dow_1" />
+        <TextView android:id="@+id/mD1" style="@style/MonthDow" android:text="@string/dow_2" />
+        <TextView android:id="@+id/mD2" style="@style/MonthDow" android:text="@string/dow_3" />
+        <TextView android:id="@+id/mD3" style="@style/MonthDow" android:text="@string/dow_4" />
+        <TextView android:id="@+id/mD4" style="@style/MonthDow" android:text="@string/dow_5" />
+        <TextView android:id="@+id/mD5" style="@style/MonthDow" android:text="@string/dow_6" />
+        <TextView android:id="@+id/mD6" style="@style/MonthDow" android:text="@string/dow_7" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/mGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical" />
+</LinearLayout>

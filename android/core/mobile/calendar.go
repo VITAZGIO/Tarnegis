@@ -157,6 +157,38 @@ func CalendarUpcomingJSON(days int) string {
 	return string(b)
 }
 
+// rangeItem — событие для месячного виджета: как у CalendarUpcomingJSON, плюс
+// href и календарь, чтобы нажатие открывало именно это событие.
+type rangeItem struct {
+	Title  string `json:"title"`
+	Start  int64  `json:"start"`
+	End    int64  `json:"end"`
+	AllDay bool   `json:"allDay"`
+	Color  string `json:"color,omitempty"`
+	Href   string `json:"href,omitempty"`
+	Cal    string `json:"cal,omitempty"`
+}
+
+// rangeJSON — события в JSON, по порядку начала; нулевой слайс даёт «[]».
+func rangeJSON(evs []calendar.Instance) string {
+	out := make([]rangeItem, 0, len(evs))
+	for _, e := range evs {
+		out = append(out, rangeItem{e.Title, e.Start.UnixMilli(), e.End.UnixMilli(), e.AllDay, e.Color, e.Href, e.Cal})
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
+}
+
+// CalendarRangeJSON — события видимых календарей на [fromMs, toMs) (мс) для
+// месячного виджета (ТЗ 41): [{"title","start","end","allDay","color","href","cal"}].
+// Прошедшие не отбрасываются — в сетке месяца видны и они.
+func CalendarRangeJSON(fromMs, toMs int64) string {
+	if toMs <= fromMs || toMs-fromMs > 400*24*3600*1000 {
+		return "[]"
+	}
+	return rangeJSON(calendar.Default().Events(time.UnixMilli(fromMs), time.UnixMilli(toMs), false))
+}
+
 // SetTimeZone — часовой пояс телефона (TimeZone.getDefault().id). Go на
 // Android сам его не знает и считает местным временем UTC: «сегодня» в
 // виджете и события без пояса съехали бы.
