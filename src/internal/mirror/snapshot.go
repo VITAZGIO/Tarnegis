@@ -121,7 +121,7 @@ type snapFile struct {
 
 // snapState — snapshots.json в папке снимков.
 type snapState struct {
-	Config  SnapConfig `json:"config"`
+	Config SnapConfig `json:"config"`
 	// Dir — подпапка этой папки в общей папке снимков устройства (SnapRoot);
 	// запоминается при первом снимке, чтобы переименование папки не теряло
 	// старые архивы.
@@ -137,9 +137,8 @@ func (f *hfolder) snapMu() *sync.Mutex { return &f.snap }
 // snapDir — служебные данные снимков (snapshots.json); архивы — в zipDir.
 func (f *hfolder) snapDir() string { return filepath.Join(f.dir, "snapshots") }
 
-// zipDir — где лежат архивы снимков папки. Папка снимков устройства не
-// задана — рядом с данными (snapshots/), как в ТЗ 36. Задана (как резервные
-// копии Home Assistant в папке контейнера) — <папка снимков>/<имя папки>/.
+// zipDir — где лежат архивы снимков папки: <папка снимков устройства>/<имя
+// папки>/; без папки снимков — рядом с данными (snapshots/), как в ТЗ 36.
 // Пустой st.Dir заполняется (сохранит вызывающий вместе с остальным).
 func (h *Hub) zipDir(f *hfolder, st *snapState) string {
 	return h.zipDirAt(h.SnapRoot(), f, st)
@@ -153,6 +152,20 @@ func (h *Hub) zipDirAt(root string, f *hfolder, st *snapState) string {
 		st.Dir = h.snapSubName(f)
 	}
 	return filepath.Join(root, st.Dir)
+}
+
+// archivePath — путь архива name: в zd, а если его там нет (переезд в другую
+// папку снимков прошёл не до конца) — в данных папки, где он лежал раньше.
+func archivePath(zd string, f *hfolder, name string) string {
+	p := filepath.Join(zd, name)
+	if _, err := os.Stat(p); err != nil {
+		if q := filepath.Join(f.snapDir(), name); q != p {
+			if _, err := os.Stat(q); err == nil {
+				return q
+			}
+		}
+	}
+	return p
 }
 
 // snapSubName — имя подпапки снимков: имя папки безопасными символами; если
@@ -298,7 +311,7 @@ func (h *Hub) Snapshots(id string) (SnapList, error) {
 	}
 	for _, s := range st.List {
 		if s.Error == "" {
-			fi, err := os.Stat(filepath.Join(zd, s.File))
+			fi, err := os.Stat(archivePath(zd, f, s.File))
 			if err != nil {
 				continue // убрали руками
 			}
@@ -331,7 +344,7 @@ func (h *Hub) OpenSnapshot(id, file string) (*os.File, Snapshot, error) {
 		return nil, Snapshot{}, errors.New("такого снимка нет")
 	}
 	s.Folder = f.Name
-	fh, err := os.Open(filepath.Join(zd, s.File))
+	fh, err := os.Open(archivePath(zd, f, s.File))
 	if err != nil {
 		return nil, Snapshot{}, errors.New("такого снимка нет")
 	}
@@ -753,7 +766,7 @@ func (h *Hub) RestoreSnapshot(id, dev, file string) (RestoreResult, error) {
 	if !ok {
 		return RestoreResult{}, errors.New("такого снимка нет")
 	}
-	zr, err := zip.OpenReader(filepath.Join(h.zipDir(f, &rst), s.File))
+	zr, err := zip.OpenReader(archivePath(h.zipDir(f, &rst), f, s.File))
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("снимок не открылся: %w", err)
 	}

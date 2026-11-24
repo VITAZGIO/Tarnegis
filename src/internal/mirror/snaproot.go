@@ -9,54 +9,102 @@ import (
 	"strings"
 )
 
-// Общая папка снимков устройства (как резервные копии Home Assistant в папке
-// контейнера): <папка>/<имя раздаваемой папки>/<дата>.zip. Не задана —
-// снимки лежат рядом с данными папки (snapshots/ в данных программы).
+// Папка снимков устройства: <папка>/<имя раздаваемой папки>/<дата>.zip.
+// По умолчанию — <папка программы>/backups (ТЗ 39, progdir.go); своя папка
+// задаётся человеком. Без папки по умолчанию (хост плагинов на сервере,
+// тесты) и без своей — снимки лежат рядом с данными папки (snapshots/).
 // Служебный список снимков (snapshots.json) всегда остаётся в данных.
 
 const snapRootFile = "snaproot.json"
 
 type snapRootCfg struct {
+	// Dir — своя папка снимков ("" — папка по умолчанию).
 	Dir string `json:"dir"`
+	// At — где архивы лежат сейчас ("" — в данных программы). Нет поля
+	// (файл старой версии) — там же, где Dir.
+	At *string `json:"at,omitempty"`
 }
 
-func (h *Hub) loadSnapRoot() string {
+func (h *Hub) loadSnapRoot() {
 	var c snapRootCfg
 	_ = readJSON(filepath.Join(h.dir, snapRootFile), &c)
-	return c.Dir
+	h.snapRoot = c.Dir
+	h.snapAt = c.Dir
+	if c.At != nil {
+		h.snapAt = *c.At
+	}
 }
 
-// SnapRoot — общая папка снимков устройства ("" — рядом с данными папки).
+func (h *Hub) saveSnapRoot(dir, at string) error {
+	return writeJSONAtomic(filepath.Join(h.dir, snapRootFile), snapRootCfg{Dir: dir, At: &at})
+}
+
+// SnapRoot — где сейчас лежат снимки устройства ("" — рядом с данными
+// каждой папки).
 func (h *Hub) SnapRoot() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.snapAt
+}
+
+// SnapRootCustom — своя папка снимков ("" — папка по умолчанию).
+func (h *Hub) SnapRootCustom() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.snapRoot
 }
 
-// SuggestSnapRoot — что предложить человеку: «backups» рядом с папкой, в
-// которой лежат раздаваемые папки (…/ssh_tunnel/mirrors/Server →
-// …/ssh_tunnel/backups). Раздаваемых папок нет — "".
-func (h *Hub) SuggestSnapRoot() string {
-	for _, f := range h.Folders() {
-		parent := filepath.Dir(filepath.Clean(f.Path))
-		base := filepath.Dir(parent)
-		if filepath.Dir(base) == base { // parent — сразу под корнем диска
-			return filepath.Join(parent, "backups")
-		}
-		return filepath.Join(base, "backups")
-	}
-	return ""
+// SnapRootDefault — папка снимков по умолчанию ("" — не задана).
+func (h *Hub) SnapRootDefault() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.snapDefault
 }
 
-// SetSnapRoot — сменить общую папку снимков ("" — обратно в данные
-// программы). Уже сделанные снимки всех папок переезжают туда же. Папка
-// снимков не может быть внутри раздаваемой папки: иначе архивы разошлись бы
-// по всем устройствам.
+// SetSnapRootDefault — папка снимков по умолчанию (<папка программы>/backups).
+// Если своя не задана, снимки, лежащие в данных программы (или в прежней
+// папке по умолчанию), переезжают туда — один раз: дальше они уже там.
+func (h *Hub) SetSnapRootDefault(dir string) error {
+	if dir != "" {
+		dir = filepath.Clean(dir)
+	}
+	h.mu.Lock()
+	h.snapDefault = dir
+	custom := h.snapRoot
+	h.mu.Unlock()
+	if custom != "" {
+		return nil
+	}
+	_, err := h.setSnapAt("", h.defaultTarget())
+	return err
+}
+
+// defaultTarget — куда класть снимки без своей папки: папка по умолчанию,
+// если она не внутри раздаваемой папки, иначе — в данные программы.
+func (h *Hub) defaultTarget() string {
+	h.mu.Lock()
+	def := h.snapDefault
+	h.mu.Unlock()
+	if def == "" {
+		return ""
+	}
+	for _, f := range h.Folders() {
+		if within(def, f.Path) {
+			return ""
+		}
+	}
+	return def
+}
+
+// SetSnapRoot — сменить папку снимков ("" — папка по умолчанию). Уже
+// сделанные снимки всех папок переезжают туда же. Папка снимков не может
+// быть внутри раздаваемой папки: иначе архивы разошлись бы по всем
+// устройствам. Возвращает, где снимки теперь.
 func (h *Hub) SetSnapRoot(dir string) (string, error) {
 	dir = strings.TrimSpace(dir)
 	if dir != "" {
 		if !filepath.IsAbs(dir) {
-			return "", errors.New("папка снимков — полный путь, например /DATA/AppData/ssh_tunnel/backups")
+			return "", errors.New("папка снимков — полный путь")
 		}
 		dir = filepath.Clean(dir)
 		for _, f := range h.Folders() {
@@ -64,24 +112,43 @@ func (h *Hub) SetSnapRoot(dir string) (string, error) {
 				return "", fmt.Errorf("папка снимков внутри раздаваемой папки «%s» — архивы разошлись бы по всем устройствам", f.Name)
 			}
 		}
-		if err := os.MkdirAll(dir, 0o700); err != nil {
+	}
+	target := dir
+	if target == "" {
+		target = h.defaultTarget()
+	}
+	return h.setSnapAt(dir, target)
+}
+
+// setSnapAt — запомнить свою папку custom и перенести архивы в target.
+func (h *Hub) setSnapAt(custom, target string) (string, error) {
+	h.mu.Lock()
+	old, oldCustom := h.snapAt, h.snapRoot
+	fs := h.list()
+	h.mu.Unlock()
+	if samePath(old, target) {
+		if oldCustom != custom {
+			h.mu.Lock()
+			h.snapRoot = custom
+			h.mu.Unlock()
+			if err := h.saveSnapRoot(custom, old); err != nil {
+				return "", err
+			}
+		}
+		return target, nil
+	}
+	if target != "" {
+		if err := os.MkdirAll(target, 0o700); err != nil {
 			return "", fmt.Errorf("папка снимков не создаётся: %w", err)
 		}
 	}
-	h.mu.Lock()
-	old := h.snapRoot
-	fs := h.list()
-	h.mu.Unlock()
-	if samePath(old, dir) {
-		return dir, nil
-	}
-	if err := writeJSONAtomic(filepath.Join(h.dir, snapRootFile), snapRootCfg{Dir: dir}); err != nil {
+	if err := h.saveSnapRoot(custom, target); err != nil {
 		return "", err
 	}
 	// Сразу новая папка: снимки, что начнутся во время переезда, пишутся уже
 	// туда (переезд каждой папки — под её замком снимков).
 	h.mu.Lock()
-	h.snapRoot = dir
+	h.snapRoot, h.snapAt = custom, target
 	h.mu.Unlock()
 	var moveErr []string
 	for _, f := range fs {
@@ -89,7 +156,7 @@ func (h *Hub) SetSnapRoot(dir string) (string, error) {
 		mu.Lock()
 		st := f.loadSnap()
 		from := h.zipDirAt(old, f, &st)
-		to := h.zipDirAt(dir, f, &st)
+		to := h.zipDirAt(target, f, &st)
 		if err := moveSnaps(from, to, &st); err != nil {
 			moveErr = append(moveErr, f.Name+": "+err.Error())
 		}
@@ -100,9 +167,9 @@ func (h *Hub) SetSnapRoot(dir string) (string, error) {
 		mu.Unlock()
 	}
 	if len(moveErr) > 0 {
-		return dir, errors.New("папка снимков сменена, но не все снимки переехали: " + strings.Join(moveErr, "; "))
+		return target, errors.New("папка снимков сменена, но не все снимки переехали: " + strings.Join(moveErr, "; "))
 	}
-	return dir, nil
+	return target, nil
 }
 
 // moveSnaps переносит архивы списка из from в to (имена — свободные в to).

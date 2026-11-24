@@ -15,6 +15,10 @@ import (
 // Модуль через API страницы: приложение работает, только пока добавлено;
 // раздать папку, исключения, версии, снять с раздачи (папка не тронута).
 func TestModuleAPI(t *testing.T) {
+	prog := filepath.Join(t.TempDir(), "ssh_tunnel")
+	was := programDirFn
+	programDirFn = func() string { return prog }
+	defer func() { programDirFn = was }()
 	svc := addons.New(t.TempDir())
 	defer svc.Close()
 	routes := map[string]http.HandlerFunc{}
@@ -51,8 +55,13 @@ func TestModuleAPI(t *testing.T) {
 		t.Fatal(r["error"])
 	}
 	serve := r["serve"].([]any)
-	if len(serve) != 1 || serve[0].(map[string]any)["files"].(float64) != 1 {
+	if len(serve) != 1 || serve[0].(map[string]any)["files"].(float64) != 1 || serve[0].(map[string]any)["bytes"].(float64) != 1 {
 		t.Fatalf("раздача: %v", r)
+	}
+	// Папка программы и папка снимков по умолчанию (ТЗ 39).
+	if r["programDir"] != prog || r["snapRootDefault"] != filepath.Join(prog, "backups") || r["snapRoot"] != "" ||
+		r["suggest"] != filepath.Join(prog, "mirrored_folders") {
+		t.Fatalf("папки программы: %v %v %v %v", r["programDir"], r["snapRootDefault"], r["snapRoot"], r["suggest"])
 	}
 	id := "hub:" + serve[0].(map[string]any)["id"].(string)
 	body, _ = json.Marshal(map[string]any{"op": "serve", "path": filepath.Join(dir, "x"), "name": "x"})

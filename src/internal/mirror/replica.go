@@ -98,8 +98,11 @@ type Status struct {
 	Pending   int        `json:"pending"`
 	Conflicts []Conflict `json:"conflicts"`
 	Files     int        `json:"files"`
-	Error     string     `json:"error,omitempty"`
-	LastOK    int64      `json:"lastOk,omitempty"`
+	// Bytes — сколько занимают файлы папки на этом устройстве (по последней
+	// сверке, без исключённых), ТЗ 39.
+	Bytes  int64  `json:"bytes,omitempty"`
+	Error  string `json:"error,omitempty"`
+	LastOK int64  `json:"lastOk,omitempty"`
 }
 
 // ClosedText — что показать, когда папки на сервере для этого устройства
@@ -254,7 +257,7 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 		}
 		_ = r.save()
 		st := Status{State: "offline", Pending: n, Error: err.Error(), LastOK: r.st.LastOK,
-			Conflicts: r.st.Conflicts, Files: countFiles(local)}
+			Conflicts: r.st.Conflicts, Files: countFiles(local), Bytes: localBytes(local, disk)}
 		if Closed(err) {
 			// Владелец не показывает эту папку (забрал доступ или больше не
 			// раздаёт — снаружи не отличить, и так задумано). Файлы здесь не
@@ -324,7 +327,7 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 	if err := r.save(); err != nil && firstErr == nil {
 		firstErr = err
 	}
-	st := Status{State: "ok", Pending: pending, LastOK: r.st.LastOK, Conflicts: r.st.Conflicts, Files: countFiles(local)}
+	st := Status{State: "ok", Pending: pending, LastOK: r.st.LastOK, Conflicts: r.st.Conflicts, Files: countFiles(local), Bytes: localBytes(local, disk)}
 	if firstErr != nil {
 		st.Error = firstErr.Error()
 	}
@@ -902,6 +905,18 @@ func (r *Replica) Forget() {
 	defer r.mu.Unlock()
 	os.Remove(r.State)
 	r.gone = true
+}
+
+// localBytes — сколько занимают файлы local (размеры — из того же обхода
+// диска, без исключённых).
+func localBytes(local map[string]string, disk map[string]stat) int64 {
+	var n int64
+	for p := range local {
+		if !isDir(p) {
+			n += disk[p].Size
+		}
+	}
+	return n
 }
 
 // countFiles — сколько файлов (без записей папок).

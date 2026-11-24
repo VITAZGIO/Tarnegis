@@ -11,7 +11,9 @@ Each folder has **one server** — the device where it is the "main" copy.
 Best an always-on one (a home server, a computer that stays on).
 
 1. On the server add the «Mirrored folders» app.
-2. **«Sharing»** tab → full path to the folder → «Share».
+2. **«Sharing»** tab → full path to the folder → «Share». Type the name
+   first and the path fills in by itself: `<program folder>/mirrored_folders/<name>`
+   (created if it does not exist). Any other folder works too.
 
 Nested folders cannot be shared: one file — one server.
 
@@ -58,7 +60,8 @@ device.
 
 1. Add the app. The **«Folders»** tab shows «Server found» — once the owner
    has ticked at least one folder for this device.
-2. Pick **where to keep** the folder on this device and the mode.
+2. Pick **where to keep** the folder on this device and the mode. The
+   path is filled in already: `<program folder>/mirrored_folders/<name>`.
 3. «Connect».
 
 Modes:
@@ -88,6 +91,19 @@ that is what sharing is for.
 
 «Disconnect» stops syncing; the files on the device stay.
 
+## Program folder
+
+Each device has a visible **program folder** for this app:
+
+- Linux — `/DATA/AppData/ssh_tunnel` when `/DATA/AppData` exists (CasaOS,
+  ZimaOS), otherwise `ssh_tunnel` in the home folder;
+- Windows — `ssh_tunnel` in the user folder;
+- phone — `ssh_tunnel` in the root of phone storage.
+
+Inside are two folders with English names: `mirrored_folders/<folder name>/`
+— the default place for new mirror folders, and `backups/<folder name>/` —
+snapshots. Folders connected earlier stay where they are.
+
 ## Status
 
 Each folder shows «in sync», «N files waiting» (e.g. the server is
@@ -115,8 +131,8 @@ current version goes to versions itself.
 
 ## Folder snapshots
 
-Like Home Assistant backups: on the device that **shares** the folder, the
-**«Sharing»** tab → the folder's **«Snapshots»** block.
+On the device that **shares** the folder, the **«Sharing»** tab → the
+folder's **«Snapshots»** block.
 
 - **How often** — «Manual only», «Every day», «Every 3 days» or «Every
   week», and a time (03:00 by default, this device's clock). If the device
@@ -135,13 +151,14 @@ version). Any archiver opens it — take a single file out yourself.
 Snapshots are **not inside the folder**, so they never sync; the path is
 written under the list («Stored in: …»).
 
-**Snapshot folder** — above the shared folders, one per device, like Home
-Assistant backups in a container folder. For example
-`/DATA/AppData/ssh_tunnel/backups`: each shared folder gets its own
-subfolder (`backups/Server/`), snapshots in it are named by date
-(`2026-11-24 03-00.zip`). Empty — snapshots stay in the app data next to the
-versions. Existing snapshots move when you change it; it cannot be inside a
-shared folder (the archives would sync to every device). A snapshot is taken from the folder server's state at one
+**Backups** — a row above the shared folders, one per device. **«Default
+folder»** — `backups` in the program folder (the path is shown under the
+choice); **«Own folder…»** — any other: a path, «Browse», «Save». Each
+shared folder gets its own subfolder, archives in it are named by date
+(`YYYY-MM-DD HH-MM.zip`). Existing snapshots move when you change it, back
+to the default folder too. It cannot be inside a shared folder, and a folder
+holding snapshots cannot be shared: the archives would sync to every device.
+A snapshot is taken from the folder server's state at one
 moment: edits arriving meanwhile just wait, they are not lost. Excluded and
 temporary files are left out. If the disk is full, no snapshot is taken, the
 list shows the error and old snapshots are **not deleted**. Snapshots do not

@@ -107,16 +107,6 @@ func TestSnapRootFolderPerShare(t *testing.T) {
 	}
 }
 
-// Подсказка: «backups» рядом с папкой, где лежат раздаваемые папки.
-func TestSnapRootSuggest(t *testing.T) {
-	e := newEnv(t)
-	got := e.hub.SuggestSnapRoot()
-	want := filepath.Join(filepath.Dir(filepath.Dir(e.root)), "backups")
-	if got != want {
-		t.Fatalf("подсказка %q, ждали %q", got, want)
-	}
-}
-
 // «Раз в 3 дня» и «раз в неделю»: снимок не раньше, чем через N дней после
 // прошлого по расписанию; пропущенное догоняется одним снимком.
 func TestSnapEvery(t *testing.T) {

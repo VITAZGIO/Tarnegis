@@ -73,8 +73,12 @@
   .srow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 2px;font-size:13px}
   .srow .d{color:var(--dim);font-size:12px}
   .srow.bad .d{color:var(--warn)}
-  .snaproot .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
-  .snaproot .bar{flex-wrap:wrap}
+  /* Строка «Резервные копии» (ТЗ 39): выбор, под ним путь тусклым. */
+  .snaproot .row{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap}
+  .snaproot .row label{font-weight:600}
+  .snaproot .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all;font-family:var(--mono)}
+  .snaproot .bar{flex-wrap:wrap;margin-top:8px}
+  .snaproot .hint{margin-top:6px;font-size:12px}
   .snaps .where{font-size:12px;color:var(--dim);margin-top:6px;word-break:break-all}
   .snaps .where code{font-family:var(--mono);font-size:11.5px}
   @media (max-width:480px){ .srow{grid-template-columns:1fr 1fr} .srow > div:first-child{grid-column:1/-1} }
@@ -116,13 +120,15 @@
   <!-- Папки, которые раздаёт это устройство. -->
   <div id="vServe" class="box" style="padding:0" hidden>
     <div class="hint" id="serveHint"></div>
-    <!-- Общая папка снимков устройства: <папка>/<имя папки>/<дата>.zip. -->
+    <!-- Резервные копии (снимки) устройства: <папка>/<имя папки>/<дата>.zip;
+         по умолчанию — <папка программы>/backups (ТЗ 39). -->
     <div class="card snaproot" id="snapRootCard" hidden>
-      <div class="hint" id="snapRootHint"></div>
-      <div class="bar"><span class="pathRow"><input id="snapRootIn"><button class="btn" type="button" data-pick="snapRootIn"></button></span>
-        <button class="btn" type="button" id="snapRootSave"></button>
-        <button class="btn ghost" type="button" id="snapRootReset"></button></div>
+      <div class="row"><label for="snapRootSel" id="snapRootLbl"></label>
+        <select id="snapRootSel"><option value="def"></option><option value="own"></option></select></div>
       <div class="where" id="snapRootNow"></div>
+      <div class="bar" id="snapRootOwn" hidden><span class="pathRow"><input id="snapRootIn"><button class="btn" type="button" data-pick="snapRootIn"></button></span>
+        <button class="btn" type="button" id="snapRootSave"></button></div>
+      <div class="hint" id="snapRootHint"></div>
     </div>
     <div id="serve"></div>
     <div class="card"><div class="bar">
@@ -266,29 +272,45 @@ function allConflicts(){
   return out;
 }
 
-// Папка снимков устройства: поле не перезаписывается, пока человек его правит.
-let SNAP_ROOT_DIRTY = false;
+// «Резервные копии»: папка по умолчанию (<папка программы>/backups) или
+// своя. SNAP_OWN — человек выбрал «Своя папка…», но ещё не сохранил; поле
+// не перезаписывается, пока он его правит.
+let SNAP_OWN = false, SNAP_ROOT_DIRTY = false;
+set('snapRootLbl', L('Резервные копии', 'Backups'));
+$('snapRootSel').options[0].textContent = L('Папка по умолчанию', 'Default folder');
+$('snapRootSel').options[1].textContent = L('Своя папка…', 'Own folder…');
+set('snapRootSave', L('Сохранить', 'Save'));
+set('snapRootHint', L('В каждой папке — подпапка с архивами, названными датой.', 'Each folder gets a subfolder with archives named by date.'));
+$('snapRootIn').placeholder = L('полный путь к папке', 'full path to the folder');
 $('snapRootIn').addEventListener('input', () => { SNAP_ROOT_DIRTY = true; });
-$('snapRootSave').onclick = async () => {
-  if(await post({op: 'snap_root', dir: $('snapRootIn').value.trim()})) SNAP_ROOT_DIRTY = false;
+$('snapRootSel').onchange = async () => {
+  if($('snapRootSel').value === 'own'){
+    SNAP_OWN = true;
+    if(S) drawSnapRoot(S);
+    $('snapRootIn').focus();
+    return;
+  }
+  SNAP_OWN = false; SNAP_ROOT_DIRTY = false;
+  // Своя папка была сохранена — снимки переезжают обратно в папку по умолчанию.
+  if(S && S.snapRoot){
+    if(!await post({op: 'snap_root', dir: ''})) drawSnapRoot(S);
+  } else if(S) drawSnapRoot(S);
 };
-$('snapRootReset').onclick = async () => {
-  if(!confirm(L('Вернуть снимки в данные программы? Уже сделанные снимки переедут туда.', 'Move snapshots back to the program data? Existing snapshots move there.'))) return;
-  if(await post({op: 'snap_root', dir: ''})) SNAP_ROOT_DIRTY = false;
+$('snapRootSave').onclick = async () => {
+  const dir = $('snapRootIn').value.trim();
+  if(!dir){ $('snapRootIn').focus(); return; }
+  if(await post({op: 'snap_root', dir})){ SNAP_ROOT_DIRTY = false; SNAP_OWN = false; }
 };
 function drawSnapRoot(r){
   $('snapRootCard').hidden = !r.serve.length;
-  $('snapRootHint').textContent = L(
-    'Папка снимков этого устройства, как резервные копии в Home Assistant: внутри у каждой раздаваемой папки своя подпапка, снимки в ней названы датой. Пусто — снимки лежат в данных программы. При смене папки уже сделанные снимки переезжают.',
-    'Snapshot folder of this device, like Home Assistant backups: each shared folder gets its own subfolder, snapshots in it are named by date. Empty — snapshots stay in the program data. Existing snapshots move when you change it.');
-  $('snapRootSave').textContent = L('Сохранить', 'Save');
-  $('snapRootReset').textContent = L('В данные программы', 'Program data');
-  $('snapRootReset').hidden = !r.snapRoot;
-  $('snapRootIn').placeholder = r.snapRootSuggest || L('/DATA/AppData/ssh_tunnel/backups', '/DATA/AppData/ssh_tunnel/backups');
-  if(!SNAP_ROOT_DIRTY && document.activeElement !== $('snapRootIn')) $('snapRootIn').value = r.snapRoot || '';
-  $('snapRootNow').textContent = r.snapRoot
-    ? L('Сейчас: ', 'Now: ') + r.snapRoot
-    : L('Сейчас: в данных программы', 'Now: in the program data') + (r.snapRootSuggest ? L(' (например, ', ' (e.g. ') + r.snapRootSuggest + ')' : '');
+  const own = !!r.snapRoot || SNAP_OWN;
+  $('snapRootSel').value = own ? 'own' : 'def';
+  $('snapRootOwn').hidden = !own;
+  if(!SNAP_ROOT_DIRTY && document.activeElement !== $('snapRootIn')) $('snapRootIn').value = shortPath(r.snapRoot || '');
+  // Под выбором — где архивы сейчас; у своей папки путь уже в поле.
+  const now = r.snapRootNow !== undefined ? r.snapRootNow : r.snapRoot;
+  $('snapRootNow').hidden = own;
+  $('snapRootNow').textContent = now ? shortPath(now) : L('в данных программы', 'in the program data');
 }
 
 function draw(r){
@@ -325,7 +347,9 @@ function draw(r){
       const row = document.createElement('div');
       row.className = 'bar';
       row.style.marginTop = '8px';
-      const def = ANDROID ? '/' + x.name : (r.suggest ? r.suggest + (r.platform === 'windows' ? '\\' : '/') : '') + x.name;
+      // Путь по умолчанию — <папка программы>/mirrored_folders/<имя> (ТЗ 39).
+      const def = f.path && f.path[x.id] ? shortPath(f.path[x.id])
+        : ANDROID ? '/' + x.name : (r.suggest ? r.suggest + (r.platform === 'windows' ? '\\' : '/') : '') + x.name;
       const key = f.peer + '|' + x.id;
       const d = drafts[key] || (drafts[key] = {path: def, mode: Object.keys(MODES)[0]});
       row.innerHTML = `<b style="min-width:110px">${esc(x.name)}</b>
@@ -355,7 +379,9 @@ function draw(r){
     const [txt, cls] = statusText(s.status);
     const c = document.createElement('div');
     c.className = 'card sub';
-    c.innerHTML = `<div class="fold">${icon('sync')}<div class="tx"><b>${esc(s.name)}</b> · ${esc(s.host || s.peer)}</div>
+    const st = s.status || {};
+    const amount = st.files || st.bytes ? ' · ' + st.files + ' ' + esc(L('файлов', 'files')) + ' · ' + esc(size(st.bytes)) : '';
+    c.innerHTML = `<div class="fold">${icon('sync')}<div class="tx"><b>${esc(s.name)}</b> · ${esc(s.host || s.peer)}${amount}</div>
       <button class="ico" data-a="sync" title="${esc(L('Сверить сейчас', 'Sync now'))}">${icon('refresh')}</button>
       <button class="ico" data-a="leave" title="${esc(L('Отключить (файлы останутся)', 'Disconnect (files stay)'))}">${icon('close')}</button></div>
       <div class="p">${esc(shortPath(s.path))}</div>
@@ -376,7 +402,7 @@ function draw(r){
   for(const f of r.serve){
     const c = document.createElement('div');
     c.className = 'card';
-    c.innerHTML = `<div class="fold">${icon('dns')}<div class="tx"><div><b>${esc(f.name)}</b> · ${f.files} ${esc(L('файлов', 'files'))}</div>
+    c.innerHTML = `<div class="fold">${icon('dns')}<div class="tx"><div><b>${esc(f.name)}</b> · ${f.files} ${esc(L('файлов', 'files'))}${f.bytes !== undefined ? ' · ' + esc(size(f.bytes)) : ''}</div>
         <div class="p">${esc(shortPath(f.path))}</div><div class="hint">${esc(whoHas(f))}</div></div>
       <button class="ico" data-a="ign" title="${esc(L('Исключения', 'Exclusions'))}">${icon('settings')}</button>
       <button class="ico" data-a="off" title="${esc(L('Перестать раздавать', 'Stop sharing'))}">${icon('close')}</button></div>
@@ -665,8 +691,17 @@ $('trashReload').onclick = loadTrash;
 $('serveAdd').onclick = async () => {
   const path = $('servePath').value.trim();
   if(!path) return;
-  if(await post({op: 'serve', path, name: $('serveName').value.trim()})){ $('servePath').value = ''; $('serveName').value = ''; }
+  if(await post({op: 'serve', path, name: $('serveName').value.trim()})){ $('servePath').value = ''; $('serveName').value = ''; SERVE_AUTO = ''; }
 };
+// Новая папка: путь подставляется по названию — <папка программы>/
+// mirrored_folders/<название> (ТЗ 39), пока человек не вписал свой.
+let SERVE_AUTO = '';
+$('serveName').addEventListener('input', () => {
+  const p = $('servePath'), name = $('serveName').value.trim();
+  if(!S || !S.programDir || (p.value.trim() && p.value !== SERVE_AUTO)) return;
+  SERVE_AUTO = name ? shortPath(S.suggest + (S.platform === 'windows' ? '\\' : '/') + name) : '';
+  p.value = SERVE_AUTO;
+});
 
 // refresh — свежий список. Один запрос за раз и не дольше 10 с: ответ,
 // который не пришёл, не должен оставлять страницу пустой навсегда.
