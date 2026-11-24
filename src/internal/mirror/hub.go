@@ -43,10 +43,13 @@ type Hub struct {
 
 	mu      sync.Mutex
 	folders map[string]*hfolder
-	// snapRoot — общая папка снимков устройства (snaproot.go); "" — рядом с
-	// данными папки.
-	snapRoot string
-	wake    chan struct{} // закрывается при любом изменении (долгий опрос)
+	// Папка снимков устройства (snaproot.go): snapRoot — своя ("" — по
+	// умолчанию), snapDefault — по умолчанию (<папка программы>/backups),
+	// snapAt — где архивы лежат сейчас ("" — рядом с данными папки).
+	snapRoot    string
+	snapDefault string
+	snapAt      string
+	wake        chan struct{} // закрывается при любом изменении (долгий опрос)
 }
 
 // HubFolder — папка, которую раздаёт этот сервер.
@@ -138,7 +141,7 @@ func OpenHub(dir, host string) (*Hub, error) {
 		}
 		h.folders[c.ID] = f
 	}
-	h.snapRoot = h.loadSnapRoot()
+	h.loadSnapRoot()
 	return h, nil
 }
 
@@ -560,6 +563,30 @@ func (h *Hub) Index(id string, since int64, wait time.Duration, done <-chan stru
 		}
 		t.Stop()
 	}
+}
+
+// Counts — сколько файлов в папке и сколько они занимают (байт): по индексу,
+// без обхода диска; исключённые (ignore) и записи пустых папок не считаются.
+func (h *Hub) Counts(id string) (files int, bytes int64, conflicts []Conflict, err error) {
+	f, err := h.folder(id)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for p, fi := range f.ix.Files {
+		if fi.Deleted || isDir(p) || f.ig.Match(p, false) {
+			continue
+		}
+		files++
+		bytes += fi.Size
+	}
+	conflicts = []Conflict{}
+	for _, c := range f.ix.Conflicts {
+		conflicts = append(conflicts, c)
+	}
+	sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })
+	return files, bytes, conflicts, nil
 }
 
 // Open — текущее содержимое rel, если его хеш = hash (иначе файл уже

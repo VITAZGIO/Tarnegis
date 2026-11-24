@@ -337,8 +337,9 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 этого устройства — `id` вида `hub:<id>`, подключённая — её `id`.
 
 - `GET /api/mirror` — `{"serve":[{id,name,path,ignore,files,conflicts,devices,old,snap}],
-  "subs":[{id,peer,host,folder,name,path,mode,status:{state,pending,conflicts,files,error,lastOk}}],
-  "found":[{peer,host,folders:[{id,name}],joined}],"self","suggest","platform","devnet",
+  "subs":[{id,peer,host,folder,name,path,mode,status:{state,pending,conflicts,files,bytes,error,lastOk}}],
+  "found":[{peer,host,folders:[{id,name}],joined,path}],"self","suggest","platform","devnet",
+  "programDir","snapRoot","snapRootDefault","snapRootNow",
   "access":{"devices":[{id,name,host,ip,platform,server,online,gone,folders}],"ids","pending"}}`.
   `state`: `ok` | `pending` | `conflict` | `offline` | `closed` | `error`
   (`closed` — владелец не показывает эту папку этому устройству: забрал доступ
@@ -349,6 +350,17 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
   id (и не в сети), сначала серверы, потом остальные, по имени; `folders` —
   сколько папок видно устройству, `gone` — его уже нет в сети, а папки остались.
   `access.ids` — id устройств известны.
+- Папка программы (ТЗ 39): `programDir` — видимая папка программы на этом
+  устройстве (Linux — `/DATA/AppData/ssh_tunnel`, если есть `/DATA/AppData`,
+  иначе `~/ssh_tunnel`; Windows — `%USERPROFILE%\ssh_tunnel`; Android —
+  `ssh_tunnel` в корне общей памяти; `""` — не определена). Внутри
+  `mirrored_folders/` (новые папки по умолчанию) и `backups/` (снимки по
+  умолчанию). `suggest` — `<programDir>/mirrored_folders`; `found[].path` —
+  путь по умолчанию для ещё не подключённых папок (`id папки → путь`).
+  `serve` с путём внутри `mirrored_folders`, которого ещё нет, создаёт папку.
+- Размер папки (ТЗ 39): `serve[].bytes` — сумма размеров файлов по индексу
+  сервера (без исключённых), `subs[].status.bytes` — по последней сверке на
+  этом устройстве. Без лишнего обхода диска.
 - `POST /api/mirror`: `{"op":"serve","path","name"}`, `{"op":"unserve","id"}`,
   `{"op":"grant","device":<id устройства>,"id":"hub:<id>"|"*","on":true|false}`
   (дать или забрать папку; `*` — все раздаваемые),
@@ -365,11 +377,16 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 - Снимки раздаваемой папки (ТЗ 36), `id` — `hub:<id>`:
   `{"op":"snap_cfg","id","daily":bool,"every":1|3|7,"time":"ЧЧ:ММ","keep":1…30}`
   (`every` — раз в сколько дней),
-  `{"op":"snap_root","dir":"<полный путь>|"}` — общая папка снимков устройства:
-  `<dir>/<имя папки>/<ГГГГ-ММ-ДД ЧЧ-ММ>.zip`; пусто — в данных программы
-  (`hub/<id>/snapshots/`, имя «<папка> <дата>.zip»); уже сделанные снимки
-  переезжают; внутри раздаваемой папки нельзя. В состоянии — `snapRoot` и
-  подсказка `snapRootSuggest` (`backups` рядом с папкой раздаваемых папок),
+  `{"op":"snap_root","dir":"<полный путь>|"}` — папка снимков устройства:
+  `<dir>/<имя папки>/<ГГГГ-ММ-ДД ЧЧ-ММ>.zip`; пусто — папка по умолчанию
+  `<programDir>/backups` (ТЗ 39; раньше пусто значило «в данных программы»).
+  Уже сделанные снимки переезжают; внутри раздаваемой папки нельзя. В
+  состоянии — `snapRoot` (своя папка, `""` — по умолчанию), `snapRootDefault`
+  (папка по умолчанию), `snapRootNow` (где архивы сейчас; `""` — в данных
+  программы `hub/<id>/snapshots/`: так бывает, только если папка по умолчанию
+  оказалась внутри раздаваемой папки) и `snapRootSuggest` (= `snapRootDefault`,
+  для старых страниц). При обновлении снимки из данных программы один раз
+  переезжают в папку по умолчанию; своя папка, заданная раньше, остаётся,
   `{"op":"snap_now","id"}`, `{"op":"snap_restore","id","snap":<файл>}`
   (сначала снимок `pre`, потом разница обычными изменениями; `text` —
   «Папка … возвращена к снимку …: изменено N, удалено M, добавлено K»),
