@@ -1257,7 +1257,7 @@
           <span class="lbl" data-i18n="verbose">Подробный журнал</span></label>
         <!-- Автообновление по версии сети устройств (ТЗ 40): сохраняется сразу
              (POST /api/update/auto), его может поменять и панель сервера. -->
-        <div class="chk-row">
+        <div class="chk-row" id="autoUpdateRow">
           <label class="chk"><input type="checkbox" id="autoUpdate" checked>
             <span class="lbl" data-i18n="adv_autoupdate">Автообновление</span></label>
           <button class="qmark" id="auHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
@@ -2266,6 +2266,7 @@ const I18N = {
     netupd_sent:'Серверы приняли: сеть обновляется до {v}',
     netupd_self:'Серверы сети уже на {v} — обновляюсь до неё',
     netupd_offer:'Есть новая версия сети v{v} — обновить?', netupd_offer_yes:'Обновить', netupd_offer_no:'Позже',
+    upd_ask:'Вышла новая версия v{v}. Обновиться?', upd_ask_no:'Нет',
     netupd_stage_download:'обновляюсь до {v}…', netupd_stage_error:'обновление до {v} не удалось: {e}',
     netupd_stage_ready:'обновление {v} скачано: {p} — поставь вручную',
     import_ok_with_key:'сервер импортирован вместе с ключом — можно нажимать «Подключить»',
@@ -2604,6 +2605,7 @@ const I18N = {
     netupd_sent:'Servers accepted: the network is updating to {v}',
     netupd_self:'The network servers already run {v} — updating to it',
     netupd_offer:'A new network version v{v} — update?', netupd_offer_yes:'Update', netupd_offer_no:'Later',
+    upd_ask:'A new version v{v} is out. Update?', upd_ask_no:'No',
     netupd_stage_download:'updating to {v}…', netupd_stage_error:'update to {v} failed: {e}',
     netupd_stage_ready:'update {v} downloaded: {p} — install it by hand',
     import_ok_with_key:'server imported along with its key — you can hit "Connect"',
@@ -3640,6 +3642,20 @@ function connectEvents(){
 // onUpdateProgress — скачивание APK на телефоне идёт в фоне (AndroidApi),
 // эти события — единственный признак жизни, пока оно не кончится.
 function onUpdateProgress(e){
+  // Строка-вопрос при запуске (телефон): прогресс и в ней.
+  if(updAskBar){
+    const t = updAskBar.querySelector('.txt');
+    if(e.error){
+      t.textContent = tr('update_download_failed');
+      updAskBar.querySelectorAll('button').forEach(b => b.disabled = false);
+      updAskBar = null;
+    } else if(e.finished){
+      updAskBar.hidden = true; updAskBar.style.display = 'none'; updAskBar = null;
+    } else {
+      t.textContent = tr('update_downloading') + ' ' + (e.total > 0 ? Math.floor(e.done / e.total * 100) + '%'
+        : Math.floor(e.done / (1024 * 1024)) + tr('unit_mb'));
+    }
+  }
   if(e.error){
     $('updateDownloadBtn').disabled = false;
     $('updateNote').textContent = tr('update_download_failed');
@@ -5697,7 +5713,8 @@ function netUpdateDecide(r){
   $('netUpdBox').hidden = true;
   lastCanInstall = !!r.canInstall;
   const n = r.net || {};
-  if(n.decision === 'self'){
+  // Телефон: тихо поставить нельзя — обычные кнопки «Скачать и установить».
+  if(n.decision === 'self' && !ANDROID){
     $('updateNote').textContent = n.error || tr('netupd_self').replace('{v}', n.version);
     pollNetUpdate();
     return true;
@@ -5733,6 +5750,49 @@ $('netUpdNo').onclick = () => {
   $('updateOpenBtn').hidden = false;
 };
 let lastCanInstall = false;
+
+/* Телефон: автообновления нет (Android не даёт поставить молча). При запуске
+   один раз спрашиваем «Вышла vX — обновиться?»: «Обновить» — скачать с
+   прогрессом и открыть установщик, как кнопкой в Настройках; «Нет» — про эту
+   версию больше не спрашиваем, обновиться можно в Настройках. */
+if(ANDROID){
+  $('autoUpdateRow').hidden = true;
+  $('auHelp').hidden = true;
+}
+let updAskBar = null;
+async function androidUpdateAsk(){
+  const r = await api('/api/update/check', {}).catch(() => null);
+  if(!r || r.error || !r.result || !r.result.newer || !r.result.assetUrl) return;
+  const v = r.result.latest;
+  try { if(localStorage.getItem('updDeclined') === v) return; } catch(e) {}
+  updateResult = r.result;
+  const bar = netOfferBar();
+  const txt = bar.querySelector('.txt');
+  const [yes, no] = bar.querySelectorAll('button');
+  txt.textContent = tr('upd_ask').replace('{v}', v);
+  yes.textContent = tr('netupd_offer_yes');
+  no.textContent = tr('upd_ask_no');
+  yes.onclick = async () => {
+    yes.disabled = true; no.disabled = true;
+    txt.textContent = tr('update_downloading');
+    updAskBar = bar;
+    const d = await api('/api/update/download', {}).catch(e => ({error: String(e)}));
+    if(d.error){
+      updAskBar = null;
+      yes.disabled = false; no.disabled = false;
+      txt.textContent = tr('update_download_failed');
+    }
+    // Дальше прогресс идёт событиями kind:'update' (onUpdateProgress), в
+    // конце открывается установщик Android.
+  };
+  no.onclick = () => {
+    try { localStorage.setItem('updDeclined', v); } catch(e) {}
+    bar.hidden = true; bar.style.display = 'none';
+  };
+  bar.hidden = false;
+  bar.style.display = 'flex';
+}
+if(ANDROID) setTimeout(androidUpdateAsk, 2500);
 
 // Галочка «Автообновление» — сохраняется сразу.
 $('autoUpdate').addEventListener('change', async e => {
@@ -5781,10 +5841,10 @@ function renderNetUpdate(st){
   if(!st) return;
   $('autoUpdate').checked = !!st.enabled;
   lastCanInstall = !!st.canInstall;
-  const bar = netOfferBar();
-  const offer = st.offer && !st.enabled && bar.dataset.later !== st.offer;
-  bar.hidden = !offer;
-  bar.style.display = offer ? 'flex' : 'none';
+  // Телефон: строку внизу ведёт только вопрос при запуске (androidUpdateAsk).
+  const bar = ANDROID ? null : netOfferBar();
+  const offer = bar && st.offer && !st.enabled && bar.dataset.later !== st.offer;
+  if(bar){ bar.hidden = !offer; bar.style.display = offer ? 'flex' : 'none'; }
   if(offer){
     bar.dataset.v = st.offer;
     bar.querySelector('.txt').textContent = tr('netupd_offer').replace('{v}', st.offer);
@@ -5792,7 +5852,7 @@ function renderNetUpdate(st){
   const v = st.target || '';
   if(st.stage === 'download') $('updateNote').textContent = tr('netupd_stage_download').replace('{v}', v);
   else if(st.stage === 'error') $('updateNote').textContent = tr('netupd_stage_error').replace('{v}', v).replace('{e}', st.error || '');
-  else if(st.stage === 'ready') $('updateNote').textContent = tr('netupd_stage_ready').replace('{v}', v).replace('{p}', st.path || '');
+  else if(st.stage === 'ready' && !ANDROID) $('updateNote').textContent = tr('netupd_stage_ready').replace('{v}', v).replace('{p}', st.path || '');
   else if(st.stage === 'install') $('updateNote').textContent = tr('update_restarting');
 }
 let netUpdTimer = 0;

@@ -44,6 +44,14 @@ const netUpdateTimeout = time.Minute
 
 var phoneUpd = &netUpd{on: true}
 
+// phoneNoAuto — на телефоне автообновления нет: тихо поставить APK Android
+// не даёт, а скачанный в папку приложения файл человеку не достать.
+// Приложение при запуске само спрашивает «Вышла vX — обновить?» и ставит
+// старым путём (скачать с прогрессом → установщик). Серверам телефон
+// сообщает «автообновление выключено»; «Обновить» из панели (force) по-
+// прежнему скачивает и показывает уведомление «установить».
+func phoneNoAuto() (bool, int64) { return false, 0 }
+
 func (u *netUpd) setting() (bool, int64) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -54,7 +62,7 @@ func (u *netUpd) get() *updater.Auto {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.auto == nil {
-		u.auto = updater.NewAuto(u.setting, u.download, nil)
+		u.auto = updater.NewAuto(phoneNoAuto, u.download, nil)
 	}
 	return u.auto
 }
@@ -132,7 +140,7 @@ func (t *Tunnel) UpdateNow(ver string) error { return phoneUpd.get().UpdateNow(v
 func (t *Tunnel) meshUpdateHooks(mc *mesh.Config) {
 	a := phoneUpd.get()
 	mc.Build = "vpn"
-	mc.AutoUpdate = phoneUpd.setting
+	mc.AutoUpdate = phoneNoAuto
 	mc.UpdateStatus = a.StatusText
 	mc.OnNetVersion = func(v mesh.NetVersion) { a.Net(v.Version, v.Update, v.Force, v.Mine) }
 	mc.OnAutoUpdate = func(on bool, changed int64) {
