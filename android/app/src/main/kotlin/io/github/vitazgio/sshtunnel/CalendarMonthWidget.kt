@@ -270,8 +270,13 @@ class CalendarMonthWidget : AppWidgetProvider() {
             rv.setViewVisibility(R.id.mDowPad, if (weeks) View.VISIBLE else View.GONE)
 
             val dim = (ctx.getColor(R.color.dim) and 0x00FFFFFF) or 0x80000000.toInt()
+            // Лаунчер применяет новый RemoteViews поверх уже построенного дерева, и
+            // addView дописывает к старому: без очистки каждое обновление добавляло
+            // ещё один месяц ниже (ТЗ 44).
+            rv.removeAllViews(R.id.mGrid)
             for (w in 0 until 6) {
                 val wk = RemoteViews(ctx.packageName, R.layout.widget_calendar_month_week)
+                wk.removeAllViews(R.id.wkCells)
                 if (weeks) {
                     val thursday = start.plusDays((w * 7 + (DayOfWeek.THURSDAY.value - fd.value + 7) % 7).toLong())
                     wk.setViewVisibility(R.id.wkNum, View.VISIBLE)
