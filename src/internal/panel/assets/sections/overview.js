@@ -159,7 +159,7 @@ function renderOverviewMesh(m){
 }
 
 /* ---------- схема сети ---------- */
-let MAP_SIG = '', MAP_REFS = {}, MAP_SIM = null;
+let MAP_SIG = '', MAP_LSIG = '', MAP_REFS = {}, MAP_SIM = null;
 // Масштаб и сдвиг карты (как у обычной карты): k — во сколько раз
 // приближено, x/y — сдвиг. Переживает перестройку схемы.
 const MAP_VIEW = {k: 1, x: 0, y: 0, user: false}; // user — человек сам двигал карту
@@ -661,10 +661,19 @@ function renderMap(servers, devices){
   const sig = [W, H, LANG, servers.map(s => s.id + '/' + s.name).join(','),
     devices.map(d => d.id + '/' + mapServersOf(d).join('+') + '/' + d.display + '/' + d.platform).join(','),
     links.map(l => l.a + '-' + l.b).join(','), relays.map(r => r.from + '>' + r.to).join(',')].join('|');
+  // Состав узлов и линий — отдельно от подписей и языка: схему «подогреваем»
+  // только когда он поменялся (или окно изменило размер), а не при каждой
+  // перерисовке.
+  const lsig = [W, H, servers.map(s => s.id).join(','),
+    devices.map(d => d.id + '/' + mapServersOf(d).join('+')).join(','),
+    links.map(l => l.a + '-' + l.b).join(','), relays.map(r => r.from + '>' + r.to).join(',')].join('|');
+  let rebuilt = false;
   if (sig !== MAP_SIG){
     const first = !MAP_SIG;
     MAP_SIG = sig;
-    buildMap(svg, W, H, servers, devices, first);
+    buildMap(svg, W, H, servers, devices, first, lsig !== MAP_LSIG);
+    MAP_LSIG = lsig;
+    rebuilt = true;
   }
   servers.forEach(s => {
     const r = MAP_REFS['s:' + s.id];
@@ -695,13 +704,13 @@ function renderMap(servers, devices){
     r.disc.setAttribute('stroke', qColor(d.online, d.quality));
     r.data = d;
   });
-  drawDirect(devices);
+  drawDirect(devices, rebuilt);
 }
 
 // drawDirect — прямые соединения между устройствами (по отчётам самих
 // устройств): синяя пунктирная дуга мимо сервера. Тоже пружина, только
 // слабая: устройства с прямым соединением чуть тянутся друг к другу.
-function drawDirect(devices){
+function drawDirect(devices, rebuilt){
   const sim = MAP_SIM;
   if (!sim) return;
   const byIP = {}, want = new Map();
@@ -735,7 +744,8 @@ function drawDirect(devices){
       (w.l.rttMs ? ' · ' + fmtMs(w.l.rttMs) : '');
     setEdgeText(e, edgeMs(w.l.rttMs), 'var(--accent)');
   });
-  if (changed) kickSim(0.35);
+  // Только что перестроенная схема уже получила своё «тепло» в buildMap.
+  if (changed && !rebuilt) kickSim(0.35);
   else if (!sim.raf) simDraw(sim);
 }
 
@@ -744,7 +754,7 @@ function qColor(online, q){
   return {excellent:'var(--ok)', good:'var(--ok)', fair:'var(--warn)', poor:'var(--err)'}[q] || 'var(--accent)';
 }
 
-function buildMap(svg, W, H, servers, devices, animate){
+function buildMap(svg, W, H, servers, devices, animate, reheat){
   if (MAP_SIM && MAP_SIM.raf) cancelAnimationFrame(MAP_SIM.raf);
   svg.innerHTML = '';
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -861,10 +871,11 @@ function buildMap(svg, W, H, servers, devices, animate){
   }
   // Новые узлы сначала «досчитываются» без показа, чтобы схема не
   // разлеталась на глазах; дальше она успокаивается уже анимацией.
-  sim.alpha = fresh ? 1 : 0.3;
+  // Перестройка без смены состава (имя, язык) — узлы стоят где стояли.
+  sim.alpha = fresh ? 1 : reheat ? 0.3 : 0;
   if (fresh) for (let i = 0; i < 120; i++) simTick(sim);
   simDraw(sim);
-  kickSim(fresh ? 0.25 : 0.3);
+  if (fresh || reheat) kickSim(fresh ? 0.25 : 0.3);
 }
 
 function popBox(title, rows){

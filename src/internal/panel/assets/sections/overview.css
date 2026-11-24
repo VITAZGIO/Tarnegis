@@ -99,21 +99,23 @@
 @media (max-width:760px){ .map-wrap svg,.ov-map .map-wrap svg{height:340px} }
 .map-grid{stroke:color-mix(in srgb, var(--line) 70%, transparent);stroke-width:1}
 .edge{fill:none;stroke-width:1.6;stroke-linecap:round}
+/* --dp — сдвиг пунктира за круг: ровно целое число его периодов, иначе линия «дёргается». */
+.edge{--dp:24px}
 .edge.on{stroke-dasharray:5 7;animation:flow 1.1s linear infinite}
 .edge.srv{stroke-width:2.6}
-.edge.srv.on{stroke-dasharray:9 8;animation-duration:.9s}
+.edge.srv.on{stroke-dasharray:9 8;--dp:34px;animation-duration:.9s}
 .edge.off{stroke:var(--dim);opacity:.28;stroke-dasharray:2 6}
 /* Соединение, пересланное между серверами (meshd 7): пунктир через оба. */
-.edge.relay{stroke:var(--warn);stroke-width:2;stroke-dasharray:6 5;animation:flow 1s linear infinite;opacity:.9}
+.edge.relay{stroke:var(--warn);stroke-width:2;stroke-dasharray:6 5;--dp:22px;animation:flow 1s linear infinite;opacity:.9}
 /* Сервер без связи: последняя картина, серым. */
 .node.stale{opacity:.45}
 /* Прямое соединение между устройствами (минуя сервер). */
-.edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;animation:flow .7s linear infinite;
+.edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;--dp:21px;animation:flow .7s linear infinite;
   filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent))}
 /* Задержка посередине линии; сама линия в этом месте прервана. */
 .edge-label{font-size:10px;font-weight:700;fill:var(--text);text-anchor:middle;
   dominant-baseline:central;pointer-events:none;font-variant-numeric:tabular-nums}
-@keyframes flow{to{stroke-dashoffset:-24}}
+@keyframes flow{to{stroke-dashoffset:calc(-1 * var(--dp))}}
 .q-excellent,.q-good{stroke:var(--ok)} .q-fair{stroke:var(--warn)} .q-poor{stroke:var(--err)}
 .q-unknown{stroke:var(--accent)}
 .node{cursor:grab;touch-action:none}
