@@ -62,7 +62,6 @@ h1{font-size:20px;margin:0 0 12px}
 .card{background:#161a23;border:1px solid #272d3a;border-radius:12px;padding:12px 14px;margin:0 0 12px}
 .ok{color:#2fbf71}.bad{color:#e5484d}.dim{color:#828b9e;font-size:13px}
 code{font-family:ui-monospace,Consolas,monospace}
-@media (prefers-color-scheme: light){body{background:#eef1f6;color:#141821}.card{background:#fff;border-color:#dde2ec}}
 </style></head><body><main>
 <h1>Проверка WebRTC / WebRTC check</h1>
 <div class="card">Сервер видит адрес / The server sees: <code id="seen">{{IP}}</code></div>

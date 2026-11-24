@@ -252,7 +252,7 @@ $('dGen').onclick = async () => { const r = await call({op: 'gen', len: 18}); if
 $('dSave').textContent = L('Сохранить', 'Save'); $('dCopy').textContent = L('Копировать пароль', 'Copy password');
 $('dDel').textContent = L('Удалить', 'Delete'); $('dClose').textContent = L('Закрыть', 'Close');
 $('dClose').onclick = () => { $('dlg').hidden = true; };
-$('dCopy').onclick = async () => { try { await navigator.clipboard.writeText($('dPass').value); $('dNote2').textContent = L('Скопировано', 'Copied'); } catch(_) {} };
+$('dCopy').onclick = async () => { try { await navigator.clipboard.writeText($('dPass').value); flashCopied($('dPass')); } catch(_) {} };
 $('dSave').onclick = async () => {
   const r = await call({op: 'set', id: CUR || '', title: $('dTitle').value.trim(), site: $('dSite').value.trim(), login: $('dLogin').value.trim(), pass: $('dPass').value, note: $('dNote').value});
   if(r.error){ $('dNote2').className = 'hint err'; $('dNote2').textContent = r.error; return; }

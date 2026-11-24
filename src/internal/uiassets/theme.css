@@ -1,6 +1,7 @@
 /* Цвета и темы интерфейса — одни на все страницы: главное окно, Книга,
    дополнительные приложения, ПК и Android. Тему выбирает атрибут
-   data-theme у <html> (dark, light, console); без него — как у системы. */
+   data-theme у <html> (dark, light, console); без него — «Оригинал»,
+   всегда тёмно-синий. */
 :root{
   --bg:#0d1017; --card:#161a23; --card2:#1d222d; --line:#272d3a;
   --text:#e8ebf2; --dim:#828b9e; --accent:#4c8dff;
@@ -13,13 +14,13 @@
   --ok:#2fbf71; --warn:#e8b339; --err:#e5484d;
   --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
 }
-@media (prefers-color-scheme: light){
-  :root{ --bg:#eef1f6; --card:#fff; --card2:#f3f5f9; --line:#dde2ec;
-         --text:#141821; --dim:#616b7f; }
-}
+/* ТЗ 38: «Оригинал» — всегда тёмно-синяя, что бы ни говорила система. Раньше
+   тут был @media (prefers-color-scheme: light), и на устройствах со светлой
+   системной темой «Оригинал» становился бело-голубым. Светлая — отдельная
+   тема ниже. */
 
 /* ---------- темы ---------- */
-/* «Оригинал» — как было: тёмная, а при светлой теме системы светлая. */
+/* «Оригинал» — это :root выше (атрибута нет). Ниже — остальные темы. */
 :root[data-theme="dark"]{--bg:#000;--card:#0e0e0e;--card2:#171717;--line:#2a2a2a;--text:#ededed;
   --dim:#8f8f8f;--accent:#cfcfcf;--accent-muted:#3a3a3a;--accent-muted-dark:#262626}
 :root[data-theme="light"]{--bg:#eef1f6;--card:#fff;--card2:#e8ecf2;--line:#d3d9e3;--text:#141821;

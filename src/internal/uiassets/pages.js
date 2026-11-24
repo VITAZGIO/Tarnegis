@@ -179,3 +179,21 @@ if(EMBED){
   };
   ['mousedown', 'mouseup', 'auxclick'].forEach(t => addEventListener(t, mb, true));
 }
+
+// flashCopied — «Скопировано» непрозрачной плашкой поверх самого скопированного
+// текста (ТЗ 38); ничего вокруг не сдвигает. Тот же вид, что в главном окне.
+function flashCopied(el){
+  if(!el) return;
+  const r = el.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  const b = document.createElement('div');
+  b.className = 'copiedBadge';
+  b.textContent = L('Скопировано', 'Copied');
+  document.body.appendChild(b);
+  const w = Math.max(r.width, b.offsetWidth + 8);
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(4, Math.min(left, innerWidth - w - 4));
+  b.style.cssText = 'left:' + left + 'px;top:' + r.top + 'px;width:' + w + 'px;height:' + r.height + 'px';
+  setTimeout(() => b.classList.add('out'), 1000);
+  setTimeout(() => b.remove(), 1450);
+}

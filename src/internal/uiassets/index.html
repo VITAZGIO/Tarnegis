@@ -20,7 +20,7 @@
   @media (min-width:640px){
     .app{max-width:560px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line)}
   }
-  .bar{display:flex;align-items:flex-start;gap:8px;padding:12px 14px 6px;flex:none}
+  .bar{display:flex;align-items:flex-start;gap:8px;padding:12px 14px 6px;flex:none;position:relative}
   /* Плагин на весь экран (удалённый стол): без логотипа и шапки. */
   body.immersive .bar{display:none}
   .bar .sp{flex:1}
@@ -179,9 +179,13 @@
   .hexbtn.on{background:#16402b;color:#7be3a8}
   .hexbtn.on:hover{color:#b5f3cf}
 
-  .devTop{display:flex;justify-content:center;padding:6px 0 4px}
-  .devTop .hexwrap{width:104px;margin:0}
-  .devHead{display:flex;align-items:baseline;gap:8px;margin:18px 2px 8px;font-size:11.5px;
+  /* ТЗ 38: «Наверх» — в шапке по центру, ровно того же размера, что
+     шестиугольник «Устройства» на главном (колонка 104px + по 12px полей
+     = 128px, высота 50px). Виден, пока открыт список устройств; кнопку
+     избранных плагинов на это время прячем. */
+  .bar .hexwrap#devUpWrap{position:absolute;left:50%;top:11px;width:128px;margin:0 0 0 -64px}
+  body.devOpen #quickBtn,body.devOpen #quickPanel{display:none}
+  .devHead{display:flex;align-items:baseline;gap:8px;margin:6px 2px 8px;font-size:11.5px;
            letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
   .devHead b{color:var(--text);font-weight:600}
   .devTable{font-family:var(--mono);font-size:12.5px}
@@ -206,11 +210,14 @@
   /* Адрес копируется отдельно от строки: своя мишень под палец и мышь. */
   .devRow .ip{cursor:copy;padding:2px 0 2px 8px;margin:-1px 0 -2px}
   .devRow .ip:hover{color:var(--text);text-decoration:underline dotted}
-  /* «Скопировано» — строчкой над скопированным: в узком окне в одну строку
-     с доменом он бы его обрезал. */
-  .devRow .cp::before{content:attr(data-cp);display:block;color:var(--ok);
-                      font:600 10px/12px "Segoe UI",-apple-system,Roboto,sans-serif}
-  .devRow .dm.cp,.devRow .ip.cp{color:var(--ok)}
+  /* ТЗ 38: «Скопировано» — непрозрачная плашка поверх самого скопированного
+     текста (flashCopied). Лежит поверх страницы и ничего не сдвигает. */
+  .copiedBadge{position:fixed;z-index:200;pointer-events:none;box-sizing:border-box;
+               display:flex;align-items:center;justify-content:center;white-space:nowrap;
+               background:var(--card2);color:var(--ok);border:1px solid var(--ok);border-radius:4px;
+               font:600 11px "Segoe UI",-apple-system,Roboto,sans-serif;
+               opacity:1;transition:opacity .35s ease}
+  .copiedBadge.out{opacity:0}
   .devRow .nm{font:15px "Segoe UI",-apple-system,Roboto,sans-serif;overflow-wrap:anywhere}
   .devRow .rt{display:flex;flex-direction:column;align-items:flex-end;min-width:0;text-align:right}
   .devRow .dm,.devRow .ip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -404,11 +411,14 @@
        border:1px solid var(--line);border-radius:11px;
        height:calc(100vh - 130px);overflow-y:auto;padding:7px 0;
        overflow-anchor:none}
-  .l{display:flex;gap:8px;padding:2px 11px;white-space:nowrap}
+  /* ТЗ 38: текст журнала выделяется и копируется; длинные строки
+     переносятся, а не обрезаются справа. */
+  #log,#log *{-webkit-user-select:text;user-select:text}
+  .l{display:flex;gap:8px;padding:2px 11px;white-space:normal;overflow-wrap:anywhere}
   .l .t{color:var(--dim);flex:none}
-  .l .p{flex:none;width:104px;overflow:hidden;text-overflow:ellipsis}
+  .l .p{flex:none;width:104px;overflow-wrap:anywhere}
   .l .a{flex:none;color:var(--dim)}
-  .l .h{overflow:hidden;text-overflow:ellipsis}
+  .l .h{flex:1;min-width:0;overflow-wrap:anywhere}
   .l .n{flex:none;color:var(--dim)}
   .l.fail .a,.l.fail .h{color:var(--err)}
   .l .flag{flex:none;color:var(--warn)}
@@ -499,7 +509,6 @@
   .peer .nm .n{font-size:11.5px;color:var(--dim)}
   .peer .ip{font-family:var(--mono);font-size:11.5px;color:var(--dim);cursor:copy;padding:4px 0 4px 8px}
   .peer .ip:hover{color:var(--text);text-decoration:underline dotted}
-  .peer .ip.cp{color:var(--ok)}
   .peerSep{display:flex;align-items:center;gap:8px;margin:12px 2px 6px;font-size:10.5px;font-weight:600;
            letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
   .peerSep::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -724,6 +733,12 @@
         <path d="M373 83 601 83 626 0 398 0Z"/>
       </svg>
     </div>
+    <span class="hexwrap on" id="devUpWrap" hidden>
+      <button class="hexbtn on" id="devUp" title="Наверх" data-i18n-title="to_top">
+        <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
+        <span data-i18n="to_top">Наверх</span>
+      </button>
+    </span>
     <span class="sp"></span>
     <button class="ico" id="btnLog" title="Журнал" data-i18n-title="log">
       <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
@@ -826,14 +841,6 @@
     <!-- Ниже первого экрана — список устройств. Сюда прокручивает
          шестиугольник, обратно — он же («Наверх») или логотип. -->
     <div class="devPage" id="devPage" hidden>
-      <div class="devTop">
-        <span class="hexwrap on">
-          <button class="hexbtn on" id="devUp" title="Наверх" data-i18n-title="to_top">
-            <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
-            <span data-i18n="to_top">Наверх</span>
-          </button>
-        </span>
-      </div>
       <div class="devHead"><b data-i18n="mesh_devices">Устройства</b><span id="meshMainCount"></span></div>
       <div class="devTable">
         <div class="th"><span data-i18n="dev_name">Имя</span><span class="r" data-i18n="dev_domain_ip">Домен · IP</span></div>
@@ -1748,6 +1755,9 @@
       </button>
       <span class="t" data-i18n="who_is_online">Кто ходит в интернет</span>
       <span style="flex:1"></span>
+      <button class="ico" id="logCopy" title="Копировать всё" data-i18n-title="log_copy_all">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>
+      </button>
       <button class="ico" id="clear" title="Очистить" data-i18n-title="clear">
         <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
       </button>
@@ -2151,7 +2161,7 @@ const I18N = {
     mode_except:'Все, кроме выбранных', mode_except_sub:'Программы из списка идут напрямую, в обход туннеля. Остальные — через сервер.',
     selected_apps:'Выбранные программы', add_app:'+  Добавить программу',
     apps_note:'Программы, которые вообще не обращаются к прокси (часть игр, приложения со своим сетевым стеком), туннель не видит — они идут мимо в любом случае.',
-    who_is_online:'Кто ходит в интернет', clear:'Очистить',
+    who_is_online:'Кто ходит в интернет', clear:'Очистить', log_copy_all:'Копировать всё',
     pick_app:'Выбери программу', close:'Закрыть', search_app:'Поиск по имени или пути…',
     custom_flag_name:'Свой (без флага)',
     export_server_clip:'Экспортировать сервер в буфер',
@@ -2481,7 +2491,7 @@ const I18N = {
     mode_except:'All except selected', mode_except_sub:'Apps from the list go direct, bypassing the tunnel. The rest go through the server.',
     selected_apps:'Selected apps', add_app:'+  Add app',
     apps_note:'Apps that never talk to the proxy at all (some games, apps with their own network stack) are invisible to the tunnel — they always go around it.',
-    who_is_online:'Who is online', clear:'Clear',
+    who_is_online:'Who is online', clear:'Clear', log_copy_all:'Copy all',
     pick_app:'Pick an app', close:'Close', search_app:'Search by name or path…',
     custom_flag_name:'Custom (no flag)',
     export_server_clip:'Copy server settings',
@@ -3248,7 +3258,15 @@ function show(name){
   document.body.dataset.view = name;
   VIEWS.forEach(v => $(v).classList.toggle('on', v === name));
   closeMenu();
+  syncDevBar();
   if(name === 'viewLog') $('log').scrollTop = $('log').scrollHeight;
+}
+// «Наверх» в шапке — только пока на главном открыт список устройств (ТЗ 38).
+function syncDevBar(){
+  const on = current === 'viewMain' && mainAtDev && !$('devPage').hidden;
+  $('devUpWrap').hidden = !on;
+  document.body.classList.toggle('devOpen', on);
+  if(on) closeQuick();
 }
 
 // Логотип всегда возвращает на главный экран — с любого места.
@@ -3262,6 +3280,7 @@ $('logo').parentElement.onclick = () => {
   if(current === 'viewMain'){ scrollMainTo(0); return; }
   show('viewMain');
   mainAtDev = false;
+  syncDevBar();
   $('viewMain').scrollTop = 0;
 };
 
@@ -3271,6 +3290,7 @@ $('logo').parentElement.onclick = () => {
 let mainAtDev = false;
 function scrollMainTo(top){
   mainAtDev = top > 0;
+  syncDevBar();
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   $('viewMain').scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
 }
@@ -3518,6 +3538,12 @@ function push(el){
   else if(cut) logEl.scrollTop = Math.max(0, logEl.scrollTop - cut);
 }
 $('clear').onclick = () => { logEl.innerHTML = ''; lastKey = null; };
+// «Копировать всё» — видимый журнал простым текстом, по строке на запись.
+$('logCopy').onclick = async () => {
+  const lines = [...logEl.children].map(d => d.classList.contains('msg') ? d.textContent
+    : [...d.children].map(c => c.textContent.trim()).filter(Boolean).join(' '));
+  if(lines.length && await copyToClipboard(lines.join('\n'))) flashCopied($('logCopy'));
+};
 
 /* ---------- поток событий ---------- */
 // connErrorText — перевод типовой ошибки подключения (ТЗ-13). errorKind
@@ -3988,9 +4014,11 @@ $('manualToggle').onclick = () => {
    кнопке в data-cmd. */
 document.querySelectorAll('.cp[data-cmd]').forEach(b => {
   b.onclick = async () => {
-    const ok = await copyToClipboard($(b.dataset.cmd).textContent);
+    const src = $(b.dataset.cmd);
+    const ok = await copyToClipboard(src.textContent);
+    if(ok){ flashCopied(src); return; }
     const note = $(b.dataset.note || 'keyHelpNote');
-    note.textContent = ok ? tr('copied') : tr('copy_manually');
+    note.textContent = tr('copy_manually');
     setTimeout(() => note.textContent = '', 2500);
   };
 });
@@ -4228,7 +4256,7 @@ $('meshNewKey').onclick = async () => {
 };
 $('meshCopyKey').onclick = async () => {
   const ok = await copyToClipboard($('meshKey').value.trim());
-  $('meshNote').textContent = ok ? tr('copied') : '';
+  if(ok) flashCopied($('meshKey'));
 };
 $('meshSave').onclick = () => {
   $('save').click();
@@ -4320,15 +4348,13 @@ function renderMesh(st){
     ipEl.textContent = p.ip;
     ipEl.title = tr('mesh_click_copy_ip');
     row.onclick = async () => {
-      if(await copyToClipboard(p.host + '.mesh')) $('meshNote').textContent = tr('copied') + ': ' + p.host + '.mesh';
+      if(await copyToClipboard(p.host + '.mesh')) flashCopied(row.querySelector('.h'));
     };
     // Нажатие именно на адрес копирует адрес, а не имя (ТЗ 26).
     ipEl.onclick = async ev => {
       ev.stopPropagation();
       if(!p.ip || !await copyToClipboard(p.ip)) return;
-      $('meshNote').textContent = tr('copied') + ': ' + p.ip;
-      ipEl.classList.add('cp');
-      setTimeout(() => ipEl.classList.remove('cp'), 2500);
+      flashCopied(ipEl);
     };
     box.appendChild(row);
   });
@@ -4347,7 +4373,6 @@ function peerGroups(peers){
 }
 // Таблица устройств под главным экраном: имя, домен, адрес. Нажатие копирует
 // домен — по нему и подключаются (RDP, SSH, браузер).
-let devHit = '';
 function renderDevRows(peers){
   const box = $('devRows');
   box.innerHTML = '';
@@ -4370,7 +4395,7 @@ function renderDevRows(peers){
   });
 }
 // devRow — строка таблицы. Нажатие на строку копирует домен, на адрес —
-// адрес; «Скопировано» встаёт рядом с тем, что скопировано.
+// адрес; «Скопировано» ложится поверх скопированного (flashCopied).
 function devRow(p, alt){
   const dom = p.host + '.mesh';
   const row = document.createElement('div');
@@ -4384,36 +4409,37 @@ function devRow(p, alt){
   dmEl.textContent = dom;
   ipEl.textContent = p.ip || '';
   ipEl.title = tr('mesh_click_copy_ip');
-  const mark = (key, el) => {
-    if(devHit !== key) return;
-    row.classList.add('hit');
-    el.classList.add('cp');
-    el.dataset.cp = tr('copied_short');
+  const copy = async (text, el) => {
+    if(text && await copyToClipboard(text)) flashCopied(el);
   };
-  mark('dm:' + dom, dmEl);
-  if(p.ip) mark('ip:' + p.ip, ipEl);
-  const copy = async (key, text, el) => {
-    if(!text || !await copyToClipboard(text)) return;
-    devHit = key;
-    $('devNote').textContent = tr('copied') + ': ' + text;
-    const box = $('devRows');
-    box.querySelectorAll('.hit').forEach(r => r.classList.remove('hit'));
-    box.querySelectorAll('.cp').forEach(e => e.classList.remove('cp'));
-    mark(key, el);
-    setTimeout(() => {
-      if(devHit !== key) return;
-      devHit = ''; $('devNote').textContent = '';
-      $('devRows').querySelectorAll('.hit').forEach(r => r.classList.remove('hit'));
-      $('devRows').querySelectorAll('.cp').forEach(e => e.classList.remove('cp'));
-    }, 2500);
-  };
-  row.onclick = () => copy('dm:' + dom, dom, dmEl);
+  row.onclick = () => copy(dom, dmEl);
   row.onkeydown = ev => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); row.onclick(); } };
-  ipEl.onclick = ev => { ev.stopPropagation(); copy('ip:' + p.ip, p.ip, ipEl); };
+  ipEl.onclick = ev => { ev.stopPropagation(); copy(p.ip, ipEl); };
   return row;
 }
 setInterval(pollMesh, 3000);
 
+// flashCopied — «Скопировано» поверх самого скопированного текста (ТЗ 38):
+// непрозрачная плашка ровно по рамке элемента, через ~1 с гаснет. Лежит в
+// body с position:fixed — высоту и соседей не меняет. Один помощник на все
+// места, где щелчок что-то копирует.
+function flashCopied(el){
+  if(!el) return;
+  const r = el.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  const b = document.createElement('div');
+  b.className = 'copiedBadge';
+  b.textContent = tr('copied_short');
+  document.body.appendChild(b);
+  // Узкий текст (короткое имя) — плашка шире него, поэтому растёт от центра
+  // и не выходит за окно.
+  const w = Math.max(r.width, b.offsetWidth + 8);
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.max(4, Math.min(left, innerWidth - w - 4));
+  b.style.cssText = 'left:' + left + 'px;top:' + r.top + 'px;width:' + w + 'px;height:' + r.height + 'px';
+  setTimeout(() => b.classList.add('out'), 1000);
+  setTimeout(() => b.remove(), 1450);
+}
 async function copyToClipboard(text){
   if(ANDROID) return SSHTunnelAndroid.writeClipboard(text);
   try {

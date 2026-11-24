@@ -96,7 +96,7 @@ async function copyText(it){
   try {
     const t = await fetch(dataURL(it)).then(r => r.text());
     await navigator.clipboard.writeText(t);
-    msg(L('Скопировано.', 'Copied.'));
+    flashCopied(document.querySelector('[data-copy="' + it.id + '"]'));
   } catch(e) { msg(L('Не вышло скопировать: ', 'Could not copy: ') + e); }
 }
 
