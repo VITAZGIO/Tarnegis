@@ -1252,6 +1252,18 @@
       </div>
         <label class="chk desk-only"><input type="checkbox" id="verbose">
           <span class="lbl" data-i18n="verbose">Подробный журнал</span></label>
+        <!-- Автообновление по версии сети устройств (ТЗ 40): сохраняется сразу
+             (POST /api/update/auto), его может поменять и панель сервера. -->
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="autoUpdate" checked>
+            <span class="lbl" data-i18n="adv_autoupdate">Автообновление</span></label>
+          <button class="qmark" id="auHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
+        </div>
+        <div class="help" id="auHelp" hidden><p data-i18n="adv_autoupdate_help">Когда серверы сети устройств
+          уже обновились, программа обновится сама: скачает свой файл из релиза на GitHub, сверит контрольную сумму
+          и перезапустится. Сеть передаёт только номер версии, файл каждое устройство берёт само. Вниз не
+          обновляется. Снята галочка — вместо этого появится строка «Есть новая версия сети — обновить?».
+          Галочку может поменять и панель сервера; действует последняя правка.</p></div>
       </div></div></div>
     </div>
 
@@ -1269,6 +1281,15 @@
           data-i18n="update_download">Скачать в «Загрузки»</button>
         <button class="btn" id="updateOpenBtn" hidden style="width:100%;margin-top:8px"
           data-i18n="update_open_release">Открыть страницу релиза</button>
+        <!-- Обновление сети (ТЗ 40): «Обновить сеть до vX?» — у роли «Моё
+             устройство», когда на GitHub новее, чем у серверов. -->
+        <div id="netUpdBox" hidden style="margin-top:10px">
+          <span class="hint" id="netUpdAsk" style="display:block"></span>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn primary" id="netUpdYes" style="flex:1" data-i18n="netupd_yes">Обновить сеть</button>
+            <button class="btn" id="netUpdNo" style="flex:1" data-i18n="netupd_only_me">Только это устройство</button>
+          </div>
+        </div>
       </div>
       <div class="author">
         <svg viewBox="0 0 626 520" role="img" aria-label="Vitaz Gio"><path d="M0 0 137 449 180 308 86 0Z"/><path d="M159 520 221 520 246 437 354 83 379 0 293 0 190 338 146 479Z"/><path d="M468 520 524 337 437 337 406 437 264 437 239 520Z"/><path d="M554 236 394 236 368 319 442 319 529 319Z"/><path d="M373 83 601 83 626 0 398 0Z"/></svg>
@@ -2235,6 +2256,15 @@ const I18N = {
     update_downloaded:'скачано: {path} — закрой программу и замени ею старый файл',
     update_download_failed:'скачать не вышло — открой страницу релиза и скачай вручную',
     update_open_release:'Открыть страницу релиза',
+    adv_autoupdate:'Автообновление',
+    adv_autoupdate_help:'Когда серверы сети устройств уже обновились, программа обновится сама: скачает свой файл из релиза на GitHub, сверит контрольную сумму и перезапустится. Сеть передаёт только номер версии, файл каждое устройство берёт само. Вниз не обновляется. Снята галочка — вместо этого появится строка «Есть новая версия сети — обновить?». Галочку может поменять и панель сервера; действует последняя правка.',
+    netupd_ask:'На GitHub вышла {v}, а серверы сети на {n}. Обновить сеть до v{v}? Серверы обновятся сами, устройства с автообновлением — тоже, это — сразу.',
+    netupd_yes:'Обновить сеть', netupd_only_me:'Только это устройство',
+    netupd_sent:'Серверы приняли: сеть обновляется до {v}',
+    netupd_self:'Серверы сети уже на {v} — обновляюсь до неё',
+    netupd_offer:'Есть новая версия сети v{v} — обновить?', netupd_offer_yes:'Обновить', netupd_offer_no:'Позже',
+    netupd_stage_download:'обновляюсь до {v}…', netupd_stage_error:'обновление до {v} не удалось: {e}',
+    netupd_stage_ready:'обновление {v} скачано: {p} — поставь вручную',
     import_ok_with_key:'сервер импортирован вместе с ключом — можно нажимать «Подключить»',
     import_ok_no_key:'сервер импортирован без ключа — укажи свой приватный ключ перед подключением',
     import_bad_file:'этот файл не похож на экспорт ssh_tunnel',
@@ -2564,6 +2594,15 @@ const I18N = {
     update_downloaded:'saved to {path} — close the program and replace the old file with it',
     update_download_failed:'download failed — open the release page and grab it by hand',
     update_open_release:'Open the release page',
+    adv_autoupdate:'Auto-update',
+    adv_autoupdate_help:'When the servers of the device network are already updated, the app updates itself: it downloads its own file from the GitHub release, checks the checksum and restarts. The network passes only the version number; every device fetches the file itself. It never goes down. Unchecked — a line “A new network version — update?” appears instead. The server panel can change this too; the latest change wins.',
+    netupd_ask:'{v} is out on GitHub, the network servers run {n}. Update the network to v{v}? Servers update themselves, devices with auto-update too, this one right away.',
+    netupd_yes:'Update the network', netupd_only_me:'Only this device',
+    netupd_sent:'Servers accepted: the network is updating to {v}',
+    netupd_self:'The network servers already run {v} — updating to it',
+    netupd_offer:'A new network version v{v} — update?', netupd_offer_yes:'Update', netupd_offer_no:'Later',
+    netupd_stage_download:'updating to {v}…', netupd_stage_error:'update to {v} failed: {e}',
+    netupd_stage_ready:'update {v} downloaded: {p} — install it by hand',
     import_ok_with_key:'server imported along with its key — you can hit "Connect"',
     import_ok_no_key:'server imported without a key — point it at your own private key before connecting',
     import_bad_file:'this file doesn\'t look like an ssh_tunnel export',
@@ -5562,6 +5601,7 @@ $('updateCheckBtn').onclick = async () => {
     return;
   }
   updateResult = r.result;
+  if(netUpdateDecide(r)) return;
   if(r.result.newer){
     $('updateNote').textContent = tr('update_available').replace('{v}', r.result.latest);
     // Сама ставит (ПК, Linux) — главная кнопка «Обновить», «Загрузки» — запасная.
@@ -5623,6 +5663,124 @@ $('updateInstallBtn').onclick = async () => {
 $('updateOpenBtn').onclick = () => {
   if(updateResult && updateResult.url) openExternal(updateResult.url);
 };
+
+/* ---------- обновление сети устройств (ТЗ 40) ----------
+   «Проверить обновления» знает и версию сети: серверы уже новее — программа
+   обновляется сама, не спрашивая; на GitHub новее серверов и у устройства
+   роль «Моё устройство» — вопрос «Обновить сеть до vX?». Автообновление
+   выключено, а сеть новее — строка внизу окна (не окно поверх). */
+function netUpdateDecide(r){
+  $('netUpdBox').hidden = true;
+  lastCanInstall = !!r.canInstall;
+  const n = r.net || {};
+  if(n.decision === 'self'){
+    $('updateNote').textContent = n.error || tr('netupd_self').replace('{v}', n.version);
+    pollNetUpdate();
+    return true;
+  }
+  if(n.decision === 'network'){
+    $('updateNote').textContent = '';
+    $('netUpdAsk').textContent = tr('netupd_ask').replace(/\{v\}/g, r.result.latest).replace('{n}', n.version);
+    $('netUpdBox').hidden = false;
+    return true;
+  }
+  return false;
+}
+$('netUpdYes').onclick = async () => {
+  const v = updateResult && updateResult.latest;
+  if(!v) return;
+  $('netUpdYes').disabled = true;
+  $('updateNote').textContent = tr('update_installing_self');
+  const r = await api('/api/update/net', {version: v}).catch(e => ({error: String(e)}));
+  $('netUpdYes').disabled = false;
+  if(r.error){ $('updateNote').textContent = r.error; return; }
+  $('netUpdBox').hidden = true;
+  $('updateNote').textContent = tr('netupd_sent').replace('{v}', v);
+  pollNetUpdate();
+};
+// «Только это устройство» — как раньше: кнопки «Обновить» / «Скачать».
+$('netUpdNo').onclick = () => {
+  $('netUpdBox').hidden = true;
+  const r = updateResult;
+  if(!r) return;
+  $('updateNote').textContent = tr('update_available').replace('{v}', r.latest);
+  $('updateInstallBtn').hidden = !(lastCanInstall && r.assetUrl);
+  $('updateDownloadBtn').hidden = !r.assetUrl;
+  $('updateOpenBtn').hidden = false;
+};
+let lastCanInstall = false;
+
+// Галочка «Автообновление» — сохраняется сразу.
+$('autoUpdate').addEventListener('change', async e => {
+  const r = await api('/api/update/auto', {on: e.target.checked}).catch(() => ({error: 'x'}));
+  if(r.error){ e.target.checked = !e.target.checked; return; }
+  renderNetUpdate(r.state);
+});
+$('auHelpBtn').onclick = () => { $('auHelp').hidden = !$('auHelp').hidden; };
+
+// Строка-предложение «Есть новая версия сети vX — обновить?» внизу окна.
+function netOfferBar(){
+  let bar = $('netOfferBar');
+  if(bar) return bar;
+  bar = document.createElement('div');
+  bar.id = 'netOfferBar';
+  // Свой вид прямо здесь: строка поверх низа окна, не окно-вопрос.
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:50;display:flex;gap:8px;' +
+    'align-items:center;padding:9px 12px;border-radius:10px;background:var(--card,#222);' +
+    'border:1px solid var(--line,#444);box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13px';
+  bar.hidden = true;
+  const txt = document.createElement('span');
+  txt.className = 'txt';
+  txt.style.flex = '1';
+  const yes = document.createElement('button');
+  yes.className = 'btn primary';
+  yes.textContent = tr('netupd_offer_yes');
+  const no = document.createElement('button');
+  no.className = 'btn';
+  no.textContent = tr('netupd_offer_no');
+  bar.append(txt, yes, no);
+  document.body.appendChild(bar);
+  no.onclick = () => { bar.hidden = true; bar.style.display = 'none'; bar.dataset.later = bar.dataset.v || ''; };
+  yes.onclick = async () => {
+    const v = bar.dataset.v;
+    yes.disabled = true;
+    const r = await api('/api/update/now', {version: v}).catch(e => ({error: String(e)}));
+    yes.disabled = false;
+    if(r.error){ txt.textContent = r.error; return; }
+    bar.hidden = true;
+    bar.style.display = 'none';
+    pollNetUpdate();
+  };
+  return bar;
+}
+function renderNetUpdate(st){
+  if(!st) return;
+  $('autoUpdate').checked = !!st.enabled;
+  lastCanInstall = !!st.canInstall;
+  const bar = netOfferBar();
+  const offer = st.offer && !st.enabled && bar.dataset.later !== st.offer;
+  bar.hidden = !offer;
+  bar.style.display = offer ? 'flex' : 'none';
+  if(offer){
+    bar.dataset.v = st.offer;
+    bar.querySelector('.txt').textContent = tr('netupd_offer').replace('{v}', st.offer);
+  }
+  const v = st.target || '';
+  if(st.stage === 'download') $('updateNote').textContent = tr('netupd_stage_download').replace('{v}', v);
+  else if(st.stage === 'error') $('updateNote').textContent = tr('netupd_stage_error').replace('{v}', v).replace('{e}', st.error || '');
+  else if(st.stage === 'ready') $('updateNote').textContent = tr('netupd_stage_ready').replace('{v}', v).replace('{p}', st.path || '');
+  else if(st.stage === 'install') $('updateNote').textContent = tr('update_restarting');
+}
+let netUpdTimer = 0;
+async function pollNetUpdate(){
+  clearTimeout(netUpdTimer);
+  let st = null;
+  try { st = await api('/api/update/net'); } catch(e) {}
+  if(st && !st.error) renderNetUpdate(st);
+  const busy = st && (st.stage === 'download');
+  netUpdTimer = setTimeout(pollNetUpdate, busy ? 2000 : 30000);
+}
+setTimeout(pollNetUpdate, 1500);
 
 /* ---------- мастер настройки: Android + VPS ---------- */
 /* ---------- плагины и Книга ---------- */

@@ -275,6 +275,7 @@ func (t *Tunnel) ConfigureMesh(enabled bool, key, name, deviceID string, incomin
 		Platform: "android", Mode: "vpn", Via: t.cfg.Host, AppVersion: updater.Version,
 	}
 	t.cfg.Mesh.OnServers = t.onNetServers
+	t.meshUpdateHooks(t.cfg.Mesh) // обновление сети устройств (ТЗ 40)
 	// Ключ прямых соединений и список устройств (работа без сервера) — в
 	// личной папке приложения (filesDir), рядом с known_hosts и ключом SSH.
 	if t.cfg.KnownHostsPath != "" {

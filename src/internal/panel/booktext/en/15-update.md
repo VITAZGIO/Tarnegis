@@ -37,6 +37,43 @@ writes that it cannot reach GitHub.
 downloads and installs the new version itself (the panel, then `meshd`), the
 server where you pressed it goes last. Details are in the «Servers of the network» chapter.
 
+## Network devices
+
+**Settings** → **Panel** → the **Network devices** block. It shows the network
+version and every device of the device network: its app version, system and
+build (VPN or proxy) and its state: **up to date**, **behind**, **offline** (it
+updates when it connects) or **auto-update off**.
+
+The network version is this panel's version or the one **Update on all
+servers** was pressed for, whichever is newer. The server tells it to every
+device when it connects. A device that is older and has auto-update on updates
+itself: it downloads its own file from the GitHub release, checks it against the
+checksum and restarts. The network passes only the version number; every device
+fetches the file itself. Nothing goes down. A broken release is retried by a
+device at most once an hour.
+
+Devices that are behind and connected to this server have an **Update** button;
+**Update all devices** does it for all of them. The button works even with
+auto-update off. A failure on one device shows in its row and does not stop the
+others.
+
+The device card (**Devices**) has a **Receive auto-updates** checkbox. The person
+sees the same in the app: **Settings** → **Advanced** → **Auto-update**. The
+latest change wins, the panel's or the device's.
+
+The whole network can also be updated from a device with the **My device** role:
+in the app, **Check for updates** asks "Update the network to vX?" when GitHub has
+a version newer than the servers. The server accepts only the number of the
+latest official release that is newer than the network version, and presses
+**Update on all servers** itself. Guests and servers are not asked.
+
+A phone cannot install itself silently: it downloads the update and shows the
+notification "Update vX is ready — install".
+
+An old app on a device does not understand the network version — update it by
+hand. An old `meshd` (before version 8) does not pass the network version to
+devices: the block says that `meshd` needs an update.
+
 ## meshd
 
 **Settings** → **Device network** → **Update meshd**. The meshd version is shown

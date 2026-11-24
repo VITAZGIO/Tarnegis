@@ -67,6 +67,14 @@ The device card gets these buttons:
 Approval works only on this server. If the device has a profile of another
 network server, approve it there separately.
 
+## Device auto-update
+
+The device card shows the app version and build (VPN or proxy), when it was last
+connected and the **Receive auto-updates** checkbox (on by default). On — the
+device updates itself to the network version once the servers are updated. The
+device learns about the change when it connects; the latest change wins, the
+panel's or the person's on the device. Details are in the "Update" chapter.
+
 ## Freeze in network
 
 The **Freeze in network** button is different. The device stays in the network

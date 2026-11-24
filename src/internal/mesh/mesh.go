@@ -90,6 +90,19 @@ type Config struct {
 	// профиль (учётная запись там есть) и выключать ли убранный сервер,
 	// решает приложение. Зовётся в своей горутине; nil — список не нужен.
 	OnServers func(NetServers)
+
+	// Обновление сети устройств (ТЗ 40), см. netupdate.go. Build — сборка
+	// программы ("vpn" / "proxy"). AutoUpdate — автообновление этого
+	// устройства и когда его меняли (unix); nil — устройство в обновлении
+	// сети не участвует. UpdateStatus — как прошло последнее обновление
+	// (для панели; nil — нечего сказать). OnNetVersion получает версию сети
+	// от серверов, OnAutoUpdate — автообновление, которое задала панель
+	// (новее ли оно своего, решает хозяин). Оба зовутся в своей горутине.
+	Build        string
+	AutoUpdate   func() (on bool, t int64)
+	UpdateStatus func() string
+	OnNetVersion func(NetVersion)
+	OnAutoUpdate func(on bool, t int64)
 }
 
 // NetServer — сервер сети серверов глазами устройства (ТЗ 22).
@@ -214,6 +227,11 @@ type Status struct {
 	// Advertised — серверы, которые советуют панели серверов (может, к ним
 	// стоит добавить вход), без тех, что уже есть.
 	Advertised []AdvertisedServer `json:"advertised,omitempty"`
+	// NetVersion — версия сети по серверам на связи (самая новая; meshd 8,
+	// ТЗ 40), Mine — хоть на одном из них у устройства роль «Моё
+	// устройство».
+	NetVersion string `json:"netVersion,omitempty"`
+	Mine       bool   `json:"mine,omitempty"`
 }
 
 // AdvertisedServer — сервер сети, который советует панель другого сервера.
@@ -267,6 +285,8 @@ type Client struct {
 	stunLink *srvLink // чей STUN сейчас у прямых соединений
 	// profiles — серверы устройства и их цепочки для панелей (SetProfiles).
 	profiles []ProfileRef
+	// netCalls — просьбы «обновить сеть», ждущие ответа сервера (ТЗ 40).
+	netCalls map[string]chan wire
 	// helloMu — по одному входу за раз: «кто ты» и hello двух соединений
 	// не должны перемешаться, иначе два пути к одному meshd выбьют друг
 	// друга раньше, чем станет понятно, что это один сервер.
@@ -297,6 +317,8 @@ type srvLink struct {
 	sentOn   string    // последний отчёт op on этому серверу
 	sentProf string    // последний отчёт op profiles этому серверу
 	hold     string    // ждёт одобрения или заморожено на этом сервере
+	netVer   string    // версия сети по словам этого сервера (ТЗ 40)
+	mine     bool      // у устройства там роль «Моё устройство»
 }
 
 // New готовит клиента. dial — путь к серверу туннеля (основной); другие
@@ -407,6 +429,16 @@ type wire struct {
 	Hold     string       `json:"hold,omitempty"`
 	Profiles []ProfileRef `json:"profiles,omitempty"`
 	Exit     *ExitOrder   `json:"exit,omitempty"`
+
+	// Обновление сети (ТЗ 40), см. cmd/meshd «обновление сети».
+	Build  string `json:"build,omitempty"`
+	Au     string `json:"au,omitempty"`
+	AuT    int64  `json:"auT,omitempty"`
+	UpdSt  string `json:"updSt,omitempty"`
+	NetVer string `json:"netVer,omitempty"`
+	Upd    bool   `json:"upd,omitempty"`
+	Force  bool   `json:"force,omitempty"`
+	Mine   bool   `json:"mine,omitempty"`
 }
 
 type wirePeer struct {
@@ -894,6 +926,7 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 	hello.Platform, hello.OS, hello.App = c.cfg.Platform, c.cfg.OS, c.cfg.AppVersion
 	hello.Mode, hello.Via, hello.Hostname = c.cfg.Mode, l.via, c.cfg.Hostname
 	hello.Quiet = !l.primary
+	c.updWire(&hello)
 	if err := send(conn, hello); err != nil {
 		return err
 	}
@@ -938,6 +971,7 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 	l.hold = welcome.Hold
 	l.ads = welcome.Servers
 	l.netAds, l.netSet = nil, false
+	l.netVer, l.mine = welcome.NetVer, welcome.Mine
 	firstOnline := true
 	for _, o := range c.links {
 		if o != l && o.ctrl != nil {
@@ -975,6 +1009,7 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 	}
 	c.reportOn()
 	c.reportProfiles()
+	c.netVersionFrom(l, welcome)
 	if welcome.Hold != "" {
 		c.log("warn", "Сеть устройств, сервер "+name+": "+holdNote(welcome.Hold))
 	}
@@ -1104,6 +1139,8 @@ func (c *Client) session(ctx context.Context, l *srvLink) error {
 			} else {
 				c.log("info", "Сеть устройств, сервер "+name+": устройство снова в сети")
 			}
+		case "netver", "autoupd", "netupdate":
+			c.netMessage(l, m)
 		case "exit":
 			if m.Exit != nil && c.cfg.OnExit != nil {
 				o := *m.Exit
@@ -1451,6 +1488,7 @@ func (c *Client) Status() Status {
 	if st.State != "online" && direct > 0 {
 		st.State = "local"
 	}
+	st.NetVersion, st.Mine = c.netInfoLocked()
 	// Порядок для экрана (ТЗ 26): серверы, потом устройства; на связи первыми.
 	// Прямой путь выше мог сделать устройство «на связи» — сортируем после.
 	SortForList(st.Peers)

@@ -97,6 +97,8 @@
     <string name="err_tunnel_not_running">the tunnel is not running</string>
     <string name="err_tunnel_off">the tunnel is off</string>
     <string name="net_channel_name">Server network</string>
+    <string name="upd_channel_name">Network update</string>
+    <string name="upd_ready">Update v%1$s is ready — install</string>
     <string name="mirror_channel_name">Mirrored folders</string>
     <string name="log_network_changed">network changed — rebuilding connections</string>
     <string name="log_wifi_up">Wi-Fi appeared</string>

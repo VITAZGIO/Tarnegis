@@ -474,6 +474,15 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("udpRelayEnabled", false)
         set(v) = prefs.edit().putBoolean("udpRelayEnabled", v).apply()
 
+    /** «Автообновление» по версии сети устройств (ТЗ 40), по умолчанию включено;
+     *  autoUpdateT — когда меняли (unix): панель сервера тоже может поменять. */
+    var autoUpdate: Boolean
+        get() = prefs.getBoolean("autoUpdate", true)
+        set(v) = prefs.edit().putBoolean("autoUpdate", v).apply()
+    var autoUpdateT: Long
+        get() = prefs.getLong("autoUpdateT", 0L)
+        set(v) = prefs.edit().putLong("autoUpdateT", v).apply()
+
     /** Виджет «город и флаг активного сервера» на главном экране — виден
      *  только вместе с этой галочкой и когда серверов больше одного. */
     var showServerPicker: Boolean

@@ -132,8 +132,10 @@ const (
 	// "4" — несколько серверов без главного (ТЗ 12); "5" — профиль
 	// устройства в панели: одобрение, заморозка, цепочка выхода (ТЗ 16); "6" — сеть серверов:
 	// список серверов сети с отметкой «учётная запись есть» (ТЗ 22); "7" —
-	// пересылка между серверами сети (ТЗ 24, «пересылка между серверами»).
-	version = "7"
+	// пересылка между серверами сети (ТЗ 24, «пересылка между серверами»);
+	// "8" — обновление сети устройств: версия сети, автообновление,
+	// «обновить сеть» с устройства (ТЗ 40).
+	version = "8"
 
 	maxLine          = 4096
 	maxNetworks      = 1000
@@ -255,6 +257,22 @@ type msg struct {
 	Hold     string     `json:"hold,omitempty"`
 	Profiles []profRef  `json:"profiles,omitempty"`
 	Exit     *exitOrder `json:"exit,omitempty"`
+
+	// Обновление сети устройств (ТЗ 40), см. «обновление сети». Build —
+	// сборка программы (vpn / proxy, в hello); Au/AuT — автообновление
+	// устройства ("on" / "off") и когда его меняли (unix, побеждает новое);
+	// UpdSt — как прошло последнее обновление на устройстве (op upd).
+	// NetVer — версия сети, Upd — «обновись до неё сейчас», Force — это
+	// нажали в панели (не смотреть на автообновление), Mine — у устройства
+	// роль «Моё устройство» (может попросить обновить сеть).
+	Build  string `json:"build,omitempty"`
+	Au     string `json:"au,omitempty"`
+	AuT    int64  `json:"auT,omitempty"`
+	UpdSt  string `json:"updSt,omitempty"`
+	NetVer string `json:"netVer,omitempty"`
+	Upd    bool   `json:"upd,omitempty"`
+	Force  bool   `json:"force,omitempty"`
+	Mine   bool   `json:"mine,omitempty"`
 }
 
 // profRef — сервер, для которого у устройства есть профиль, и цепочка
@@ -380,6 +398,12 @@ type device struct {
 	// ExitSet — последняя цепочка выхода, заданная панелью этого сервера.
 	Profiles []profRef  `json:"profiles,omitempty"`
 	ExitSet  *exitOrder `json:"exitSet,omitempty"`
+	// Обновление сети (ТЗ 40): сборка, автообновление и когда его меняли,
+	// как прошло последнее обновление (по словам устройства).
+	Build    string `json:"build,omitempty"`
+	AutoUpd  string `json:"autoUpd,omitempty"`
+	AutoUpdT int64  `json:"autoUpdT,omitempty"`
+	UpdSt    string `json:"updSt,omitempty"`
 
 	// claims — устройство само называет адрес (новый клиент): при споре ему
 	// хватает сообщения readdress, старого приходится переподключать.
@@ -549,6 +573,9 @@ type server struct {
 	relayW *relayWaiter
 	rcalls map[string]*relayCall
 	rlive  map[*relayLine]bool
+	// netReqs — просьбы устройств «обновить сеть», ждут панель (ТЗ 40).
+	netReqs []netReq
+	netWait map[string]netReq // отданы панели, ждут её ответа
 }
 
 func newServer(path string) *server {
@@ -1030,7 +1057,7 @@ func (s *server) control(conn net.Conn, m msg) {
 	// Необязательные сведения: старый клиент их не шлёт — прежние не стираем.
 	for dst, src := range map[*string]string{
 		&d.Platform: m.Platform, &d.OS: m.OS, &d.App: m.App,
-		&d.Mode: m.Mode, &d.Via: m.Via, &d.Hostname: m.Hostname,
+		&d.Mode: m.Mode, &d.Via: m.Via, &d.Hostname: m.Hostname, &d.Build: m.Build,
 	} {
 		if v := clip(src); v != "" {
 			*dst = v
@@ -1040,9 +1067,15 @@ func (s *server) control(conn net.Conn, m msg) {
 	d.connectedAt = now
 	d.link = linkStats{}
 	d.ctrl = c
-	c.send(msg{Op: "welcome", V: protoVersion, IP: d.IP, Host: d.Host, Since: d.Since,
+	s.autoUpdLocked(d, m.Au, m.AuT)
+	if v := clip(m.UpdSt); v != "" {
+		d.UpdSt = v
+	}
+	welcome := msg{Op: "welcome", V: protoVersion, IP: d.IP, Host: d.Host, Since: d.Since,
 		Alias: d.Alias, AliasT: d.AliasT, Peers: s.peersLocked(n, d), Stun: s.stunPorts,
-		Server: s.infoLocked(), Servers: basicAds(s.self.Known, s.self.ID), Hold: d.hold()})
+		Server: s.infoLocked(), Servers: basicAds(s.self.Known, s.self.ID), Hold: d.hold()}
+	s.netVerFillLocked(d, &welcome, false)
+	c.send(welcome)
 	c.send(s.serversMsgLocked(d))
 	if o := s.exitDueLocked(d); o != nil {
 		// Панель задала цепочку, пока устройства не было, — или оно её ещё
@@ -1077,6 +1110,10 @@ func (s *server) control(conn net.Conn, m msg) {
 		}
 		if in.Op == "profiles" {
 			s.profilesMessage(d, c, in)
+			return
+		}
+		if in.Op == "upd" || in.Op == "netupdate" {
+			s.updMessage(id, d, c, in)
 			return
 		}
 		if in.Op == "p2p" || in.Op == "p2pstat" {
@@ -1491,6 +1528,12 @@ type adminDevice struct {
 	Frozen   bool       `json:"frozen,omitempty"`
 	Profiles []profRef  `json:"profiles,omitempty"`
 	ExitSet  *exitOrder `json:"exitSet,omitempty"`
+	// Обновление сети (meshd 8, ТЗ 40).
+	Build    string `json:"build,omitempty"`
+	AutoUpd  string `json:"autoUpd,omitempty"`
+	AutoUpdT int64  `json:"autoUpdT,omitempty"`
+	UpdSt    string `json:"updSt,omitempty"`
+	Mine     bool   `json:"mine,omitempty"`
 }
 
 type adminNetwork struct {
@@ -1561,6 +1604,9 @@ type adminState struct {
 	// ждёт вызовов на пересылку.
 	Relays []relayLine `json:"relays,omitempty"`
 	Relay  bool        `json:"relay,omitempty"`
+	// NetVer — версия сети устройств (meshd 8, ТЗ 40): что говорят
+	// устройствам.
+	NetVer string `json:"netVer,omitempty"`
 }
 
 func unixOrZero(t time.Time) int64 {
@@ -1595,6 +1641,11 @@ func (s *server) adminState() adminState {
 				Frozen:    d.Frozen,
 				Profiles:  d.Profiles,
 				ExitSet:   d.ExitSet,
+				Build:     d.Build,
+				AutoUpd:   d.AutoUpd,
+				AutoUpdT:  d.AutoUpdT,
+				UpdSt:     d.UpdSt,
+				Mine:      s.mineLocked(d),
 			}
 			if d.ctrl != nil {
 				ad.ConnectedAt = unixOrZero(d.connectedAt)
@@ -1637,6 +1688,7 @@ func (s *server) adminState() adminState {
 	st.Peers = s.seenLocked()
 	st.Known = append([]serverAd{}, s.self.Known...)
 	st.Relays, st.Relay = s.relaysLocked(), s.relayW != nil
+	st.NetVer = s.netVerLocked()
 	return st
 }
 
@@ -1949,6 +2001,10 @@ func (s *server) adminHandler() http.Handler {
 		On    bool     `json:"on"`
 		Entry string   `json:"entry"`
 		Via   []string `json:"via"`
+		// Для /v1/netver — версия сети устройств; /v1/netupdate — ответы
+		// панели на просьбы «обновить сеть» (ТЗ 40).
+		Version string      `json:"version"`
+		Answers []netAnswer `json:"answers"`
 	}
 	decode := func(r *http.Request) (req, error) {
 		var q req
@@ -2082,6 +2138,43 @@ func (s *server) adminHandler() http.Handler {
 		}
 		reply(w, map[string]bool{"ok": true}, err)
 	})
+	mux.HandleFunc("/v1/netver", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			s.mu.Lock()
+			v := s.netVerLocked()
+			s.mu.Unlock()
+			reply(w, map[string]string{"netVer": v}, nil)
+			return
+		}
+		q, err := decode(r)
+		if err == nil {
+			err = s.setNetVer(q.Version)
+		}
+		reply(w, map[string]bool{"ok": true}, err)
+	})
+	mux.HandleFunc("/v1/devupdate", func(w http.ResponseWriter, r *http.Request) {
+		q, err := decode(r)
+		if err == nil {
+			err = s.devUpdate(q.Net, q.Device)
+		}
+		reply(w, map[string]bool{"ok": true}, err)
+	})
+	mux.HandleFunc("/v1/autoupd", func(w http.ResponseWriter, r *http.Request) {
+		q, err := decode(r)
+		var t int64
+		if err == nil {
+			t, err = s.setAutoUpd(q.Net, q.Device, q.On)
+		}
+		reply(w, map[string]any{"ok": true, "t": t}, err)
+	})
+	mux.HandleFunc("/v1/netupdate", func(w http.ResponseWriter, r *http.Request) {
+		q, err := decode(r)
+		var list []netReq
+		if err == nil {
+			list = s.takeNetReqs(q.Answers)
+		}
+		reply(w, map[string]any{"requests": list}, err)
+	})
 	s.relayRoutes(mux)
 	return mux
 }
@@ -2144,6 +2237,8 @@ type selfConfig struct {
 	Known []serverAd `json:"known,omitempty"`
 	// Shared — SSH-пользователи с учётной записью на всех серверах сети.
 	Shared []string `json:"shared,omitempty"`
+	// NetVer — версия сети устройств от панели (ТЗ 40).
+	NetVer string `json:"netVer,omitempty"`
 }
 
 type relayRecord struct {
@@ -3672,6 +3767,7 @@ func (s *server) setPolicy(p policy) error {
 	s.mu.Lock()
 	s.policy = p
 	s.broadcastAllLocked()
+	s.netVerAllLocked(false)
 	s.mu.Unlock()
 	return nil
 }
@@ -4449,5 +4545,308 @@ func (s *server) relaysLocked() []relayLine {
 		out = append(out, *l)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Since < out[j].Since })
+	return out
+}
+
+// ---------- обновление сети устройств (ТЗ 40) ----------
+//
+// Версия сети — то, до чего должны дойти устройства. Её задаёт панель
+// (/v1/netver: своя версия или запись «Обновить на всех серверах», что
+// новее); пока панель молчит — релиз самого meshd. meshd говорит её каждому
+// устройству в welcome и, когда она меняется, — op netver всем на связи.
+// Upd — «обновись сейчас»: устройству с включённым автообновлением, если оно
+// старше версии сети; Force — в панели нажали «Обновить» у этого устройства
+// (автообновление не смотрится). Файл устройство берёт само из релиза на
+// GitHub: сеть передаёт только номер версии.
+//
+// Автообновление устройства: au/auT в hello и в op upd; панель меняет его
+// через /v1/autoupd (время не меньше прошлого+1, новое побеждает) — на связи
+// устройство узнаёт сразу (op autoupd), иначе в следующем welcome.
+//
+// «Обновить сеть» с устройства: op netupdate {call, netVer}. Можно только
+// устройству с ролью «Моё устройство» (группа ~mine у SSH-пользователя его
+// соединения — его не подделать без ключа). Просьба ждёт панель:
+// /v1/netupdate забирает просьбы и приносит ответы на прошлые; панель сама
+// сверяет номер с релизами проекта. Ответ уходит устройству op netupdate
+// {call, ok | error}.
+
+const (
+	mineGroup  = "~mine"
+	maxNetReqs = 32
+	netReqTTL  = 2 * time.Minute
+)
+
+// netReq — просьба устройства «обновить сеть до Version».
+type netReq struct {
+	Call    string `json:"call"`
+	Net     string `json:"net"`
+	Device  string `json:"device"`
+	Name    string `json:"name,omitempty"`
+	User    string `json:"user,omitempty"`
+	Version string `json:"version"`
+	At      int64  `json:"at"`
+}
+
+// netAnswer — ответ панели на просьбу: пусто — принято.
+type netAnswer struct {
+	Call  string `json:"call"`
+	Error string `json:"error,omitempty"`
+}
+
+// verNum — «v1.10.7-beta» → [1 10 7]; false — не номер версии.
+func verNum(v string) ([3]int, bool) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "-+ "); i >= 0 {
+		v = v[:i]
+	}
+	var out [3]int
+	parts := strings.Split(v, ".")
+	if v == "" || len(parts) > 3 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
+// verLess — a старше b; не номер (например "dev") — false.
+func verLess(a, b string) bool {
+	pa, oka := verNum(a)
+	pb, okb := verNum(b)
+	if !oka || !okb {
+		return false
+	}
+	for i := range pa {
+		if pa[i] != pb[i] {
+			return pa[i] < pb[i]
+		}
+	}
+	return false
+}
+
+// cleanVer — «v1.10.7» → «1.10.7»; "" — не номер версии.
+func cleanVer(v string) string {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if len(v) > 32 {
+		return ""
+	}
+	if _, ok := verNum(v); !ok {
+		return ""
+	}
+	for _, r := range v {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r == '.' || r == '-') {
+			return ""
+		}
+	}
+	return v
+}
+
+// netVerLocked — версия сети: от панели или релиз meshd, что новее.
+func (s *server) netVerLocked() string {
+	v := s.self.NetVer
+	if r := cleanVer(release); r != "" && (v == "" || verLess(v, r)) {
+		v = r
+	}
+	return v
+}
+
+// mineLocked — у устройства роль «Моё устройство».
+func (s *server) mineLocked(d *device) bool {
+	return d.User != "" && d.User != serversGroup && s.policy.member(d.User, mineGroup)
+}
+
+// netVerFillLocked — версия сети и что с ней делать — в сообщение m.
+func (s *server) netVerFillLocked(d *device, m *msg, force bool) {
+	m.NetVer = s.netVerLocked()
+	m.Mine = s.mineLocked(d)
+	m.Au, m.AuT = d.AutoUpd, d.AutoUpdT
+	m.Upd = m.NetVer != "" && verLess(d.App, m.NetVer) && (force || d.AutoUpd == "on")
+	m.Force = force && m.Upd
+}
+
+// netVerAllLocked — версию сети всем устройствам на связи.
+func (s *server) netVerAllLocked(force bool) {
+	for _, n := range s.nets {
+		for _, d := range n.Devices {
+			if d.ctrl == nil {
+				continue
+			}
+			m := msg{Op: "netver"}
+			s.netVerFillLocked(d, &m, force)
+			d.ctrl.send(m)
+		}
+	}
+}
+
+// setNetVer — версия сети от панели ("" — только релиз meshd).
+func (s *server) setNetVer(v string) error {
+	if strings.TrimSpace(v) != "" {
+		if v = cleanVer(v); v == "" {
+			return errors.New("неверный номер версии")
+		}
+	}
+	s.mu.Lock()
+	old := s.netVerLocked()
+	s.self.NetVer = v
+	if s.netVerLocked() != old {
+		s.netVerAllLocked(false)
+	}
+	s.mu.Unlock()
+	s.markDirty()
+	return nil
+}
+
+// devUpdate — «Обновить» у одного устройства в панели.
+func (s *server) devUpdate(netID, devID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, d, err := s.deviceLocked(netID, devID)
+	if err != nil {
+		return err
+	}
+	if d.ctrl == nil {
+		return errors.New("устройство не на связи")
+	}
+	m := msg{Op: "netver"}
+	s.netVerFillLocked(d, &m, true)
+	if m.NetVer == "" {
+		return errors.New("версия сети не задана")
+	}
+	if !m.Upd {
+		return errors.New("устройство не старше версии сети " + m.NetVer)
+	}
+	d.ctrl.send(m)
+	return nil
+}
+
+// autoUpdLocked — автообновление, которое назвало устройство: новее — берём.
+func (s *server) autoUpdLocked(d *device, au string, t int64) bool {
+	if au != "on" && au != "off" {
+		return false
+	}
+	if t < d.AutoUpdT || t == d.AutoUpdT && d.AutoUpd != "" {
+		return false
+	}
+	d.AutoUpd, d.AutoUpdT = au, t
+	return true
+}
+
+// setAutoUpd — галочка «Получать автообновление» из панели.
+func (s *server) setAutoUpd(netID, devID string, on bool) (int64, error) {
+	s.mu.Lock()
+	_, d, err := s.deviceLocked(netID, devID)
+	if err != nil {
+		s.mu.Unlock()
+		return 0, err
+	}
+	t := s.now().Unix()
+	if t <= d.AutoUpdT {
+		t = d.AutoUpdT + 1
+	}
+	d.AutoUpd, d.AutoUpdT = "off", t
+	if on {
+		d.AutoUpd = "on"
+	}
+	if d.ctrl != nil {
+		d.ctrl.send(msg{Op: "autoupd", Au: d.AutoUpd, AuT: t})
+	}
+	s.mu.Unlock()
+	s.markDirty()
+	return t, nil
+}
+
+// updMessage — op upd (автообновление и ход обновления на устройстве) и op
+// netupdate (просьба обновить сеть).
+func (s *server) updMessage(nid string, d *device, c *ctrlConn, in msg) {
+	s.mu.Lock()
+	if d.ctrl != c {
+		s.mu.Unlock()
+		return
+	}
+	if in.Op == "upd" {
+		s.autoUpdLocked(d, in.Au, in.AuT)
+		d.UpdSt = clip(in.UpdSt)
+		s.mu.Unlock()
+		s.markDirty()
+		return
+	}
+	call := clip(in.Call)
+	if call == "" {
+		s.mu.Unlock()
+		return
+	}
+	fail := func(text string) {
+		s.mu.Unlock()
+		c.send(msg{Op: "netupdate", Call: call, Error: text})
+	}
+	ver, cur := cleanVer(in.NetVer), s.netVerLocked()
+	switch {
+	case !s.mineLocked(d):
+		fail("обновить сеть может только устройство с ролью «Моё устройство»")
+		return
+	case ver == "":
+		fail("неверный номер версии")
+		return
+	case cur != "" && !verLess(cur, ver):
+		fail("сеть уже на версии " + cur)
+		return
+	}
+	now := s.now().Unix()
+	keep := s.netReqs[:0]
+	for _, q := range s.netReqs {
+		if now-q.At < int64(netReqTTL/time.Second) && !(q.Net == nid && q.Device == d.ID) {
+			keep = append(keep, q)
+		}
+	}
+	s.netReqs = keep
+	if len(s.netReqs) >= maxNetReqs {
+		fail("слишком много просьб — попробуй позже")
+		return
+	}
+	s.netReqs = append(s.netReqs, netReq{Call: call, Net: nid, Device: d.ID, Name: d.displayName(),
+		User: d.User, Version: ver, At: now})
+	s.emitLocked(event{Type: "netupdate", Net: nid, Device: d.ID, Text: ver})
+	s.mu.Unlock()
+}
+
+// takeNetReqs — панель забирает просьбы «обновить сеть» и приносит ответы
+// на прошлые (их отдаём устройствам, если те ещё на связи).
+func (s *server) takeNetReqs(answers []netAnswer) []netReq {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.netWait == nil {
+		s.netWait = map[string]netReq{}
+	}
+	now := s.now().Unix()
+	for _, a := range answers {
+		q, ok := s.netWait[a.Call]
+		if !ok {
+			continue
+		}
+		delete(s.netWait, a.Call)
+		if n := s.nets[q.Net]; n != nil {
+			if d := n.Devices[q.Device]; d != nil && d.ctrl != nil {
+				d.ctrl.send(msg{Op: "netupdate", Call: q.Call, OK: a.Error == "", Error: clip(a.Error)})
+			}
+		}
+	}
+	for k, q := range s.netWait {
+		if now-q.At > int64(netReqTTL/time.Second) {
+			delete(s.netWait, k)
+		}
+	}
+	out := []netReq{}
+	for _, q := range s.netReqs {
+		if now-q.At < int64(netReqTTL/time.Second) && len(s.netWait) < maxNetReqs {
+			out = append(out, q)
+			s.netWait[q.Call] = q
+		}
+	}
+	s.netReqs = nil
 	return out
 }

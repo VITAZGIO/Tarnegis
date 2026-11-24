@@ -71,3 +71,13 @@ Forgot it — on the server as root: `ssh_tunnel_vpn_linux -reset-password`, the
 ## Updates
 
 App settings → «Check for updates» → «Update»: the program downloads the new version, checks the checksum, installs it and restarts. Only on the button.
+
+**Device network update.** The network servers tell the app their version. If
+they are already newer and «Settings» → «Advanced» → «Auto-update» is on (it is
+by default), the app updates itself: it downloads its own file from the GitHub
+release, checks the checksum and restarts. Unchecked — a line «A new network
+version vX — update?» appears at the bottom of the window. On a device with the
+«My device» role, «Check for updates» asks «Update the network to vX?» when
+GitHub has a version newer than the servers: then the servers, the devices with
+auto-update and this device update. A phone downloads the update and shows the
+notification «Update vX is ready — install».

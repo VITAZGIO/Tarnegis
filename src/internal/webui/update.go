@@ -24,7 +24,18 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"error": err.Error(), "code": code})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "result": res, "canInstall": updater.CanInstall()})
+	// Версия сети (ТЗ 40): на серверах уже новее — обновиться самому, не
+	// спрашивая; на GitHub новее серверов и роль «Моё устройство» — окно
+	// спросит «Обновить сеть до vX?».
+	st := s.app.AutoUpdate().State()
+	net := map[string]any{"version": st.NetVersion, "mine": st.Mine,
+		"decision": updater.NetDecision(res.Installed, res.Latest, st.NetVersion, st.Mine)}
+	if net["decision"] == "self" {
+		if err := s.app.AutoUpdate().UpdateNow(st.NetVersion); err != nil {
+			net["error"] = err.Error()
+		}
+	}
+	writeJSON(w, map[string]any{"ok": true, "result": res, "canInstall": updater.CanInstall(), "net": net})
 }
 
 // handleUpdateDownload скачивает файл новой версии в папку загрузок. Сама
