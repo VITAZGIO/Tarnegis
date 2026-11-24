@@ -397,6 +397,7 @@ async function sigTick(){
   sigTimer = setTimeout(() => { if(!document.hidden) sigTick(); else sigTimer = setTimeout(sigTick, 2000); }, 1000);
   if(permCard(r)) return;
   const l = r.link;
+  $('sUnit').textContent = L('дБм', 'dBm');
   if(!l || !l.connected){ $('sNum').textContent = '—'; $('sQ').textContent = L('не подключён к Wi-Fi', 'not connected to Wi-Fi'); $('sQ').className = 'q'; return; }
   LAST = l;
   HIST.push(l.level); if(HIST.length > 180) HIST.shift();

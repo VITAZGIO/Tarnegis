@@ -18,6 +18,10 @@ import android.service.quicksettings.TileService
  * открываем приложение, и человек подтверждает как обычно.
  */
 class TunnelTile : TileService() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
 
     override fun onStartListening() {
         super.onStartListening()

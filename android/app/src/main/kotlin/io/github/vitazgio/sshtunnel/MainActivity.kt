@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) launchScanner()
-        else Toast.makeText(this, R.string.camera_denied, Toast.LENGTH_LONG).show()
+        else Toast.makeText(this, Lang.wrap(this).getString(R.string.camera_denied), Toast.LENGTH_LONG).show()
     }
 
     private val scanLauncher = registerForActivityResult(ScanContract()) { result ->
@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
             } catch (_: Exception) {
                 false
             }
-            if (!ok) Toast.makeText(this, R.string.file_failed, Toast.LENGTH_LONG).show()
+            if (!ok) Toast.makeText(this, Lang.wrap(this).getString(R.string.file_failed), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
         if (!AndroidApi.init(this)) {
             // Без ядра экрана нет. VPN по-прежнему включается плиткой в шторке.
             setContentView(TextView(this).apply {
-                setText(R.string.ui_failed)
+                text = Lang.wrap(this@MainActivity).getString(R.string.ui_failed)
                 setPadding(48, 160, 48, 48)
             })
             return

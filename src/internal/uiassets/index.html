@@ -743,7 +743,7 @@
   <div id="loginView" hidden>
     <div class="card loginBox">
       <b data-i18n="login_title">Вход в панель</b>
-      <input type="password" id="loginPass" autocomplete="current-password" data-i18n-placeholder="login_ph" placeholder="пароль">
+      <input type="password" id="loginPass" autocomplete="current-password" data-i18n-ph="login_ph" placeholder="пароль">
       <button class="btn primary" id="loginGo" data-i18n="login_go">Войти</button>
       <span class="hint" id="loginNote"></span>
       <a href="#" id="loginForgot" data-i18n="login_forgot">Забыли пароль?</a>
@@ -943,22 +943,22 @@
     <div class="field desk-only">
       <div class="lbl-row">
         <label for="keyPath" data-i18n="key_label">Приватный ключ</label>
-        <button class="qmark" id="keyHelpBtn" title="Как получить ключ">?</button>
+        <button class="qmark" id="keyHelpBtn" data-i18n-title="key_help_title" title="Как получить ключ">?</button>
       </div>
       <input type="text" id="keyPath" spellcheck="false">
     </div>
 
     <div class="help desk-only" id="keyHelp" hidden>
-      <p>Ключ создаётся на этом компьютере, а на сервер добавляется вручную —
+      <p data-i18n="key_help_intro">Ключ создаётся на этом компьютере, а на сервер добавляется вручную —
         одной командой это больше не делается: пользователю туннеля запрещено
         выполнять команды, в том и смысл.</p>
 
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:9px 0 4px">
-        <button class="btn" id="autoKeyBtn" style="font-size:12.5px;padding:6px 12px">
+        <button class="btn" id="autoKeyBtn" style="font-size:12.5px;padding:6px 12px" data-i18n="key_auto_btn">
           Создать ключ и собрать команду</button>
         <span class="hint" id="autoKeyNote" style="margin:0"></span>
       </div>
-      <p class="note" style="margin-top:0">Ключ создастся на этом компьютере, если его ещё
+      <p class="note" style="margin-top:0" data-i18n="key_auto_note_p">Ключ создастся на этом компьютере, если его ещё
         нет, а ниже сразу появится готовая команда с уже подставленным ключом — она же
         скопируется в буфер. Останется вставить её на сервере под root.</p>
 
@@ -967,35 +967,35 @@
         Сделать вручную, по шагам ›</button>
 
       <div id="manualSteps" hidden>
-        <p class="step">1. На этом компьютере — создать ключ</p>
+        <p class="step" data-i18n="key_step1">1. На этом компьютере — создать ключ</p>
         <div class="cmdbox">
-          <button class="cp" data-cmd="cmd1" title="Скопировать">
+          <button class="cp" data-cmd="cmd1" data-i18n-title="copy_title" title="Скопировать">
             <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
               <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
           </button>
           <span id="cmd1"></span>
         </div>
 
-        <p class="step">2. На этом компьютере — показать открытый ключ</p>
+        <p class="step" data-i18n="key_step2">2. На этом компьютере — показать открытый ключ</p>
         <div class="cmdbox">
-          <button class="cp" data-cmd="cmd2" title="Скопировать">
+          <button class="cp" data-cmd="cmd2" data-i18n-title="copy_title" title="Скопировать">
             <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
               <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
           </button>
           <span id="cmd2"></span>
         </div>
-        <p class="note">Команда напечатает одну длинную строку — скопируй её целиком,
+        <p class="note" data-i18n="key_step2_note">Команда напечатает одну длинную строку — скопируй её целиком,
           она понадобится в шаге 3.</p>
 
         <div style="display:flex;gap:8px;align-items:center;margin:9px 0" id="openPsRow">
-          <button class="btn" id="openPs" style="font-size:12.5px;padding:6px 12px">Открыть PowerShell</button>
+          <button class="btn" id="openPs" style="font-size:12.5px;padding:6px 12px" data-i18n="open_ps">Открыть PowerShell</button>
           <span class="hint" id="keyHelpNote" style="margin:0"></span>
         </div>
       </div>
 
       <p class="step" id="cmd3step">3. На сервере, зайдя под root — добавить этот ключ</p>
       <div class="cmdbox">
-        <button class="cp" data-cmd="cmd3" title="Скопировать">
+        <button class="cp" data-cmd="cmd3" data-i18n-title="copy_title" title="Скопировать">
           <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
             <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
         </button>
@@ -1005,14 +1005,14 @@
     </div>
 
     <div class="two">
-      <div class="field"><label for="sshPort">SSH-порт</label>
+      <div class="field"><label for="sshPort" data-i18n="port_ssh">SSH-порт</label>
         <input type="number" id="sshPort" min="1" max="65535"></div>
       <div class="field"></div>
     </div>
     <div class="two desk-only">
-      <div class="field"><label for="socksPort">Порт SOCKS</label>
+      <div class="field"><label for="socksPort" data-i18n="port_socks">Порт SOCKS</label>
         <input type="number" id="socksPort" min="1" max="65535"></div>
-      <div class="field"><label for="httpPort">Порт HTTP</label>
+      <div class="field"><label for="httpPort" data-i18n="port_http">Порт HTTP</label>
         <input type="number" id="httpPort" min="1" max="65535"></div>
     </div>
 
@@ -1093,13 +1093,13 @@
         <span id="autoConnectRow" hidden><input type="checkbox" id="autoConnect"></span>
 
         <div id="sudoRow" hidden>
-          <p class="note" style="margin-bottom:4px">Этот шаг требует прав администратора.
+          <p class="note" style="margin-bottom:4px" data-i18n="sudo_note">Этот шаг требует прав администратора.
             Введи пароль sudo — он используется один раз и нигде не сохраняется.
             Учти: до программы он идёт по локальной сети без шифрования.</p>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="password" id="sudoPass" placeholder="пароль sudo" spellcheck="false"
+            <input type="password" id="sudoPass" data-i18n-ph="sudo_ph" placeholder="пароль sudo" spellcheck="false"
                    autocomplete="off" style="flex:1;min-width:180px">
-            <button class="btn" id="sudoApply" style="font-size:12.5px;padding:6px 12px">Применить</button>
+            <button class="btn" id="sudoApply" style="font-size:12.5px;padding:6px 12px" data-i18n="apply">Применить</button>
           </div>
         </div>
         <span class="hint" id="bootStatus" style="display:block;margin:4px 0 0"></span>
@@ -1132,9 +1132,9 @@
         <div class="chk-row">
           <label class="chk"><input type="checkbox" id="localViaTunnel">
             <span class="lbl" data-i18n="local_via_tunnel">Локальную сеть тоже вести через сервер</span></label>
-          <button class="qmark" id="localHelpBtn" title="Подробнее">?</button>
+          <button class="qmark" id="localHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
         </div>
-        <div class="help" id="localHelp" hidden>
+        <div class="help" id="localHelp" data-i18n-html="local_help_html" hidden>
           <p>Обычно не нужно. Домашние и офисные адреса (роутер, NAS,
             Home&nbsp;Assistant, рабочие сервисы) и так идут напрямую и остаются
             доступны при включённом туннеле.</p>
@@ -1145,7 +1145,7 @@
         <div class="chk-row">
           <label class="chk"><input type="checkbox" id="udpRelayEnabled">
             <span class="lbl" data-i18n="udp_relay_enabled">Пробрасывать UDP (звонки, игры) через сервер</span></label>
-          <button class="qmark" id="udpRelayHelpBtn" title="Подробнее">?</button>
+          <button class="qmark" id="udpRelayHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
         </div>
     <div class="help" id="udpRelayHelp" hidden>
       <p data-i18n="udp_relay_help">SSH умеет пробрасывать только TCP, поэтому по умолчанию видеозвонки, игры и
@@ -1198,7 +1198,7 @@
       </div>
       <div class="chk-row" id="uiPassRow" hidden>
         <input type="password" id="uiPass" autocomplete="new-password" style="flex:1;min-width:0"
-          data-i18n-placeholder="ui_pass_ph" placeholder="новый пароль">
+          data-i18n-ph="ui_pass_ph" placeholder="новый пароль">
         <button class="btn" type="button" id="uiPassSet" data-i18n="ui_pass_set">Задать пароль</button>
       </div>
       <span class="hint" id="uiPassNote" hidden style="display:block;margin:-2px 0 6px"></span>
@@ -1287,7 +1287,7 @@
       <div class="slidePane">
         <div class="lbl-row" style="margin-top:12px">
           <span class="hint" style="margin:0;font-size:12px" data-i18n="direct_sub">Мимо сервера, даже если программа идёт через туннель</span>
-          <button class="qmark" id="directHelpBtn" title="Подробнее">?</button>
+          <button class="qmark" id="directHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
         </div>
         <div class="help" id="directHelp" hidden></div>
         <textarea id="directHosts" rows="8" spellcheck="false" data-i18n-ph="direct_ph"></textarea>
@@ -1301,7 +1301,7 @@
       <div class="slidePane">
         <div class="lbl-row" style="margin-top:12px">
           <span class="hint" style="margin:0;font-size:12px" data-i18n="tunnel_sub">Через сервер, даже если программа или домен идут напрямую</span>
-          <button class="qmark" id="tunnelHelpBtn" title="Подробнее">?</button>
+          <button class="qmark" id="tunnelHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
         </div>
         <div class="help" id="tunnelHelp" hidden></div>
         <textarea id="tunnelHosts" rows="8" spellcheck="false" data-i18n-ph="tunnel_ph"></textarea>
@@ -1412,9 +1412,9 @@
         <p class="step" id="wzAlreadyAllowed" data-i18n="wizard_key_mode_local_ready">Ключ уже разрешён
           на сервере — просто отсканируй код.</p>
         <div id="wzAuthBlock" hidden>
-          <p class="step" id="wzAuthStep">Добавить этот ключ на сервере</p>
+          <p class="step" id="wzAuthStep" data-i18n="wz_auth_step">Добавить этот ключ на сервере</p>
           <div class="cmdbox">
-            <button class="cp" data-cmd="wzAuthCmd" data-note="wzGenNote" title="Скопировать">
+            <button class="cp" data-cmd="wzAuthCmd" data-note="wzGenNote" data-i18n-title="copy_title" title="Скопировать">
               <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
                 <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
             </button>
@@ -1426,7 +1426,7 @@
           или нажми на код, чтобы скопировать настройки текстом</p>
         <div style="display:flex;justify-content:center;margin:8px 0">
           <img id="wzQr" style="width:220px;height:220px;border-radius:10px;cursor:pointer;
-               background:#fff;padding:8px" title="Нажми, чтобы скопировать">
+               background:#fff;padding:8px" data-i18n-title="wz_qr_tip" title="Нажми, чтобы скопировать">
         </div>
         <span class="hint" id="wzQrNote" style="display:block;text-align:center;margin-bottom:10px"></span>
 
@@ -1477,7 +1477,7 @@
 
       <div id="wzVpsResult" hidden>
         <div class="cmdbox" style="max-height:320px;overflow-y:auto">
-          <button class="cp" data-cmd="wzVpsScript" data-note="wzVpsNote" title="Скопировать">
+          <button class="cp" data-cmd="wzVpsScript" data-note="wzVpsNote" data-i18n-title="copy_title" title="Скопировать">
             <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
               <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
           </button>
@@ -1592,7 +1592,7 @@
       <span class="lbl" data-i18n="mesh_enable">Включить сеть устройств на этом сервере</span></label>
 
     <div class="field" style="margin-top:10px"><label for="meshName" data-i18n="mesh_name">Имя этого устройства</label>
-      <input type="text" id="meshName" maxlength="64" placeholder="имя компьютера"></div>
+      <input type="text" id="meshName" maxlength="64" data-i18n-ph="mesh_name_ph" placeholder="имя компьютера"></div>
 
     <div class="field"><div class="lbl-row"><label for="meshKey" data-i18n="mesh_key">Ключ сети</label> <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="mesh_key_hint">Устройства с одинаковым ключом — одна
       сеть. Ключ переносится вместе с сервером через «Экспорт» (на телефон — QR-кодом). Никому постороннему
@@ -1643,12 +1643,12 @@
     <div class="two">
       <div class="field">
         <div class="lbl-row"><label for="keepAliveSec" data-i18n="adv_keepalive">Проверка связи, сек</label>
-          <button class="qmark" id="kaHelpBtn" title="Подробнее">?</button></div>
+          <button class="qmark" id="kaHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button></div>
         <input type="number" id="keepAliveSec" min="5" max="300" placeholder="20">
       </div>
       <div class="field">
         <div class="lbl-row"><label for="connectTimeoutSec" data-i18n="adv_timeout">Ждать подключения, сек</label>
-          <button class="qmark" id="toHelpBtn" title="Подробнее">?</button></div>
+          <button class="qmark" id="toHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button></div>
         <input type="number" id="connectTimeoutSec" min="3" max="120" placeholder="20">
       </div>
     </div>
@@ -1664,7 +1664,7 @@
     <div class="two">
       <div class="field">
         <div class="lbl-row"><label for="cipher" data-i18n="adv_cipher">Шифр</label>
-          <button class="qmark" id="cipherHelpBtn" title="Подробнее">?</button></div>
+          <button class="qmark" id="cipherHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button></div>
         <select id="cipher" style="width:100%">
           <option value="" data-i18n="adv_cipher_auto">Автоматически</option>
           <option value="aes">AES-GCM</option>
@@ -1673,7 +1673,7 @@
       </div>
       <div class="field">
         <div class="lbl-row"><label for="ipVersion" data-i18n="adv_ip">Протокол до сервера</label>
-          <button class="qmark" id="ipHelpBtn" title="Подробнее">?</button></div>
+          <button class="qmark" id="ipHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button></div>
         <select id="ipVersion" style="width:100%">
           <option value="" data-i18n="adv_ip_any">IPv4 или IPv6</option>
           <option value="4" data-i18n="adv_ip4">Только IPv4</option>
@@ -1696,7 +1696,7 @@
     <div class="chk-row">
       <label class="chk"><input type="checkbox" id="shareLan">
         <span class="lbl" data-i18n="adv_share_lan">Раздавать прокси в локальную сеть</span></label>
-      <button class="qmark" id="lanHelpBtn" title="Подробнее">?</button>
+      <button class="qmark" id="lanHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
     </div>
     <div class="help" id="lanHelp" hidden><p data-i18n="adv_share_lan_help">Другие устройства дома — телевизор,
       приставка, второй компьютер — смогут ходить через туннель этого компьютера: в их настройках сети указывается
@@ -1709,7 +1709,7 @@
     <div class="chk-row" style="border-top:none">
       <span class="lbl" style="flex:1;font-size:12.5px;color:var(--dim)" data-i18n="adv_vpn_note">Настройки SSH выше
         действуют и в режиме VPN (ssh_tunnel_vpn).</span>
-      <button class="qmark" id="vpnHelpBtn" title="Подробнее">?</button>
+      <button class="qmark" id="vpnHelpBtn" data-i18n-title="more_info" title="Подробнее">?</button>
     </div>
     <div class="help" id="vpnHelp" hidden><p data-i18n="adv_vpn_help">В режиме VPN через туннель идёт всё, что
       ходит в сеть, — и программы, которые про прокси не знают. Трафик мимо сервера не уходит даже пока связь
@@ -2600,11 +2600,158 @@ const I18N = {
     paste_not_config:'this doesn\'t look like ssh_tunnel settings',
   },
 };
+/* ---------- ТЗ 37 (a): строки, которые раньше были написаны прямо в коде ---------- */
+Object.assign(I18N.ru, {
+  unit_pcs:' шт.',
+  unit_mbps:' Мбит/с',
+  unit_mb:' МБ',
+  unit_ms:' мс',
+  apps_empty:'Пока пусто. Нажми «Добавить программу» и выбери её из запущенных или укажи файл на диске.',
+  app_remove:'Убрать',
+  app_from_running:'Из списка запущенных',
+  app_from_disk:'Выбрать файл на диске',
+  app_by_name:'Ввести имя вручную',
+  app_prompt_name:'Имя программы, например steam.exe',
+  procs_reading:'Читаю список программ…',
+  procs_none:'Ничего не нашлось.',
+  saved_live:', работает сразу',
+  logo_home:'На главный экран',
+  log_app:'приложение',
+  log_bypass:'мимо',
+  log_bypass_tip:'по твоим правилам эта программа идёт напрямую, минуя туннель',
+  log_dns_tip:'DNS-запрос ушёл мимо туннеля',
+  checking:'проверяю…',
+  speed_measuring:'Измеряю…',
+  speed_up:'отдача',
+  speed_down:'приём',
+  key_placeholder:'ВСТАВЬ_СЮДА_КЛЮЧ_ИЗ_ШАГА_2',
+  setup_key_ready:'Ключ уже подставлен — просто скопируй эту команду и вставь на сервере под root.',
+  setup_replace_key:'Замени ВСТАВЬ_СЮДА_КЛЮЧ_ИЗ_ШАГА_2 на строку из шага 2.',
+  setup_creates_user:'Команда заодно создаст пользователя «{u}», если его ещё нет: он умеет только пробрасывать соединения, ни команд, ни файлов.',
+  setup_step3:'3. На сервере, зайдя под root — добавить этот ключ',
+  setup_step3_host:'3. На сервере-адресате ({h}), зайдя под root — добавить этот ключ',
+  setup_host_dflt:'куда подключаемся',
+  creating:'создаю…',
+  key_created:'Ключ создан.',
+  key_existed:'Ключ уже был на месте.',
+  key_cmd_copied:'Команда для сервера скопирована — вставь её там под root.',
+  copy_cmd_below:'скопируй команду ниже вручную',
+  boot_need_sudo:'Нужен пароль sudo — служба включена, но пока стартует только после входа в систему.',
+  manual_hide:'Скрыть шаги вручную',
+  manual_show:'Сделать вручную, по шагам ›',
+  copy_manually:'скопируй вручную',
+  looking:'смотрю…',
+  scan_bad:'Эти сети пойдут через сервер и станут недоступны:',
+  scan_ok_b:'Всё в порядке.',
+  scan_ok:'Ни одна твоя сеть не сломается.',
+  scan_add:'Добавить их в список',
+  found:'найдено:',
+  scan_added:'добавлено — не забудь «Сохранить»',
+  step1_in_clip:'команда шага 1 в буфере: Ctrl+V и Enter',
+  copy_cmd_manual:'скопируй команду вручную',
+});
+Object.assign(I18N.en, {
+  unit_pcs:' pcs',
+  unit_mbps:' Mbit/s',
+  unit_mb:' MB',
+  unit_ms:' ms',
+  apps_empty:'Nothing here yet. Press "Add app" and pick it from the running ones or point to a file on disk.',
+  app_remove:'Remove',
+  app_from_running:'From running apps',
+  app_from_disk:'Choose a file on disk',
+  app_by_name:'Type a name by hand',
+  app_prompt_name:'App name, e.g. steam.exe',
+  procs_reading:'Reading the app list…',
+  procs_none:'Nothing found.',
+  saved_live:', applies immediately',
+  logo_home:'Back to the main screen',
+  log_app:'app',
+  log_bypass:'bypass',
+  log_bypass_tip:'by your rules this app goes direct, bypassing the tunnel',
+  log_dns_tip:'the DNS query went around the tunnel',
+  checking:'checking…',
+  speed_measuring:'Measuring…',
+  speed_up:'upload',
+  speed_down:'download',
+  key_placeholder:'PASTE_THE_KEY_FROM_STEP_2_HERE',
+  setup_key_ready:'The key is already filled in — just copy this command and paste it on the server as root.',
+  setup_replace_key:'Replace PASTE_THE_KEY_FROM_STEP_2_HERE with the line from step 2.',
+  setup_creates_user:'The command also creates the user "{u}" if it does not exist yet: it can only forward connections, no commands, no files.',
+  setup_step3:'3. On the server, logged in as root — add this key',
+  setup_step3_host:'3. On the destination server ({h}), logged in as root — add this key',
+  setup_host_dflt:'the host you connect to',
+  creating:'creating…',
+  key_created:'Key created.',
+  key_existed:'The key was already there.',
+  key_cmd_copied:'The server command is copied — paste it there as root.',
+  copy_cmd_below:'copy the command below by hand',
+  boot_need_sudo:'sudo password needed — the service is on, but for now it starts only after you sign in.',
+  manual_hide:'Hide the manual steps',
+  manual_show:'Do it by hand, step by step ›',
+  copy_manually:'copy it by hand',
+  looking:'looking…',
+  scan_bad:'These networks would go through the server and become unreachable:',
+  scan_ok_b:'All good.',
+  scan_ok:'None of your networks will break.',
+  scan_add:'Add them to the list',
+  found:'found:',
+  scan_added:'added — remember to press "Save"',
+  step1_in_clip:'step 1 command is in the clipboard: Ctrl+V and Enter',
+  copy_cmd_manual:'copy the command by hand',
+});
+
+/* ---------- ТЗ 37 (разметка): подписи, которые были без data-i18n ---------- */
+Object.assign(I18N.ru, {
+  more_info:'Подробнее',
+  copy_title:'Скопировать',
+  key_help_title:'Как получить ключ',
+  wz_qr_tip:'Нажми, чтобы скопировать',
+  sudo_ph:'пароль sudo',
+  mesh_name_ph:'имя компьютера',
+  port_ssh:'SSH-порт',
+  port_socks:'Порт SOCKS',
+  port_http:'Порт HTTP',
+  apply:'Применить',
+  wz_auth_step:'Добавить этот ключ на сервере',
+  open_ps:'Открыть PowerShell',
+  key_help_intro:'Ключ создаётся на этом компьютере, а на сервер добавляется вручную — одной командой это больше не делается: пользователю туннеля запрещено выполнять команды, в том и смысл.',
+  key_auto_btn:'Создать ключ и собрать команду',
+  key_auto_note_p:'Ключ создастся на этом компьютере, если его ещё нет, а ниже сразу появится готовая команда с уже подставленным ключом — она же скопируется в буфер. Останется вставить её на сервере под root.',
+  key_step1:'1. На этом компьютере — создать ключ',
+  key_step2:'2. На этом компьютере — показать открытый ключ',
+  key_step2_note:'Команда напечатает одну длинную строку — скопируй её целиком, она понадобится в шаге 3.',
+  sudo_note:'Этот шаг требует прав администратора. Введи пароль sudo — он используется один раз и нигде не сохраняется. Учти: до программы он идёт по локальной сети без шифрования.',
+  local_help_html:'<p>Обычно не нужно. Домашние и офисные адреса (роутер, NAS, Home&nbsp;Assistant, рабочие сервисы) и так идут напрямую и остаются доступны при включённом туннеле.</p><p>Включать стоит в одном случае: когда нужна внутренняя сеть <b>самого сервера</b> — например, дотянуться до того, что слушает у него на localhost.</p>',
+});
+Object.assign(I18N.en, {
+  more_info:'Details',
+  copy_title:'Copy',
+  key_help_title:'How to get a key',
+  wz_qr_tip:'Click to copy',
+  sudo_ph:'sudo password',
+  mesh_name_ph:'computer name',
+  port_ssh:'SSH port',
+  port_socks:'SOCKS port',
+  port_http:'HTTP port',
+  apply:'Apply',
+  wz_auth_step:'Add this key on the server',
+  open_ps:'Open PowerShell',
+  key_help_intro:'The key is created on this computer and added to the server by hand — one command no longer does it: the tunnel user is not allowed to run commands, that is the point.',
+  key_auto_btn:'Create a key and build the command',
+  key_auto_note_p:'The key is created on this computer if it does not exist yet, and a ready command with the key filled in appears below — it is also copied to the clipboard. All that is left is to paste it on the server as root.',
+  key_step1:'1. On this computer — create a key',
+  key_step2:'2. On this computer — show the public key',
+  key_step2_note:'The command prints one long line — copy all of it, you will need it in step 3.',
+  sudo_note:'This step needs administrator rights. Enter the sudo password — it is used once and never stored. Note: it travels to the app over the local network without encryption.',
+  local_help_html:'<p>Usually not needed. Home and office addresses (router, NAS, Home&nbsp;Assistant, work services) already go direct and stay reachable while the tunnel is on.</p><p>Turn it on in one case only: when you need the <b>server\'s own</b> internal network — for example, to reach something that listens on its localhost.</p>',
+});
+
 function tr(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.ru[key] || key); }
 
 function applyI18n(){
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = tr(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = tr(el.dataset.i18nTitle); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = tr(el.dataset.i18nPh); });
   const dh = $('directHelp');
@@ -2619,6 +2766,8 @@ function applyI18n(){
   if(typeof renderCityBtn === 'function') renderCityBtn();
   renderTabs();
   renderHomePicker();
+  if(typeof renderSetupCmd === 'function') renderSetupCmd();
+  if($('manualToggle')) $('manualToggle').textContent = $('manualSteps').hidden ? tr('manual_show') : tr('manual_hide');
   if(typeof setState === 'function') setState(lastState);
   if(typeof renderBootState === 'function' && lastBootState) renderBootState(lastBootState);
   // Сводки и подписи, которые пишутся кодом, а не data-i18n: без этого
@@ -2737,11 +2886,10 @@ document.querySelectorAll('#modes .mode').forEach(el => {
 function renderApps(){
   const box = $('appList');
   box.innerHTML = '';
-  $('appsCount').textContent = filterApps.length ? filterApps.length + ' шт.' : '';
+  $('appsCount').textContent = filterApps.length ? filterApps.length + tr('unit_pcs') : '';
 
   if(filterApps.length === 0){
-    box.innerHTML = '<div class="empty">Пока пусто. Нажми «Добавить программу» ' +
-      'и выбери её из запущенных или укажи файл на диске.</div>';
+    box.innerHTML = '<div class="empty">' + tr('apps_empty') + '</div>';
     return;
   }
   filterApps.forEach(name => {
@@ -2775,7 +2923,7 @@ function renderApps(){
       info.appendChild(pt);
     }
     const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '×'; del.title = 'Убрать';
+    del.className = 'del'; del.textContent = '×'; del.title = tr('app_remove');
     del.onclick = () => {
       filterApps = filterApps.filter(a => a !== name);
       filterDirty = true;
@@ -2942,9 +3090,9 @@ $('addApp').onclick = ev => {
   menuEl.className = 'menu';
   menuEl.style.left = r.left + 'px';
   menuEl.style.top = (r.bottom + 4) + 'px';
-  [['Из списка запущенных', openProcessPicker],
-   ['Выбрать файл на диске', pickFromDisk],
-   ['Ввести имя вручную', askManually]].forEach(([label, fn]) => {
+  [[tr('app_from_running'), openProcessPicker],
+   [tr('app_from_disk'), pickFromDisk],
+   [tr('app_by_name'), askManually]].forEach(([label, fn]) => {
     const b = document.createElement('button');
     b.textContent = label;
     b.onclick = () => { closeMenu(); fn(); };
@@ -2954,7 +3102,7 @@ $('addApp').onclick = ev => {
 };
 
 function askManually(){
-  const v = prompt('Имя программы, например steam.exe');
+  const v = prompt(tr('app_prompt_name'));
   if(v) addApp(v);
 }
 
@@ -2970,7 +3118,7 @@ let procs = [];
 async function openProcessPicker(){
   $('procOverlay').hidden = false;
   $('procSearch').value = '';
-  $('procList').innerHTML = '<div class="empty">Читаю список программ…</div>';
+  $('procList').innerHTML = '<div class="empty">' + tr('procs_reading') + '</div>';
   const r = await api('/api/processes');
   procs = r.processes || [];
   procs.forEach(p => { if(p.label) appLabels[p.name] = p.label; });
@@ -2991,7 +3139,7 @@ function renderProcs(){
     !q || p.name.toLowerCase().includes(q) || (p.path||'').toLowerCase().includes(q) ||
     (p.label||'').toLowerCase().includes(q));
   if(list.length === 0){
-    box.innerHTML = '<div class="empty">Ничего не нашлось.</div>';
+    box.innerHTML = '<div class="empty">' + tr('procs_none') + '</div>';
     return;
   }
   list.forEach(p => {
@@ -3044,7 +3192,7 @@ $('saveFilter').onclick = async () => {
   if(r.error){ $('filterNote').textContent = r.error; return; }
   applyDoc(r.config);
   filterDirty = false;
-  $('filterNote').textContent = tr('saved') + ', работает сразу';
+  $('filterNote').textContent = tr('saved') + tr('saved_live');
   setTimeout(() => $('filterNote').textContent = '', 3000);
 };
 
@@ -3105,7 +3253,7 @@ function show(name){
 
 // Логотип всегда возвращает на главный экран — с любого места.
 $('logo').parentElement.style.cursor = 'pointer';
-$('logo').parentElement.title = 'На главный экран';
+$('logo').parentElement.title = tr('logo_home');
 // На главном он же прокручивает от списка устройств обратно наверх. С
 // другого экрана — сразу наверх главного, к кнопке: главный помнил, что его
 // пролистали к «Устройствам», и логотип возвращал туда (ТЗ 32: «Устройства» →
@@ -3196,8 +3344,8 @@ $('wzVpsModeManual').onclick = () => {
 
 /* ---------- форматирование ---------- */
 function fmtMbps(v){
-  if(v >= 100) return v.toFixed(0) + ' Мбит/с';
-  return v.toFixed(1) + ' Мбит/с';
+  if(v >= 100) return v.toFixed(0) + tr('unit_mbps');
+  return v.toFixed(1) + tr('unit_mbps');
 }
 
 /* ---------- состояние ---------- */
@@ -3333,17 +3481,17 @@ function addConn(e){
   d.className = 'l' + (e.failed ? ' fail' : '');
   d.innerHTML = '<span class="t"></span><span class="p"></span><span class="a"></span>'
               + '<span class="h"></span><span class="flag"></span><span class="n"></span>';
-  d.querySelector('.t').textContent = new Date(e.time).toLocaleTimeString('ru-RU');
-  d.querySelector('.p').textContent = e.process || 'приложение';
+  d.querySelector('.t').textContent = new Date(e.time).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU');
+  d.querySelector('.p').textContent = e.process || tr('log_app');
   d.querySelector('.a').textContent = e.failed ? '✗' : '→';
   d.querySelector('.h').textContent = e.target + (e.failed ? '  ' + (e.error||'') : '');
   const flag = d.querySelector('.flag');
   if(e.direct){
-    flag.textContent = ' мимо';
-    flag.title = 'по твоим правилам эта программа идёт напрямую, минуя туннель';
+    flag.textContent = ' ' + tr('log_bypass');
+    flag.title = tr('log_bypass_tip');
   } else if(e.dnsLeak){
     flag.textContent = ' DNS!';
-    flag.title = 'DNS-запрос ушёл мимо туннеля';
+    flag.title = tr('log_dns_tip');
   }
   push(d);
 }
@@ -3351,7 +3499,7 @@ function addMsg(e){
   lastKey = null;
   const d = document.createElement('div');
   d.className = 'l msg ' + (e.level === 'error' ? 'err' : e.level === 'warn' ? 'warn' : '');
-  d.textContent = new Date(e.time).toLocaleTimeString('ru-RU') + '  ' + e.text;
+  d.textContent = new Date(e.time).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU') + '  ' + e.text;
   push(d);
 }
 // Вниз прокручиваем, только если пользователь и так внизу: отмотал вверх
@@ -3423,7 +3571,7 @@ function onUpdateProgress(e){
     return;
   }
   const pct = e.total > 0 ? Math.floor(e.done / e.total * 100) + '%'
-    : Math.floor(e.done / (1024 * 1024)) + ' МБ';
+    : Math.floor(e.done / (1024 * 1024)) + tr('unit_mb');
   $('updateNote').textContent = tr('update_downloading') + ' ' + pct;
 }
 
@@ -3447,7 +3595,7 @@ function renderLinkBars(healthy, total){
 function showPing(ms){
   const el = $('ping');
   if(!ms){ el.textContent = ''; el.className = 'ping'; return; }
-  el.textContent = ms + ' мс';
+  el.textContent = ms + tr('unit_ms');
   el.className = 'ping ' + (ms < 100 ? 'good' : ms < 250 ? 'mid' : 'bad');
 }
 
@@ -3463,7 +3611,7 @@ $('power').onclick = () => wantCore({tunnel: !(core && core.tunnel.want)});
 $('stateDetail').onclick = async () => {
   if(!running) return;
   const shown = $('stateDetail').textContent;
-  $('stateDetail').textContent = 'проверяю…';
+  $('stateDetail').textContent = tr('checking');
   const r = await api('/api/checkip');
   if(r.error){
     $('stateDetail').textContent = shown;
@@ -3481,14 +3629,14 @@ function onSpeed(e){
   if(e.done){
     speedRunning = false;
     $('speedtest').disabled = !running;
-    $('speedtest').innerHTML = 'Тест скорости';
+    $('speedtest').textContent = tr('speedtest');
     return;
   }
   const val  = e.phase === 'up' ? 'up' : 'dn';
   setSpeedRow(true);
   $(val).textContent = fmtMbps(e.mbps);
-  $('speedtest').innerHTML = 'Измеряю…<span class="ph">' +
-    (e.phase === 'up' ? 'отдача' : 'приём') + '</span>';
+  $('speedtest').innerHTML = tr('speed_measuring') + '<span class="ph">' +
+    (e.phase === 'up' ? tr('speed_up') : tr('speed_down')) + '</span>';
 }
 
 // Последний удачный результат держим отдельно: если следующий тест сорвётся,
@@ -3500,7 +3648,7 @@ $('speedtest').onclick = async () => {
   speedRunning = true;
   clearTimeout(hideTimer);
   $('speedtest').disabled = true;
-  $('speedtest').innerHTML = 'Измеряю…<span class="ph">приём</span>';
+  $('speedtest').innerHTML = tr('speed_measuring') + '<span class="ph">' + tr('speed_down') + '</span>';
   setSpeedRow(true);
   $('dn').textContent = '…'; $('up').textContent = '…';
   showError('');
@@ -3508,7 +3656,7 @@ $('speedtest').onclick = async () => {
   const r = await api('/api/speedtest', {});
   speedRunning = false;
   $('speedtest').disabled = !running;
-  $('speedtest').innerHTML = 'Тест скорости';
+  $('speedtest').textContent = tr('speedtest');
 
   if(r.error){
     showError(r.error);
@@ -3711,7 +3859,7 @@ function buildAuthCmd(user, key){
 
 function cmdServer(){
   const user = ($('user').value || '').trim() || 'tunnel';
-  const key = genKeyPub || 'ВСТАВЬ_СЮДА_КЛЮЧ_ИЗ_ШАГА_2';
+  const key = genKeyPub || tr('key_placeholder');
   return buildAuthCmd(user, key);
 }
 
@@ -3721,14 +3869,11 @@ function renderSetupCmd(){
   $('cmd3').textContent = cmdServer();
   const user = ($('user').value || '').trim() || 'tunnel';
   if(genKeyPub){
-    $('cmd3note').textContent = 'Ключ уже подставлен — просто скопируй эту команду'
-      + ' и вставь на сервере под root.';
+    $('cmd3note').textContent = tr('setup_key_ready');
   } else {
     $('cmd3note').textContent = user === 'root'
-      ? 'Замени ВСТАВЬ_СЮДА_КЛЮЧ_ИЗ_ШАГА_2 на строку из шага 2.'
-      : 'Замени ВСТАВЬ_СЮДА_КЛЮЧ_ИЗ_ШАГА_2 на строку из шага 2. Команда заодно '
-        + 'создаст пользователя «' + user + '», если его ещё нет: он умеет только '
-        + 'пробрасывать соединения, ни команд, ни файлов.';
+      ? tr('setup_replace_key')
+      : tr('setup_replace_key') + ' ' + tr('setup_creates_user').replace('{u}', user);
   }
 
   // На PowerShell её открыть можно самой программой. На Linux у программы
@@ -3738,25 +3883,23 @@ function renderSetupCmd(){
   // а не атрибут hidden — иначе инлайновый стиль перебивает [hidden])
   $('openPsRow').style.display = isWindows() ? 'flex' : 'none';
   $('cmd3step').textContent = isWindows()
-    ? '3. На сервере, зайдя под root — добавить этот ключ'
-    : '3. На сервере-адресате (' + (($('host').value || '').trim() || 'куда подключаемся') +
-      '), зайдя под root — добавить этот ключ';
+    ? tr('setup_step3')
+    : tr('setup_step3_host').replace('{h}', ($('host').value || '').trim() || tr('setup_host_dflt'));
 }
 
 // Одна кнопка вместо шагов 1 и 2: ключ создаётся на этом компьютере (если
 // его ещё нет), а готовая команда для сервера — с уже подставленным ключом —
 // сама уходит в буфер обмена.
 async function autoGenKey(){
-  $('autoKeyNote').textContent = 'создаю…';
+  $('autoKeyNote').textContent = tr('creating');
   const r = await api('/api/genkey', { keyPath: ($('keyPath').value || '').trim() });
   if(r.error){ $('autoKeyNote').textContent = r.error; return; }
   genKeyPub = r.pubKey;
   if(r.keyPath && $('keyPath').value !== r.keyPath) $('keyPath').value = r.keyPath;
   renderSetupCmd();
   const copied = await copyToClipboard($('cmd3').textContent);
-  $('autoKeyNote').textContent = (r.created ? 'Ключ создан. ' : 'Ключ уже был на месте. ')
-    + (copied ? 'Команда для сервера скопирована — вставь её там под root.'
-               : 'скопируй команду ниже вручную');
+  $('autoKeyNote').textContent = (r.created ? tr('key_created') : tr('key_existed')) + ' '
+    + (copied ? tr('key_cmd_copied') : tr('copy_cmd_below'));
 }
 $('autoKeyBtn').onclick = autoGenKey;
 
@@ -3810,8 +3953,7 @@ async function applyBoot(password){
   if(r.needRoot){
     $('sudoRow').hidden = false;
     $('sudoPass').focus();
-    $('bootStatus').textContent = 'Нужен пароль sudo — служба включена, но пока '
-      + 'стартует только после входа в систему.';
+    $('bootStatus').textContent = tr('boot_need_sudo');
     return;
   }
   if(r.error){
@@ -3839,7 +3981,7 @@ api('/api/bootstart').then(renderBootState);
 $('manualToggle').onclick = () => {
   const show = $('manualSteps').hidden;
   $('manualSteps').hidden = !show;
-  $('manualToggle').textContent = show ? 'Скрыть шаги вручную' : 'Сделать вручную, по шагам ›';
+  $('manualToggle').textContent = show ? tr('manual_hide') : tr('manual_show');
 };
 
 /* Одна кнопка копирования на все команды: какая именно — написано на самой
@@ -3848,7 +3990,7 @@ document.querySelectorAll('.cp[data-cmd]').forEach(b => {
   b.onclick = async () => {
     const ok = await copyToClipboard($(b.dataset.cmd).textContent);
     const note = $(b.dataset.note || 'keyHelpNote');
-    note.textContent = ok ? 'скопировано' : 'скопируй вручную';
+    note.textContent = ok ? tr('copied') : tr('copy_manually');
     setTimeout(() => note.textContent = '', 2500);
   };
 });
@@ -4025,7 +4167,7 @@ function hideScanLater(){
 
 $('scanNet').onclick = async () => {
   clearTimeout(scanTimer);
-  $('scanNote').textContent = 'смотрю…';
+  $('scanNote').textContent = tr('looking');
   const r = await api('/api/scannet');
   if(r.error){ $('scanNote').textContent = r.error; return; }
   const nets = r.nets || [];
@@ -4033,8 +4175,8 @@ $('scanNet').onclick = async () => {
   box.hidden = false;
   const bad = nets.filter(n => !n.ok);
   let html = bad.length
-    ? '<p><b>Эти сети пойдут через сервер и станут недоступны:</b></p>'
-    : '<p><b>Всё в порядке.</b> Ни одна твоя сеть не сломается.</p>';
+    ? '<p><b>' + tr('scan_bad') + '</b></p>'
+    : '<p><b>' + tr('scan_ok_b') + '</b> ' + tr('scan_ok') + '</p>';
   html += nets.map(n =>
     '<div class="netline ' + (n.ok ? 'ok' : 'bad') + '">' +
     '<span class="mark">' + (n.ok ? '✓' : '!') + '</span>' +
@@ -4042,17 +4184,17 @@ $('scanNet').onclick = async () => {
     '<br><span class="hint" style="margin:0">' + n.why + '</span></span></div>').join('');
   if(bad.length){
     html += '<div style="margin-top:9px"><button class="btn" id="addBad" ' +
-      'style="font-size:12.5px;padding:6px 12px">Добавить их в список</button></div>';
+      'style="font-size:12.5px;padding:6px 12px">' + tr('scan_add') + '</button></div>';
   }
   box.innerHTML = html;
-  $('scanNote').textContent = bad.length ? 'найдено: ' + bad.length : '';
+  $('scanNote').textContent = bad.length ? tr('found') + ' ' + bad.length : '';
   if(bad.length){
     $('addBad').onclick = () => {
       const cur = ($('directHosts').value || '').trim();
       $('directHosts').value = cur ? cur + ', ' + r.problems : r.problems;
       formDirty = true;
       clearTimeout(scanTimer);
-      $('scanNote').textContent = 'добавлено — не забудь «Сохранить»';
+      $('scanNote').textContent = tr('scan_added');
     };
   }
   box.onmouseenter = () => clearTimeout(scanTimer);
@@ -4296,8 +4438,7 @@ $('openPs').onclick = async () => {
   const ok = await copyToClipboard(cmdCreateKey());
   const r = await api('/api/openterminal', {});
   if(r.error){ $('keyHelpNote').textContent = r.error; return; }
-  $('keyHelpNote').textContent = ok ? 'команда шага 1 в буфере: Ctrl+V и Enter'
-                                    : 'скопируй команду вручную';
+  $('keyHelpNote').textContent = ok ? tr('step1_in_clip') : tr('copy_cmd_manual');
 };
 
 /* ---------- настройки ---------- */
@@ -4557,7 +4698,7 @@ async function refreshLatencyBadges(){
     (r.results || []).forEach(res => {
       const el = document.querySelector('.srv .lat[data-lat-id="' + CSS.escape(res.id) + '"]');
       if(!el) return;
-      el.textContent = res.error ? tr('latency_unreachable') : res.ms + ' мс';
+      el.textContent = res.error ? tr('latency_unreachable') : res.ms + tr('unit_ms');
     });
   } catch(e){ /* тихо: это необязательное украшение вкладок */ }
   latencyRunning = false;

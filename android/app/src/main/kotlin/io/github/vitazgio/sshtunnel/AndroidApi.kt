@@ -35,6 +35,9 @@ object AndroidApi : mobile.API {
     private const val MAX_EXIT_HOPS = 2
 
     private lateinit var app: Context
+
+    /** Строка на языке приложения (настройка языка), а не системы. */
+    private fun str(id: Int, vararg a: Any): String = Lang.wrap(app).getString(id, *a)
     private val main = Handler(Looper.getMainLooper())
 
     /** Открытый экран: системный вопрос о VPN задаётся только с него. */
@@ -131,7 +134,7 @@ object AndroidApi : mobile.API {
                 val n = try {
                     SettingsBundle.apply(s, body)
                 } catch (e: SettingsBundle.BadBundle) {
-                    return err(app.getString(R.string.bundle_bad))
+                    return err(Lang.wrap(app).getString(R.string.bundle_bad))
                 }
                 restartIfRunning(s)
                 JSONObject().put("config", config(s)).put("servers", n)
@@ -141,12 +144,12 @@ object AndroidApi : mobile.API {
             "/api/appprofiles/enable", "/api/appprofiles/add",
             "/api/appprofiles/switch", "/api/appprofiles/delete" -> appProfileAction(s, path, obj(body))
             "/api/mesh" -> TunnelService.meshStatus()
-            "/api/checkip" -> TunnelService.checkIP()
-            "/api/speedtest" -> TunnelService.speedTest()
+            "/api/checkip" -> TunnelService.checkIP(app)
+            "/api/speedtest" -> TunnelService.speedTest(app)
             "/api/selfcheck" -> TunnelService.selfCheck(app)
             "/api/serverusers" -> {
                 val o = obj(body)
-                TunnelService.serverUsers(o.optString("op"), o.optString("name"),
+                TunnelService.serverUsers(app, o.optString("op"), o.optString("name"),
                     o.optString("deviceType"), o.optString("password"))
             }
             "/api/adblock/update" -> {
@@ -159,7 +162,7 @@ object AndroidApi : mobile.API {
             "/api/update/download" -> updateDownload()
             "/api/processes" -> apps()
             "/api/appicon" -> appIcon(q.getQueryParameter("pkg") ?: q.getQueryParameter("path") ?: "")
-            else -> err(app.getString(R.string.api_not_on_phone))
+            else -> err(Lang.wrap(app).getString(R.string.api_not_on_phone))
         }
     }
 
@@ -260,7 +263,7 @@ object AndroidApi : mobile.API {
             return null
         }
         if (!s.ready()) {
-            localError = app.getString(R.string.need_settings)
+            localError = Lang.wrap(app).getString(R.string.need_settings)
             pushState()
             return localError
         }
@@ -273,7 +276,7 @@ object AndroidApi : mobile.API {
             val a = screen?.get()
             if (a == null) {
                 startingUntil = 0
-                localError = app.getString(R.string.vpn_permission_needed)
+                localError = Lang.wrap(app).getString(R.string.vpn_permission_needed)
                 pushState()
                 return localError
             }
@@ -291,7 +294,7 @@ object AndroidApi : mobile.API {
             launch(startingBypass, startingMesh)
         } else {
             startingUntil = 0
-            localError = app.getString(R.string.vpn_permission_denied)
+            localError = Lang.wrap(app).getString(R.string.vpn_permission_denied)
             pushState()
         }
     }
@@ -347,7 +350,7 @@ object AndroidApi : mobile.API {
     }
 
     private fun emitLog(line: String) {
-        val level = if (line.contains("ошибк", true) || line.contains("error", true)) "error" else "info"
+        val level = if (line.contains("ошибк", true) || line.contains("error", true) || line.contains("fail", true)) "error" else "info"
         val time = synchronized(isoTime) { isoTime.format(Date()) }
         mobile.Mobile.emit(JSONObject().put("kind", "log").put("level", level).put("text", line)
             .put("time", time).toString())
@@ -449,13 +452,13 @@ object AndroidApi : mobile.API {
      * Возвращает текст ошибки или null.
      */
     private fun exitViaError(s: Settings, id: String, via: List<String>): String? {
-        if (via.size > MAX_EXIT_HOPS) return "в цепочке может быть не больше $MAX_EXIT_HOPS серверов после этого"
+        if (via.size > MAX_EXIT_HOPS) return str(R.string.exit_too_many, MAX_EXIT_HOPS)
         val seen = mutableSetOf(id)
         for (v in via) {
-            if (v == id) return "сервер не может выходить в интернет через самого себя"
-            if (!seen.add(v)) return "один сервер дважды в цепочке"
-            val hop = s.profiles.find { it.id == v } ?: return "сервер «$v» не найден"
-            if (hop.host.isBlank()) return "у сервера «${hop.name}» не указан адрес"
+            if (v == id) return str(R.string.exit_self)
+            if (!seen.add(v)) return str(R.string.exit_twice)
+            val hop = s.profiles.find { it.id == v } ?: return str(R.string.exit_not_found, v)
+            if (hop.host.isBlank()) return str(R.string.exit_no_host, hop.name)
         }
         return null
     }
@@ -466,7 +469,7 @@ object AndroidApi : mobile.API {
     /** POST /api/profile/exit {"id","via":[…]} — как на ПК (webui/exit.go). */
     private fun setExitVia(s: Settings, o: JSONObject): String {
         val id = o.optString("id").ifBlank { s.activeProfileId }
-        val p = s.profiles.find { it.id == id } ?: return err("сервер не найден")
+        val p = s.profiles.find { it.id == id } ?: return err(str(R.string.err_server_not_found))
         val via = viaList(o.optJSONArray("via"))
         exitViaError(s, id, via)?.let { return err(it) }
         p.exitVia = via.toMutableList()
@@ -474,7 +477,7 @@ object AndroidApi : mobile.API {
         TunnelService.profilesChanged(s)
         pushState()
         val r = JSONObject().put("ok", true).put("config", config(s))
-        if (running() && id == s.activeProfileId) r.put("note", app.getString(R.string.applies_on_reconnect))
+        if (running() && id == s.activeProfileId) r.put("note", Lang.wrap(app).getString(R.string.applies_on_reconnect))
         return r.toString()
     }
 
@@ -511,15 +514,15 @@ object AndroidApi : mobile.API {
         TunnelService.profilesChanged(s)
         pushState()
         val r = JSONObject().put("ok", true).put("config", config(s))
-        if (running()) r.put("note", app.getString(R.string.applies_on_reconnect))
+        if (running()) r.put("note", Lang.wrap(app).getString(R.string.applies_on_reconnect))
         return r.toString()
     }
 
     private fun saveKey(s: Settings, o: JSONObject): String {
         val key = o.optString("key").trim()
-        if (!key.startsWith("-----BEGIN")) return err(app.getString(R.string.key_bad))
+        if (!key.startsWith("-----BEGIN")) return err(Lang.wrap(app).getString(R.string.key_bad))
         val id = o.optString("id").ifBlank { s.activeProfileId }
-        if (s.profiles.none { it.id == id }) return err("сервер не найден")
+        if (s.profiles.none { it.id == id }) return err(str(R.string.err_server_not_found))
         s.saveKeyFor(id, key)
         return JSONObject().put("ok", true).put("config", config(s)).toString()
     }
@@ -537,7 +540,7 @@ object AndroidApi : mobile.API {
     }
 
     private fun selectProfile(s: Settings, id: String): String {
-        if (s.profiles.none { it.id == id }) return err("сервер не найден")
+        if (s.profiles.none { it.id == id }) return err(str(R.string.err_server_not_found))
         if (id == s.activeProfileId) return JSONObject().put("config", config(s)).toString()
         val wasRunning = TunnelService.state != "stopped"
         s.setActive(id)
@@ -548,7 +551,7 @@ object AndroidApi : mobile.API {
     }
 
     private fun removeProfile(s: Settings, id: String): String {
-        if (s.profiles.size <= 1) return err("последний сервер не удаляется")
+        if (s.profiles.size <= 1) return err(str(R.string.err_last_server))
         val wasActive = id == s.activeProfileId
         s.removeProfile(id)
         if (wasActive) restartIfRunning(s)
@@ -556,7 +559,7 @@ object AndroidApi : mobile.API {
     }
 
     private fun exportProfile(s: Settings, o: JSONObject): String {
-        val p = s.profiles.find { it.id == o.optString("id") } ?: return err("сервер не найден")
+        val p = s.profiles.find { it.id == o.optString("id") } ?: return err(str(R.string.err_server_not_found))
         val withKey = o.optBoolean("includeKey", true) && hasKey(s, p.id)
         val key = if (withKey) s.keyFile(p.id).readText() else ""
         val data = mobile.Mobile.buildConfig(
@@ -576,7 +579,7 @@ object AndroidApi : mobile.API {
         val parsed = try {
             mobile.Mobile.parseConfig(text)
         } catch (e: Exception) {
-            return err(e.message ?: app.getString(R.string.import_bad_apps))
+            return err(e.message ?: Lang.wrap(app).getString(R.string.import_bad_apps))
         }
         val emptyActive = s.active().host.isBlank()
         val oldId = s.activeProfileId
@@ -614,7 +617,7 @@ object AndroidApi : mobile.API {
             Thread {
                 val ms = mobile.Mobile.latency(p.host, p.sshPort.toLong())
                 results[i] = JSONObject().put("id", p.id).put("ms", if (ms > 0) ms else 0)
-                    .apply { if (ms < 0) put("error", "нет ответа") }
+                    .apply { if (ms < 0) put("error", str(R.string.err_no_answer)) }
             }.apply { start() }
         }
         threads.forEach { it.join(10_000) }
@@ -644,7 +647,7 @@ object AndroidApi : mobile.API {
                 "delete" -> ap.delete(o.optString("id"))
             }
         } catch (e: Exception) {
-            return JSONObject().put("error", app.getString(R.string.bundle_bad)).put("state", appProfilesState(ap)).toString()
+            return JSONObject().put("error", Lang.wrap(app).getString(R.string.bundle_bad)).put("state", appProfilesState(ap)).toString()
         }
         if (what != "enable" && wasRunning) {
             main.postDelayed({ if (Settings(app).ready()) launch(true, true) }, 900)
@@ -696,7 +699,7 @@ object AndroidApi : mobile.API {
         } catch (e: UpdateCheck.RateLimited) {
             return JSONObject().put("error", "rate limited").put("code", "update_rate_limited").toString()
         } catch (e: Exception) {
-            return err(e.message ?: "не удалось проверить")
+            return err(e.message ?: str(R.string.err_check_failed))
         }
         lastUpdate = r
         return JSONObject().put("result", JSONObject()
@@ -717,8 +720,8 @@ object AndroidApi : mobile.API {
      * напрямую) и открывает системный установщик.
      */
     private fun updateDownload(): String {
-        val u = lastUpdate ?: return err("сначала проверь обновления")
-        if (u.apkUrl.isBlank()) return err("у релиза нет APK")
+        val u = lastUpdate ?: return err(str(R.string.err_check_updates_first))
+        if (u.apkUrl.isBlank()) return err(str(R.string.err_no_apk))
         if (downloading) return JSONObject().put("ok", true).toString()
         downloading = true
         Thread({
@@ -751,13 +754,13 @@ object AndroidApi : mobile.API {
                         }
                     }
                 }
-                if (total > 0 && done != total) throw Exception("оборвалось на $done из $total")
-                if (!part.renameTo(file)) throw Exception("не удалось сохранить файл")
+                if (total > 0 && done != total) throw Exception(str(R.string.err_download_cut, done, total))
+                if (!part.renameTo(file)) throw Exception(str(R.string.err_save_file))
                 emitUpdateProgress(done, total, true, null)
                 main.post { installApk(file) }
             } catch (e: Exception) {
                 part.delete()
-                emitUpdateProgress(0, 0, true, e.message ?: "не скачалось")
+                emitUpdateProgress(0, 0, true, e.message ?: str(R.string.err_download_failed))
             } finally {
                 downloading = false
             }

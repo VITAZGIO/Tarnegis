@@ -44,7 +44,7 @@ object CalendarSync {
     private val bg = Executors.newSingleThreadExecutor()
     @Volatile private var inited = false
 
-    fun account(ctx: Context) = Account(ctx.getString(R.string.app_name), ACCOUNT_TYPE)
+    fun account(ctx: Context) = Account(Lang.wrap(ctx).getString(R.string.app_name), ACCOUNT_TYPE)
 
     // init — ядро страниц (там календарь), часовой пояс и подписка на
     // изменения: правка в приложении сразу переписывает системный календарь

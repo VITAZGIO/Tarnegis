@@ -34,6 +34,10 @@ import org.json.JSONArray
  * Человек включает службу сам: Настройки → Пароли и автозаполнение.
  */
 class VaultFill : AutofillService() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     /** Поля формы: логин и пароль, и чей экран (сайт или пакет). */
     class Form(var user: AutofillId? = null, var pass: AutofillId? = null, var web: String = "", var pkg: String = "")
 
@@ -134,6 +138,10 @@ class VaultFill : AutofillService() {
 
 /** Главный пароль для автозаполнения: открыть хранилище и вернуть логины. */
 class VaultUnlockActivity : Activity() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AndroidApi.init(this)

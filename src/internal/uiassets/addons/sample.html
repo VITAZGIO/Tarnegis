@@ -22,11 +22,12 @@
 const Q = new URLSearchParams(location.search);
 const en = Q.get('lang') === 'en';
 if(Q.get('theme')) document.documentElement.dataset.theme = Q.get('theme');
-document.getElementById('text').textContent = en
-  ? 'The sample app is open. It does nothing — it only checks that the framework works.'
-  : 'Образец открыт. Он ничего не делает — только проверяет, что каркас работает.';
+const L = (ru, eng) => en ? eng : ru;
+document.getElementById('text').textContent = L(
+  'Образец открыт. Он ничего не делает — только проверяет, что каркас работает.',
+  'The sample app is open. It does nothing — it only checks that the framework works.');
 const tick = () => document.getElementById('clock').textContent =
-  (en ? 'Page time: ' : 'Время на странице: ') + new Date().toLocaleTimeString();
+  L('Время на странице: ', 'Page time: ') + new Date().toLocaleTimeString();
 tick();
 setInterval(tick, 1000);
 </script>

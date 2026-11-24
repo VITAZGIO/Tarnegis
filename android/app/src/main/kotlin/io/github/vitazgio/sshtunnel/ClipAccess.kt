@@ -22,6 +22,10 @@ import android.view.accessibility.AccessibilityEvent
  * Плагин «Общий буфер» не добавлен/выключен — ничего не делает.
  */
 class ClipAccess : AccessibilityService() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     private val main = Handler(Looper.getMainLooper())
     private var last = 0L
 
