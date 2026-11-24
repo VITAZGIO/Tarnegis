@@ -173,11 +173,9 @@ class TunnelService : VpnService(), Callbacks {
             val net = st.optString("netVersion")
             val mine = st.optBoolean("mine")
             val d = try { Mobile.netDecision(installed, latest, net, mine) } catch (_: Exception) { "" }
-            val o = JSONObject().put("version", net).put("mine", mine).put("decision", d)
-            if (d == "self") {
-                try { current?.tunnel?.updateNow(net) } catch (e: Exception) { o.put("error", e.message ?: "") }
-            }
-            return o
+            // «self» на телефоне ничего не качает: окно покажет обычную кнопку
+            // «Скачать и установить» (скачать с прогрессом → установщик).
+            return JSONObject().put("version", net).put("mine", mine).put("decision", d)
         }
 
         /**
