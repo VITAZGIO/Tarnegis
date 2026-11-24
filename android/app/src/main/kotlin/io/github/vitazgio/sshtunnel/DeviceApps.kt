@@ -105,14 +105,14 @@ class TransferNotifier(private val ctx: Context) : mobile.TransferListener {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, ctx.getString(R.string.files_transfer_channel), NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL, Lang.wrap(ctx).getString(R.string.files_transfer_channel), NotificationManager.IMPORTANCE_LOW)
             )
         }
         val pct = if (total > 0) (done * 100 / total).toInt().coerceIn(0, 100) else 0
-        val text = if (active > 1) ctx.getString(R.string.files_transfer_many, active.toInt()) else name
+        val text = if (active > 1) Lang.wrap(ctx).getString(R.string.files_transfer_many, active.toInt()) else name
         val n = Notification.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(ctx.getString(R.string.files_transfer_title))
+            .setContentTitle(Lang.wrap(ctx).getString(R.string.files_transfer_title))
             .setContentText(text)
             .setProgress(100, pct, total <= 0)
             .setOngoing(true)
@@ -142,12 +142,12 @@ class MirrorNotifier(private val ctx: Context) : mobile.MirrorListener {
     override fun onMirror(text: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(CHANNEL, Lang.wrap(ctx).getString(R.string.mirror_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val n = Notification.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(CHANNEL_NAME)
+            .setContentTitle(Lang.wrap(ctx).getString(R.string.mirror_channel_name))
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setAutoCancel(true)
@@ -161,7 +161,6 @@ class MirrorNotifier(private val ctx: Context) : mobile.MirrorListener {
 
     companion object {
         private const val CHANNEL = "mirror"
-        private const val CHANNEL_NAME = "Зеркальные папки"
         private const val ID = 4014
     }
 }

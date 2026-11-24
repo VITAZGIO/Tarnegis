@@ -15,6 +15,10 @@ import android.service.notification.StatusBarNotification
  * (mobile.PhoneLinkNotify) — только если плагин добавлен и пересылка включена.
  */
 class PhoneNotifs : NotificationListenerService() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val n = sbn.notification ?: return
         // Свои, постоянные («идёт загрузка», музыка) и сводки групп — не шлём.

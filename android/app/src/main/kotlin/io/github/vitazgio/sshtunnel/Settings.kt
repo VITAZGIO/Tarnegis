@@ -63,6 +63,7 @@ class Settings(context: Context) {
         var meshAuto: String = "",
     )
 
+    private val appCtx = context.applicationContext ?: context
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private val filesDir = context.filesDir
 
@@ -366,7 +367,7 @@ class Settings(context: Context) {
             val newName = po.optString("name").ifBlank { po.optString("host") }
             val base = list.find { keyFile(it.id).absolutePath == keyPath }
             if (base == null) {
-                skipped.add("$newName: не найден профиль-образец с ключом ($keyPath)")
+                skipped.add(Lang.wrap(appCtx).getString(R.string.import_skip_no_template, newName, keyPath))
                 skippedAuto.add(po.optString("meshAuto"))
                 continue
             }
@@ -390,7 +391,7 @@ class Settings(context: Context) {
                 try {
                     saveKeyFor(id, src.readText())
                 } catch (e: Exception) {
-                    skipped.add("$newName: ключ не скопирован (${e.message})")
+                    skipped.add(Lang.wrap(appCtx).getString(R.string.import_skip_key_copy, newName, e.message ?: ""))
                     skippedAuto.add(po.optString("meshAuto"))
                     continue
                 }

@@ -30,6 +30,10 @@ import java.net.InetAddress
  * их и превращать обратно в соединения — забота ядра на Go.
  */
 class TunnelService : VpnService(), Callbacks {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
 
     companion object {
         const val ACTION_START = "io.github.vitazgio.sshtunnel.START"
@@ -89,7 +93,7 @@ class TunnelService : VpnService(), Callbacks {
                 try {
                     svc.tunnel.setProfiles(json, active, udp)
                 } catch (e: Exception) {
-                    svc.onLog("серверы: ${e.message}")
+                    svc.onLog(svc.getString(R.string.log_servers, e.message ?: ""))
                 }
             }.start()
         }
@@ -107,19 +111,23 @@ class TunnelService : VpnService(), Callbacks {
         @Volatile var onApiLog: ((String) -> Unit)? = null
 
         /** Внешний адрес через туннель (JSON, см. mobile.Tunnel.CheckIP). */
-        fun checkIP(): String =
-            current?.tunnel?.checkIP() ?: """{"error":"туннель не запущен"}"""
+        fun checkIP(ctx: Context): String =
+            current?.tunnel?.checkIP() ?: errJson(ctx, R.string.err_tunnel_not_running)
 
         /** Работающая служба — через неё экран запускает тест скорости. */
         @Volatile private var current: TunnelService? = null
 
-        fun speedTest(): String =
-            current?.tunnel?.speedTest() ?: """{"error":"туннель выключен"}"""
+        fun speedTest(ctx: Context): String =
+            current?.tunnel?.speedTest() ?: errJson(ctx, R.string.err_tunnel_off)
 
         /** Создание пользователя на сервере для экрана (/api/serverusers, JSON, см. mobile.ServerUsers). */
-        fun serverUsers(op: String, name: String, type: String, pass: String): String =
+        fun serverUsers(ctx: Context, op: String, name: String, type: String, pass: String): String =
             current?.tunnel?.serverUsers(op, name, type, pass)
-                ?: """{"error":"туннель выключен"}"""
+                ?: errJson(ctx, R.string.err_tunnel_off)
+
+        /** {"error": текст на языке приложения}: для ответов, когда службы нет. */
+        private fun errJson(ctx: Context, id: Int): String =
+            JSONObject().put("error", Lang.wrap(ctx).getString(id)).toString()
 
         /** Состояние сети устройств для экрана (/api/mesh, JSON, см. mobile.MeshStatusJSON). */
         fun meshStatus(): String =
@@ -137,7 +145,7 @@ class TunnelService : VpnService(), Callbacks {
             if (svc != null) return svc.tunnel.selfCheck()
 
             val settings = Settings(context)
-            if (!settings.ready()) return """{"error":"не заполнены настройки"}"""
+            if (!settings.ready()) return errJson(context, R.string.need_settings)
             val tmp = Mobile.newTunnel()
             return try {
                 tmp.configure(
@@ -157,7 +165,6 @@ class TunnelService : VpnService(), Callbacks {
         private const val CHANNEL = "tunnel"
         private const val NOTIFICATION_ID = 1
         private const val NET_CHANNEL = "netservers"
-        private const val NET_CHANNEL_NAME = "Сеть серверов"
         private const val NET_NOTIFICATION_ID = 4017
         private const val MTU = 1500
 
@@ -261,7 +268,7 @@ class TunnelService : VpnService(), Callbacks {
                 // пул, пока он ещё не поднят, тоже незачем — tunnel.kick()
                 // сам по себе безвреден, но и толку от него в этот момент нет.
                 if (prev != null && prev != network) {
-                    onLog("сеть сменилась — пересобираю соединения")
+                    onLog(getString(R.string.log_network_changed))
                     try {
                         tunnel.networkChanged()
                     } catch (e: Exception) {
@@ -300,13 +307,13 @@ class TunnelService : VpnService(), Callbacks {
             override fun onAvailable(network: Network) {
                 if (wifiNetwork == network) return
                 wifiNetwork = network
-                lanChanged("Wi-Fi появился")
+                lanChanged(getString(R.string.log_wifi_up))
             }
 
             override fun onLost(network: Network) {
                 if (wifiNetwork != network) return
                 wifiNetwork = null
-                lanChanged("Wi-Fi пропал")
+                lanChanged(getString(R.string.log_wifi_gone))
             }
         }
         wifiCallback = cb
@@ -322,7 +329,7 @@ class TunnelService : VpnService(), Callbacks {
     }
 
     private fun lanChanged(why: String) {
-        onLog("сеть устройств: $why — пересобираю прямые соединения")
+        onLog(getString(R.string.log_mesh_rebuild, why))
         // Остановка клиента ждёт его соединения — не в потоке системы.
         Thread {
             try {
@@ -367,7 +374,7 @@ class TunnelService : VpnService(), Callbacks {
         try {
             if (want && lock?.isHeld == false) {
                 lock.acquire()
-                onLog("сеть устройств: ищу соседей маяками, в том числе при выключенном экране")
+                onLog(getString(R.string.log_mesh_beacons))
             } else if (!want && lock?.isHeld == true) {
                 lock.release()
             }
@@ -437,7 +444,7 @@ class TunnelService : VpnService(), Callbacks {
         bypassAutoOff = false
         val mesh = meshOn
         val seq = humanSeq
-        onLog("сервер снова на связи — обход блокировок включается обратно")
+        onLog(getString(R.string.log_server_back))
         Thread {
             val refused = try {
                 synchronized(modesLock) {
@@ -447,7 +454,7 @@ class TunnelService : VpnService(), Callbacks {
                 }
                 null
             } catch (e: Exception) {
-                e.message ?: "нет связи с сервером"
+                e.message ?: getString(R.string.err_no_server_link)
             }
             ticker.post {
                 if (humanSeq != seq) return@post
@@ -491,27 +498,27 @@ class TunnelService : VpnService(), Callbacks {
             val out = try {
                 tunnel.applyNetServers(s.coreProfilesJson(), s.meshAutoSeenJson)
             } catch (e: Exception) {
-                onLog("сеть серверов: ${e.message}")
+                onLog(getString(R.string.log_netservers, e.message ?: ""))
                 return
             }
             val c = try {
                 s.applyNetServers(out)
             } catch (e: Exception) {
-                onLog("сеть серверов: ответ не сохранился: ${e.message}")
+                onLog(getString(R.string.log_netservers_unsaved, e.message ?: ""))
                 return
             } ?: return
-            c.skipped.forEach { onLog("сеть серверов: $it") }
+            c.skipped.forEach { onLog(getString(R.string.log_netservers, it)) }
             // Новые серверы — сразу дополнительными серверами сети устройств.
             try {
                 tunnel.setProfiles(s.coreProfilesJson(), s.active().id, s.udpRelayEnabled)
             } catch (e: Exception) {
-                onLog("серверы: ${e.message}")
+                onLog(getString(R.string.log_servers, e.message ?: ""))
             }
             c
         }
-        val lines = change.added.map { "В сеть добавлен сервер $it" } +
-            change.meshOn.map { "Сервер $it в сети устройств — в его профиле включена сеть устройств" } +
-            change.off.map { "Сервер $it убран из сети — его профиль выключен" }
+        val lines = change.added.map { getString(R.string.net_added, it) } +
+            change.meshOn.map { getString(R.string.net_mesh_on, it) } +
+            change.off.map { getString(R.string.net_off, it) }
         if (lines.isEmpty()) return
         lines.forEach { onLog(it) }
         onApiUpdate?.invoke()
@@ -523,12 +530,12 @@ class TunnelService : VpnService(), Callbacks {
         val nm = notificationManager()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(NET_CHANNEL, NET_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(NET_CHANNEL, getString(R.string.net_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val n = Notification.Builder(this, NET_CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(NET_CHANNEL_NAME)
+            .setContentTitle(getString(R.string.net_channel_name))
             .setContentText(text.lineSequence().first())
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setAutoCancel(true)
@@ -568,7 +575,7 @@ class TunnelService : VpnService(), Callbacks {
                         synchronized(modesLock) { tunnel.setModes(bypass, mesh) }
                         null
                     } catch (e: Exception) {
-                        e.message ?: "нет связи с сервером"
+                        e.message ?: getString(R.string.err_no_server_link)
                     }
                     ticker.post { modesApplied(bypass, mesh, refused) }
                 }.start()
@@ -614,7 +621,7 @@ class TunnelService : VpnService(), Callbacks {
             bypassOn = false
             serverDown = refused
             serverDownKind = try { tunnel.serverDownKind() } catch (_: Exception) { "" }
-            onLog("обход блокировок не включён: сервер недоступен ($refused)")
+            onLog(getString(R.string.log_bypass_not_on, refused))
         } else {
             if (bypass) {
                 serverDown = ""
@@ -622,9 +629,9 @@ class TunnelService : VpnService(), Callbacks {
             }
             onLog(
                 when {
-                    bypass && mesh -> "обход блокировок и сеть устройств включены"
-                    bypass -> "сеть устройств выключена — обход блокировок работает"
-                    else -> "обход блокировок выключен — сайты идут напрямую, сеть устройств работает"
+                    bypass && mesh -> getString(R.string.log_modes_both)
+                    bypass -> getString(R.string.log_modes_bypass)
+                    else -> getString(R.string.log_modes_mesh)
                 }
             )
         }
@@ -635,7 +642,7 @@ class TunnelService : VpnService(), Callbacks {
     private fun startTunnel() {
         val settings = Settings(this)
         if (!settings.ready()) {
-            report("error", "не заполнены настройки")
+            report("error", getString(R.string.need_settings))
             stopSelf()
             return
         }
@@ -645,7 +652,7 @@ class TunnelService : VpnService(), Callbacks {
         serverDownKind = ""
         activeSettings = settings
         blockedSoFarInSession = 0
-        startForeground(NOTIFICATION_ID, notification("подключение…"))
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.state_connecting)))
         report("connecting", "")
         registerNetworkCallback()
 
@@ -675,7 +682,7 @@ class TunnelService : VpnService(), Callbacks {
                 tunnel.configureMesh(
                     prof.meshEnabled && prof.meshKey.isNotBlank(),
                     prof.meshKey,
-                    prof.meshName.ifBlank { android.os.Build.MODEL ?: "телефон" },
+                    prof.meshName.ifBlank { android.os.Build.MODEL ?: getString(R.string.phone_default_name) },
                     settings.deviceId,
                     prof.meshIncoming,
                     !prof.meshDirectOff,
@@ -696,7 +703,7 @@ class TunnelService : VpnService(), Callbacks {
                     bypassOn = false
                     serverDown = down
                     serverDownKind = tunnel.serverDownKind()
-                    onLog("сервер недоступен ($down) — сеть устройств работает без него")
+                    onLog(getString(R.string.log_server_down_mesh, down))
                 }
                 // «Выключить» нажали, пока подключались: дальше не идём —
                 // иначе интерфейс VPN поднимется уже после остановки и
@@ -710,8 +717,8 @@ class TunnelService : VpnService(), Callbacks {
                 // первой живой проверке.
                 val hasIPv6 = tunnel.serverHasIPv6()
                 onLog(
-                    if (hasIPv6) "сервер умеет IPv6 — ведём его через туннель"
-                    else "сервер без IPv6 — приложения пойдут по IPv4"
+                    if (hasIPv6) getString(R.string.log_ipv6_yes)
+                    else getString(R.string.log_ipv6_no)
                 )
 
                 if (stopping) { tunnel.stop(); return@Thread }
@@ -736,7 +743,7 @@ class TunnelService : VpnService(), Callbacks {
                 // Нажали «стоп», не дождавшись подключения, — это не ошибка, и
                 // красной надписи здесь быть не должно.
                 if (stopping) return@Thread
-                val why = e.message ?: "не удалось запустить туннель"
+                val why = e.message ?: getString(R.string.err_start_failed)
                 ticker.post { stopTunnel("error", why) }
             }
         }.start()
@@ -790,7 +797,7 @@ class TunnelService : VpnService(), Callbacks {
         )
 
         return builder.establish()
-            ?: throw IllegalStateException("система не выдала интерфейс")
+            ?: throw IllegalStateException(getString(R.string.err_no_interface))
     }
 
     /**
@@ -950,7 +957,7 @@ class TunnelService : VpnService(), Callbacks {
         draining = false
         ticker.removeCallbacks(drainDeadline)
 
-        startForeground(NOTIFICATION_ID, notification("подключение…"))
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.state_connecting)))
         report("connecting", "")
         registerNetworkCallback()
         // Настройки могли поменяться, пока шёл слив, — а ядро и стек те же.
@@ -971,7 +978,7 @@ class TunnelService : VpnService(), Callbacks {
                 // попытки наперегонки — верный способ получить два. Человек
                 // увидит ошибку и нажмёт «Подключить» сам.
                 Log.w(TAG, "возобновление: ${e.message}")
-                ticker.post { stopTunnel("error", e.message ?: "не удалось включить обратно") }
+                ticker.post { stopTunnel("error", e.message ?: getString(R.string.err_resume_failed)) }
             }
         }.start()
         return true
@@ -1140,9 +1147,9 @@ class TunnelService : VpnService(), Callbacks {
 
     private fun describe(state: String, detail: String): String {
         val text = when (state) {
-            "connected" -> "подключено"
-            "connecting" -> "подключение…"
-            "error" -> "ошибка"
+            "connected" -> getString(R.string.state_connected)
+            "connecting" -> getString(R.string.state_connecting)
+            "error" -> getString(R.string.state_error)
             else -> state
         }
         return if (detail.isBlank()) text else "$text: $detail"

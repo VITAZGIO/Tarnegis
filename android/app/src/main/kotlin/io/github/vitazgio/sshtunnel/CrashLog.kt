@@ -53,12 +53,12 @@ object CrashLog {
         }.joinToString("\n\n").take(20000)
         if (text.isEmpty()) return
         AlertDialog.Builder(a)
-            .setTitle(R.string.crash_title)
+            .setTitle(Lang.wrap(a).getString(R.string.crash_title))
             .setMessage(text.take(3000))
-            .setPositiveButton(R.string.crash_copy) { _, _ ->
+            .setPositiveButton(Lang.wrap(a).getString(R.string.crash_copy)) { _, _ ->
                 a.getSystemService(ClipboardManager::class.java)
                     ?.setPrimaryClip(ClipData.newPlainText("ssh_tunnel crash", text))
-                Toast.makeText(a, R.string.crash_copied, Toast.LENGTH_SHORT).show()
+                Toast.makeText(a, Lang.wrap(a).getString(R.string.crash_copied), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

@@ -39,15 +39,16 @@ class CalendarWidget : AppWidgetProvider() {
 
         private fun build(ctx: Context): RemoteViews {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_calendar)
-            rv.setTextViewText(R.id.wDate, DateFormat.getDateInstance(DateFormat.FULL).format(Date()))
+            rv.setTextViewText(R.id.wDate, DateFormat.getDateInstance(DateFormat.FULL, Lang.locale(ctx)).format(Date()))
+            rv.setTextViewText(R.id.wEmpty, Lang.wrap(ctx).getString(R.string.calendar_widget_empty))
             rv.removeAllViews(R.id.wList)
             val items = try {
                 JSONArray(mobile.Mobile.calendarUpcomingJSON(7))
             } catch (_: Exception) {
                 JSONArray()
             }
-            val time = DateFormat.getTimeInstance(DateFormat.SHORT)
-            val day = java.text.SimpleDateFormat("EE d MMM", java.util.Locale.getDefault())
+            val time = DateFormat.getTimeInstance(DateFormat.SHORT, Lang.locale(ctx))
+            val day = java.text.SimpleDateFormat("EE d MMM", Lang.locale(ctx))
             val today = Calendar.getInstance()
             for (i in 0 until minOf(items.length(), MAX_ROWS)) {
                 val e = items.getJSONObject(i)

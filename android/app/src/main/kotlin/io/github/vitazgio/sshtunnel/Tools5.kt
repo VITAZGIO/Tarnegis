@@ -218,12 +218,12 @@ object Tools5 : mobile.Phone {
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel("tools", c.getString(R.string.tools_channel), NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel("tools", Lang.wrap(c).getString(R.string.tools_channel), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val n = Notification.Builder(c, "tools")
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(c.getString(R.string.app_name))
+            .setContentTitle(Lang.wrap(c).getString(R.string.app_name))
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setAutoCancel(true)
@@ -248,11 +248,11 @@ object Tools5 : mobile.Phone {
             return false to (e.message ?: "?")
         }
         return when {
-            r.optBoolean("tooBig") -> false to ctx.getString(R.string.clip_too_big)
+            r.optBoolean("tooBig") -> false to Lang.wrap(ctx).getString(R.string.clip_too_big)
             r.has("error") -> false to r.optString("error")
             else -> {
                 val n = r.optInt("sent")
-                (n > 0) to ctx.getString(R.string.clip_sent, n)
+                (n > 0) to Lang.wrap(ctx).getString(R.string.clip_sent, n)
             }
         }
     }
@@ -347,8 +347,8 @@ object Tools5 : mobile.Phone {
     /** Файл/картинка по uri → отправка. Общий путь для «Поделиться», плитки,
      * кнопки в уведомлении, службы спецвозможностей и автоотправки. */
     private fun pushUri(ctx: Context, uri: Uri): Res {
-        val r = readUri(ctx, uri) ?: return Res(false, ctx.getString(R.string.clip_empty))
-        if (r.third.size > MAX) return Res(false, ctx.getString(R.string.clip_too_big), true)
+        val r = readUri(ctx, uri) ?: return Res(false, Lang.wrap(ctx).getString(R.string.clip_empty))
+        if (r.third.size > MAX) return Res(false, Lang.wrap(ctx).getString(R.string.clip_too_big), true)
         val p = prepare(r.first, r.second, r.third)
         val (ok, msg) = pushResult(ctx, p.kind, p.name, p.mime, p.data)
         return Res(ok, msg)
@@ -368,7 +368,7 @@ object Tools5 : mobile.Phone {
             val res = when {
                 uri != null -> pushUri(ctx, uri)
                 !text.isNullOrEmpty() -> pushText(ctx, text.toString())
-                else -> Res(false, ctx.getString(R.string.clip_empty))
+                else -> Res(false, Lang.wrap(ctx).getString(R.string.clip_empty))
             }
             if (res.ok || res.final) key?.let { lastKey = it }
             main.post { Toast.makeText(ctx, res.msg, Toast.LENGTH_SHORT).show() }
@@ -390,7 +390,7 @@ object Tools5 : mobile.Phone {
                 if (res.ok) ok++
             }
             val msg = if (uris.size <= 1 || ok == 0) lastMsg
-                else ctx.getString(R.string.clip_sent_multi, ok, uris.size)
+                else Lang.wrap(ctx).getString(R.string.clip_sent_multi, ok, uris.size)
             main.post { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show() }
         }.start()
     }
@@ -489,6 +489,10 @@ object Tools5 : mobile.Phone {
 
 /** «Поделиться → ssh_tunnel»: текст, картинка или файл — всем устройствам. Окна нет. */
 class ClipShareActivity : Activity() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val i = intent
@@ -512,6 +516,10 @@ class ClipShareActivity : Activity() {
  * только приложению с фокусом — поэтому ждём фокус, читаем и закрываемся.
  */
 class ClipReadActivity : Activity() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     private var done = false
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -529,6 +537,10 @@ class ClipReadActivity : Activity() {
 
 /** Плитка «Общий буфер» в шторке: отправить то, что сейчас в буфере телефона. */
 class ClipTile : TileService() {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(Lang.wrap(base))
+    }
+
     override fun onStartListening() {
         super.onStartListening()
         val t = qsTile ?: return

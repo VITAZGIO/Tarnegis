@@ -50,7 +50,7 @@ object FindRing {
             c.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         } catch (_: Exception) {
         }
-        var name = uri.lastPathSegment ?: "трек"
+        var name = uri.lastPathSegment ?: Lang.wrap(c).getString(R.string.ring_track_default)
         try {
             c.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                 if (it.moveToFirst()) name = it.getString(0) ?: name
@@ -142,17 +142,17 @@ object FindRing {
     private fun notifyStop(c: Context) {
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(NotificationChannel("tools", c.getString(R.string.tools_channel), NotificationManager.IMPORTANCE_DEFAULT))
+            nm.createNotificationChannel(NotificationChannel("tools", Lang.wrap(c).getString(R.string.tools_channel), NotificationManager.IMPORTANCE_DEFAULT))
         }
         val stop = PendingIntent.getBroadcast(c, 0, Intent(ACTION_STOP).setPackage(c.packageName),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = Notification.Builder(c, "tools")
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(c.getString(R.string.phonelink_ring))
-            .setContentText(c.getString(R.string.phonelink_ring_stop_hint))
+            .setContentTitle(Lang.wrap(c).getString(R.string.phonelink_ring))
+            .setContentText(Lang.wrap(c).getString(R.string.phonelink_ring_stop_hint))
             .setContentIntent(stop)
             .setDeleteIntent(stop)
-            .addAction(Notification.Action.Builder(null, c.getString(R.string.phonelink_ring_stop), stop).build())
+            .addAction(Notification.Action.Builder(null, Lang.wrap(c).getString(R.string.phonelink_ring_stop), stop).build())
             .setOngoing(true)
             .build()
         try {

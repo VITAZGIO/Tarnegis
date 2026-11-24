@@ -158,7 +158,7 @@ const MAP_POS = {};
 // edgeMs — задержка для подписи на схеме: «12мс», «135мс».
 function edgeMs(v){
   if (!v) return '';
-  return (v < 1 ? '<1' : String(Math.round(v))) + (LANG === 'ru' ? 'мс' : 'ms');
+  return (v < 1 ? '<1' : String(Math.round(v))) + L('мс', 'ms');
 }
 
 /* Схема живая, как граф в Obsidian: узлы — шарики, которые расталкиваются,

@@ -128,7 +128,7 @@ function PollTunnel(openBody){
     setState(Guacamole.Tunnel.State.CONNECTING);
     const r = await api('/api/rdp/open', openBody).catch(e => ({error: String(e)}));
     if(r.error || !r.sid){
-      if(self.onerror) self.onerror(new Guacamole.Status(Guacamole.Status.Code.UPSTREAM_NOT_FOUND, r.error || 'нет связи'));
+      if(self.onerror) self.onerror(new Guacamole.Status(Guacamole.Status.Code.UPSTREAM_NOT_FOUND, r.error || L('нет связи', 'no connection')));
       setState(Guacamole.Tunnel.State.CLOSED);
       return;
     }
