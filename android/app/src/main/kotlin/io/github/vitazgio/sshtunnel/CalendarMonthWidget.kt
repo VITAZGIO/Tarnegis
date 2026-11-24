@@ -90,7 +90,7 @@ class CalendarMonthWidget : AppWidgetProvider() {
         private const val NUM_H = 15f       // строка с числом в клетке
         private const val BAR_H = 12f       // полоска события (11 + отступ 1)
         private const val MAX_BARS = 5
-        private const val MIN_BAR_CELL_W = 40f
+        private const val MIN_BAR_CELL_W = 32f
         private const val MIN_WIDE_W = 300f // уже — без кнопки «№», мельче заголовок
 
         private val DOW_IDS = intArrayOf(R.id.mD0, R.id.mD1, R.id.mD2, R.id.mD3, R.id.mD4, R.id.mD5, R.id.mD6)
@@ -240,7 +240,7 @@ class CalendarMonthWidget : AppWidgetProvider() {
             val cellH = gridH / 6f
             val cellW = (wDp - 2 * PAD - (if (weeks) WEEKCOL else 0f)) / 7f
             val slots = ((cellH - NUM_H) / BAR_H).toInt().coerceIn(0, MAX_BARS)
-            val bars = slots >= 2 && cellW >= MIN_BAR_CELL_W
+            val bars = slots >= 1 && cellW >= MIN_BAR_CELL_W // 4×4 уже с полосками (Виталий хотел как на своём снимке)
 
             val rv = RemoteViews(ctx.packageName, R.layout.widget_calendar_month)
             val title = month.month.getDisplayName(TextStyle.FULL_STANDALONE, loc)
@@ -313,18 +313,20 @@ class CalendarMonthWidget : AppWidgetProvider() {
                 return rv
             }
             // Полоски: влезает slots строк; не влезло — последняя строка «+N».
-            val shown = if (evs.size <= slots) evs.size else slots - 1
+            // Одна строка в клетке: одна полоска, «+N» — в её подписи.
+            val one = slots == 1 && evs.size > 1
+            val shown = if (evs.size <= slots) evs.size else if (one) 1 else slots - 1
             for (i in 0 until shown) {
                 val e = evs[i]
                 rv.setViewVisibility(BAR_IDS[i], View.VISIBLE)
-                rv.setTextViewText(BAR_IDS[i], e.title)
+                rv.setTextViewText(BAR_IDS[i], if (one) e.title + " +" + (evs.size - 1) else e.title)
                 rv.setInt(BAR_IDS[i], "setBackgroundColor", e.color)
                 rv.setTextColor(BAR_IDS[i], onColor(e.color))
                 // Нажатие на полоску открывает событие; ключ — адрес и начало (мс).
                 val ref = if (e.href.isNotEmpty()) e.href + "|" + e.start else null
                 rv.setOnClickPendingIntent(BAR_IDS[i], open(ctx, "e/$id/$day/$i", day, ref, false))
             }
-            if (evs.size > shown) {
+            if (evs.size > shown && !one) {
                 rv.setViewVisibility(R.id.cMore, View.VISIBLE)
                 rv.setTextViewText(R.id.cMore, t.getString(R.string.cal_more, evs.size - shown))
             }
