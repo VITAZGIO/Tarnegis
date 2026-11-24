@@ -23,21 +23,24 @@
   @media (max-width:560px){ .map-wrap svg{height:330px} }
   .map-grid{stroke:color-mix(in srgb, var(--line) 70%, transparent);stroke-width:1}
   .edge{fill:none;stroke-width:1.6;stroke-linecap:round}
+  /* --dp — на сколько сдвигается пунктир за круг: ровно целое число его периодов
+     (сумма штриха и промежутка), иначе в конце круга линия «дёргается». */
+  .edge{--dp:24px}
   .edge.on{stroke-dasharray:5 7;animation:flow 1.1s linear infinite}
   .edge.srv{stroke-width:2.6}
-  .edge.srv.on{stroke-dasharray:9 8;animation-duration:.9s}
+  .edge.srv.on{stroke-dasharray:9 8;--dp:34px;animation-duration:.9s}
   .edge.off{stroke:var(--dim);opacity:.28;stroke-dasharray:2 6}
   /* Устройство на связи и через другие серверы — к ним пунктир (ТЗ 32);
      офлайн — едва заметная линия к серверу, который видел его последним. */
-  .edge.alt.on{stroke-dasharray:3 7;opacity:.6}
+  .edge.alt.on{stroke-dasharray:3 7;--dp:20px;opacity:.6}
   .edge.faint{opacity:.13}
   /* Прямое соединение между устройствами (минуя сервер). */
-  .edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;animation:flow .7s linear infinite;
+  .edge.p2p{stroke:var(--accent);stroke-width:2.6;stroke-dasharray:1 6;--dp:21px;animation:flow .7s linear infinite;
     filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent))}
   /* Задержка посередине линии; сама линия в этом месте прервана. */
   .edge-label{font-size:10px;font-weight:700;fill:var(--text);text-anchor:middle;
     dominant-baseline:central;pointer-events:none;font-variant-numeric:tabular-nums}
-  @keyframes flow{to{stroke-dashoffset:-24}}
+  @keyframes flow{to{stroke-dashoffset:calc(-1 * var(--dp))}}
   .q-excellent,.q-good{stroke:var(--ok)} .q-fair{stroke:var(--warn)} .q-poor{stroke:var(--err)}
   .q-unknown{stroke:var(--accent)}
   .node{cursor:grab;touch-action:none}
@@ -147,7 +150,7 @@ function svgEl(tag, attrs, parent){
 }
 
 /* ---------- физика схемы: перенесена из панели главного сервера ---------- */
-let MAP_SIG = '', MAP_REFS = {}, MAP_SIM = null;
+let MAP_SIG = '', MAP_LSIG = '', MAP_REFS = {}, MAP_SIM = null;
 // Масштаб и сдвиг карты (как у обычной карты): k — во сколько раз
 // приближено, x/y — сдвиг. Переживает перестройку схемы.
 const MAP_VIEW = {k: 1, x: 0, y: 0, user: false}; // user — человек сам двигал карту
@@ -687,11 +690,22 @@ function renderMap(){
   const sig = [W, H, LANG, servers.map(n => keyOf(n) + '/' + n.name).join(','),
     list.map(n => n.ip + '/' + n.name + '/' + n.platform + '/' + n.online + '/' + keyOf(hubOf(n, servers)) + '/' +
       serversOf(n, servers).map(keyOf).join('+')).join(',')].join('|');
+  // Состав узлов и линий — отдельно от подписей и языка: схему «подогреваем»
+  // только когда он поменялся (или окно изменило размер), а не при каждой
+  // перерисовке.
+  const lsig = [W, H, servers.map(keyOf).join(','),
+    list.map(n => n.ip + '/' + n.online + '/' + keyOf(hubOf(n, servers)) + '/' +
+      serversOf(n, servers).map(keyOf).join('+')).join(',')].join('|');
+  let rebuilt = false;
   if(sig !== MAP_SIG){
     const first = !MAP_SIG;
     MAP_SIG = sig;
-    buildMap(svg, W, H, servers, list, first);
+    buildMap(svg, W, H, servers, list, first, lsig !== MAP_LSIG);
+    MAP_LSIG = lsig;
+    rebuilt = true;
   }
+  // Только что перестроенная схема уже получила своё «тепло» в buildMap.
+  const kick = a => { if(!rebuilt) kickSim(a); };
   const sim = MAP_SIM, self = list[0];
   list.forEach(n => {
     const r = MAP_REFS[n.ip];
@@ -711,11 +725,11 @@ function renderMap(){
     const want = n.online && n.direct && !n.self;
     if(want && !r.p2p){
       r.p2p = mapEdge(sim, sim.byKey[self.ip], r.n, 'p2p', true);
-      kickSim(0.35);
+      kick(0.35);
     } else if(!want && r.p2p){
       removeEdge(sim, r.p2p);
       r.p2p = null;
-      kickSim(0.2);
+      kick(0.2);
     }
     if(r.p2p) setEdgeText(r.p2p, edgeMs(n.rttMs), 'var(--accent)');
   });
@@ -731,14 +745,14 @@ function renderMap(){
     if(want.has(key)) return;
     removeEdge(sim, e);
     sim.direct.delete(key);
-    kickSim(0.2);
+    kick(0.2);
   });
   want.forEach((w, key) => {
     let e = sim.direct.get(key);
     if(!e){
       e = mapEdge(sim, w.ra.n, w.rb.n, 'p2p', !sim.many);
       sim.direct.set(key, e);
-      kickSim(0.35);
+      kick(0.35);
     }
     setEdgeText(e, edgeMs(w.l.rttMs), 'var(--accent)');
   });
@@ -764,7 +778,7 @@ function renderMap(){
   if(!sim.raf) simDraw(sim);
 }
 
-function buildMap(svg, W, H, servers, list, animate){
+function buildMap(svg, W, H, servers, list, animate, reheat){
   if (MAP_SIM && MAP_SIM.raf) cancelAnimationFrame(MAP_SIM.raf);
   svg.innerHTML = '';
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -851,10 +865,11 @@ function buildMap(svg, W, H, servers, list, animate){
       .map(s => mapEdge(sim, r.n, hubs[keyOf(s)], 'dev', false));
   });
   // Новые узлы сначала «досчитываются» без показа, дальше — анимацией.
-  sim.alpha = fresh ? 1 : 0.3;
+  // Перестройка без смены состава (имя, язык) — узлы стоят где стояли.
+  sim.alpha = fresh ? 1 : reheat ? 0.3 : 0;
   if (fresh) for (let i = 0; i < 120; i++) simTick(sim);
   simDraw(sim);
-  kickSim(fresh ? 0.25 : 0.3);
+  if (fresh || reheat) kickSim(fresh ? 0.25 : 0.3);
 }
 $('meshMap').addEventListener('click', () => { if(SEL){ SEL = null; $('sheet').hidden = true; renderMap(); } });
 // Окно поменяло размер — схема перестраивается (места узлов помнит).
