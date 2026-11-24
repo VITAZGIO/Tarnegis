@@ -45,6 +45,7 @@ func (s *Server) meshRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mesh/known", s.requireAuth(s.withMesh(s.handleMeshKnown)))
 	s.deviceRoutes(mux)
 	s.serverNetRoutes(mux)
+	s.netUpdateRoutes(mux) // обновление сети устройств (ТЗ 40)
 }
 
 func (s *Server) withMesh(next http.HandlerFunc) http.HandlerFunc {

@@ -12,7 +12,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,18 +33,15 @@ func Prepare(ctx context.Context) (newFile, exe string, err error) {
 	if Compare(Version, rel.Tag) >= 0 {
 		return "", "", fmt.Errorf("уже стоит последняя версия (%s)", strings.TrimPrefix(rel.Tag, "v"))
 	}
-	bin, ok := AssetFor(*rel, runtime.GOOS, runtime.GOARCH)
-	if !ok {
-		return "", "", errors.New("у релиза нет файла для этой системы")
-	}
-	var sums Asset
-	for _, a := range rel.Assets {
-		if a.Name == "SHA256SUMS.txt" {
-			sums = a
-		}
-	}
-	if sums.URL == "" {
-		return "", "", errors.New("у релиза нет контрольных сумм — обнови вручную")
+	return prepareRelease(ctx, *rel)
+}
+
+// prepareRelease — файл релиза rel для этой системы рядом с программой
+// («<программа>.new»), сверенный с SHA256SUMS.txt того же релиза.
+func prepareRelease(ctx context.Context, rel Release) (newFile, exe string, err error) {
+	bin, sums, err := releaseFiles(rel)
+	if err != nil {
+		return "", "", err
 	}
 	exe, err = os.Executable()
 	if err == nil {
@@ -55,16 +51,7 @@ func Prepare(ctx context.Context) (newFile, exe string, err error) {
 		return "", "", err
 	}
 	newFile = exe + ".new"
-	got, err := fetch(ctx, bin.URL, newFile)
-	if err == nil {
-		var want string
-		want, err = sumOf(ctx, sums.URL, bin.Name)
-		if err == nil && !strings.EqualFold(want, got) {
-			err = errors.New("контрольная сумма не совпала — файл повреждён или подменён")
-		}
-	}
-	if err != nil {
-		os.Remove(newFile)
+	if _, err := fetchChecked(ctx, bin, sums, newFile); err != nil {
 		return "", "", err
 	}
 	return newFile, exe, nil

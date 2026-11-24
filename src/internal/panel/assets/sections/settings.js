@@ -426,8 +426,60 @@ $('logoutBtn').addEventListener('click', async () => {
   loadSession();
 });
 
+/* ---------- устройства сети (ТЗ 40) ----------
+   Версия каждого устройства сети и «Обновить»: устройство обновляется само
+   (файл — из релиза на GitHub), сеть передаёт только номер версии. */
+let ND_TIMER = 0;
+async function loadNetDevs(){
+  clearTimeout(ND_TIMER);
+  const {ok, data} = await api('/api/update/devices');
+  if (!ok){ $('netDevCard').hidden = true; return; }
+  $('netDevCard').hidden = false;
+  $('netDevNote').textContent = data.old ? t('nu_old') : data.target ? fill('nu_note', {v: data.target}) : t('nu_note_none');
+  const list = $('netDevList');
+  list.innerHTML = '';
+  const devs = data.devices || [];
+  if (!devs.length) list.appendChild(el('p', 'note', t('nu_empty')));
+  devs.forEach(d => {
+    const row = el('div', 'nd-row');
+    const nm = el('span', 'nd-n');
+    const ic = osIcon(d.platform);
+    if (ic) nm.appendChild(ic);
+    nm.appendChild(document.createTextNode(d.name + (d.netName ? ' · ' + d.netName : '')));
+    row.appendChild(nm);
+    row.appendChild(el('span', 'nd-v', (d.version || '—') + (d.build ? ' · ' + d.build.toUpperCase() : '')));
+    let st = t('nu_' + d.state);
+    if (d.state === 'offline' && d.lastSeen) st += ' · ' + fill('nu_seen', {t: fmtClock(d.lastSeen)});
+    if (d.updSt) st += ' · ' + d.updSt;
+    row.appendChild(el('span', 'nd-s ' + d.state, st));
+    const cell = el('span', 'nd-b');
+    if (d.canUpdate){
+      const b = el('button', 'btn ghost small', t('nu_update'));
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        const r = await api('/api/update/device', {net: d.net, device: d.id});
+        if (!r.ok){ b.disabled = false; toast(r.data.error || t('err_internal'), 'err'); return; }
+        toast(t('nu_sent_one'));
+        ND_TIMER = setTimeout(loadNetDevs, 3000);
+      });
+      cell.appendChild(b);
+    }
+    row.appendChild(cell);
+    list.appendChild(row);
+  });
+  $('netDevAllBtn').hidden = !devs.some(d => d.canUpdate);
+  // Пока кто-то обновляется — смотреть чаще.
+  if (devs.some(d => d.updSt && d.state !== 'ok')) ND_TIMER = setTimeout(loadNetDevs, 5000);
+}
+$('netDevAllBtn').addEventListener('click', async () => {
+  const {ok, data} = await api('/api/update/devices', {});
+  if (!ok){ toast(data.error || t('err_internal'), 'err'); return; }
+  toast(fill('nu_sent', {n: data.sent}));
+  ND_TIMER = setTimeout(loadNetDevs, 3000);
+});
+
 /* ---------- события каркаса ---------- */
-onPanel('show:Settings', () => { loadAutostart(); loadCapacity(); loadEgress(); });
+onPanel('show:Settings', () => { loadAutostart(); loadCapacity(); loadEgress(); loadNetDevs(); });
 onPanel('status', st => { $('setVersion').textContent = st.version; });
 onPanel('mesh', (m, role) => {
   const isMain = role === 'main';

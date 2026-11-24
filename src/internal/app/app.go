@@ -25,6 +25,7 @@ import (
 	"sshtunnel/internal/speedtest"
 	"sshtunnel/internal/sysproxy"
 	"sshtunnel/internal/tunnel"
+	"sshtunnel/internal/updater"
 )
 
 type App struct {
@@ -105,6 +106,8 @@ type App struct {
 	// exitMu — цепочку выхода меняют по одному: человек на устройстве и
 	// панель сервера (ТЗ 16) не должны затереть правку друг друга.
 	exitMu sync.Mutex
+	// upd — обновление по версии сети устройств (ТЗ 40, netupdate.go).
+	upd *updater.Auto
 }
 
 // NetLayer заворачивает в туннель весь трафик системы — вместо системного
@@ -157,6 +160,7 @@ func New(cfg config.Config) *App {
 	}
 	a.meshHost = tunnel.NewMeshHost(tunnel.MeshLog(a.Bus))
 	a.meshLinks = tunnel.NewMeshLinks(a.meshHost, tunnel.MeshLog(a.Bus))
+	a.upd = updater.NewAuto(a.autoUpdateSetting, updater.DefaultRun(a.StopNow), a.onAutoChanged)
 	for _, n := range config.TakeMigrationNotes() {
 		a.Bus.Infof("Настройки: %s", n)
 	}
@@ -244,6 +248,11 @@ func (a *App) SetConfig(cfg config.Config) (string, error) {
 		cfg.MigratePrefs()
 	}
 	old, running := a.cfg, a.running
+	if cfg.AutoUpdateT < old.AutoUpdateT {
+		// Окно прислало настройки, снятые до правки автообновления (её
+		// могла сделать панель, ТЗ 40), — правка новее остаётся.
+		cfg.AutoUpdateOff, cfg.AutoUpdateT = old.AutoUpdateOff, old.AutoUpdateT
+	}
 	a.cfg = cfg
 	tun := a.tun
 	a.mu.Unlock()

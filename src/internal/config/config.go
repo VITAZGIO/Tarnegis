@@ -410,6 +410,13 @@ type Config struct {
 	// `ssh_tunnel mcp` ничего не делает (internal/apicli). По умолчанию
 	// выключена: нейросеть получает кнопки только по явному согласию.
 	MCPEnabled bool `json:"mcpEnabled,omitempty"`
+
+	// AutoUpdateOff — снята галочка «Автообновление» (Настройки →
+	// Дополнительно, ТЗ 40; по умолчанию включено): по версии сети
+	// устройство не обновляется само, а предлагает. AutoUpdateT — когда её
+	// меняли (unix): её может поменять и панель сервера — побеждает новое.
+	AutoUpdateOff bool  `json:"autoUpdateOff,omitempty"`
+	AutoUpdateT   int64 `json:"autoUpdateT,omitempty"`
 }
 
 // AutoConnectEnabled — эффективное значение AutoConnect с учётом отсутствия

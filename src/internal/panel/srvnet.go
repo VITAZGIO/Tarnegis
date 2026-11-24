@@ -197,6 +197,8 @@ type ServerNet struct {
 	updProgress func() (running bool, stage, errText string)
 	meshdLatest func() bool
 	meshdUpdate func() error
+	// nu — обновление сети устройств (ТЗ 40, netupdate.go).
+	nu netUpd
 }
 
 type peerStatus struct {
@@ -828,6 +830,7 @@ func (n *ServerNet) Run(ctx context.Context) {
 	t := time.NewTicker(syncEvery)
 	defer t.Stop()
 	go n.relayLoop(ctx)
+	go n.netUpdLoop(ctx)
 	n.reconcile(ctx)
 	for {
 		if n.InNet() {

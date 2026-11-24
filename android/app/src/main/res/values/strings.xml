@@ -99,6 +99,8 @@
     <string name="err_tunnel_not_running">туннель не запущен</string>
     <string name="err_tunnel_off">туннель выключен</string>
     <string name="net_channel_name">Сеть серверов</string>
+    <string name="upd_channel_name">Обновление сети</string>
+    <string name="upd_ready">Обновление v%1$s готово — установить</string>
     <string name="mirror_channel_name">Зеркальные папки</string>
     <string name="log_network_changed">сеть сменилась — пересобираю соединения</string>
     <string name="log_wifi_up">Wi-Fi появился</string>

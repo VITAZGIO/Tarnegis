@@ -66,6 +66,7 @@ type demoBackend struct {
 	known    []meshsvc.KnownServer // серверы, которые панель советует устройствам (ТЗ 12)
 	srvnet   demoSrvNet            // сеть серверов (ТЗ 22)
 	upd      demoUpd               // «обновить на всех» (ТЗ 31, demo_update.go)
+	devUpd   map[string]demoDevUpd // «Обновить» у устройства (ТЗ 40, demo_netupdate.go)
 	capacity int
 
 	// Одна картина сети (ТЗ 24, demo_view.go): «этот» сервер, имена
@@ -284,6 +285,7 @@ func (d *demoBackend) seed() {
 		d.add(e)
 	}
 	d.seedDevices()
+	d.seedNetUpdate()
 	d.lastTick = now
 }
 
@@ -852,6 +854,7 @@ func (d *demoBackend) routes() http.Handler {
 	})
 	h("/api/book", serveBook)
 	d.updateRoutes(h)
+	d.netUpdateRoutes(h)
 	h("/api/update/install", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"error": "в режиме показа обновление выключено"})
 	})

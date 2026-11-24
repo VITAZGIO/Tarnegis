@@ -52,6 +52,14 @@ type Device struct {
 	Frozen   bool         `json:"frozen,omitempty"`
 	Profiles []ProfileRef `json:"profiles,omitempty"`
 	ExitSet  *ExitOrder   `json:"exitSet,omitempty"`
+	// Обновление сети (meshd 8, ТЗ 40): сборка (vpn / proxy), автообновление
+	// ("on" / "off", "" — старый клиент) и когда его меняли, как прошло
+	// последнее обновление (по словам устройства), роль «Моё устройство».
+	Build    string `json:"build,omitempty"`
+	AutoUpd  string `json:"autoUpd,omitempty"`
+	AutoUpdT int64  `json:"autoUpdT,omitempty"`
+	UpdSt    string `json:"updSt,omitempty"`
+	Mine     bool   `json:"mine,omitempty"`
 }
 
 // ProfileRef — сервер, для которого у устройства есть профиль (ключ
@@ -182,6 +190,9 @@ type State struct {
 	// на пересылку (meshd 7, ТЗ 24).
 	Relays []RelayLine `json:"relays,omitempty"`
 	Relay  bool        `json:"relay,omitempty"`
+	// NetVer — версия сети устройств, которую meshd говорит устройствам
+	// (meshd 8, ТЗ 40).
+	NetVer string `json:"netVer,omitempty"`
 }
 
 // Admin — клиент входа meshd для панели (HTTP по unix-сокету).

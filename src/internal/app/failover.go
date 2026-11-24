@@ -265,8 +265,9 @@ func (a *App) tunnelConfig(cfg config.Config, p config.Profile) (_ tunnel.Config
 		OnExitChange:    a.publishState,
 	}
 	if c.Mesh != nil {
-		c.Mesh.OnExit = a.onMeshExit // цепочка выхода из панели сервера (ТЗ 16)
+		c.Mesh.OnExit = a.onMeshExit       // цепочка выхода из панели сервера (ТЗ 16)
 		c.Mesh.OnServers = a.onMeshServers // сеть серверов (ТЗ 22)
+		a.meshUpdateHooks(c.Mesh)          // обновление сети устройств (ТЗ 40)
 	}
 	a.mu.Lock()
 	netLayer := a.net

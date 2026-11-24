@@ -95,6 +95,9 @@ func (s *Server) coreRoutes() []route {
 		{"/api/update/download", "POST", "Скачать новую версию в «Загрузки».", s.handleUpdateDownload},
 		{"/api/uipass", "GET, POST", "Пароль входа в панель из сети (Linux): GET {lock,set}, POST {\"password\"} (\"\" — убрать). Действует при галке uiLock в настройках.", s.handleUIPass},
 		{"/api/update/install", "POST", "Обновиться: скачать, сверить сумму, поставить и перезапуститься (если canInstall).", s.handleUpdateInstall},
+		{"/api/update/net", "GET, POST", "Обновление сети устройств: GET — автообновление, версия сети, роль «Моё устройство», ход; POST {\"version\"} — обновить всю сеть до версии (только «Моё устройство»).", s.handleUpdateNet},
+		{"/api/update/now", "POST", "Обновить это устройство до версии сети {\"version\"}.", s.handleUpdateNow},
+		{"/api/update/auto", "POST", "Автообновление по версии сети {\"on\":bool}.", s.handleUpdateAuto},
 		{"/api/adblock/update", "POST", "Скачать и применить списки блокировки рекламы {\"sources\"}.", s.handleAdBlockUpdate},
 		{"/api/adblock/stats", "GET", "Блокировка рекламы: статистика — по дням (14), за сегодня/7/30 дней, самые частые имена, последние.", s.handleAdBlockStats},
 	}
@@ -119,6 +122,8 @@ var confirm = map[string]string{
 	"/api/vpssetup/start":          "меняет настройки сервера (sshd)",
 	"/api/update/download":         "скачивает новую версию",
 	"/api/update/install":          "ставит новую версию и перезапускает программу",
+	"/api/update/net":              "POST обновляет все серверы и устройства сети до новой версии",
+	"/api/update/now":              "ставит новую версию и перезапускает программу",
 	"/api/addons":                  "remove убирает приложение (у своего — вместе с данными)",
 	"/api/addons/file":             "ставит своё приложение с разрешениями",
 	"/api/diag/meddlers/try":       "останавливает чужую программу",

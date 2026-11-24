@@ -219,11 +219,13 @@ function renderDetail(){
     if (d.online && d.direct && d.direct.length) fact(facts, t('dev_direct'), directText(d));
     fact(facts, t('dev_traffic'), '↑' + fmtBytes(d.bytesUp) + ' ↓' + fmtBytes(d.bytesDown));
     fact(facts, d.online ? t('dev_since') : t('dev_last'), d.online ? fmtAgo(d.connectedAt) : fmtClock(d.lastSeen));
-    if (d.app) fact(facts, t('dev_app'), d.app);
+    if (d.app) fact(facts, t('dev_app'), d.app + (d.build ? ' · ' + d.build.toUpperCase() : ''));
+    if (d.updSt) fact(facts, t('dev_upd_state'), d.updSt);
     fact(facts, t('dev_sessions'), String(d.sessions || 0));
     part.appendChild(facts);
     renderDevConns(part, d);
     renderDevHold(part, d);
+    renderDevAutoUpd(part, d);
     const acts = el('div', 'dacts');
     if (d.alias){
       const reset = el('button', 'btn ghost small', t('dev_reset_name').replace('{n}', d.name));
@@ -532,6 +534,28 @@ function renderDevHold(part, d){
     part.appendChild(acts);
   }
   part.appendChild(el('p', 'note', t('hold_scope_note')));
+}
+
+// renderDevAutoUpd — «Получать автообновление» (ТЗ 40): устройство само
+// обновляется до версии сети. Старый клиент галочку не знает — её нет.
+function renderDevAutoUpd(part, d){
+  if (!d.autoUpd) return;
+  const row = el('label', 'chk');
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = d.autoUpd === 'on';
+  box.disabled = !d.here && !d.online;
+  box.addEventListener('change', async () => {
+    box.disabled = true;
+    const {ok, data} = await api('/api/mesh/autoupd', {net: MESH_NET, device: d.id, on: box.checked});
+    box.disabled = false;
+    if (!ok){ box.checked = !box.checked; toast(meshErr(data), 'err'); return; }
+    toast(t(box.checked ? 'autoupd_on_ok' : 'autoupd_off_ok'));
+    loadMesh();
+  });
+  row.appendChild(box);
+  row.appendChild(el('span', '', t('dev_autoupd')));
+  part.appendChild(row);
 }
 
 // freezeButton — «Заморозить в сети» / «Разморозить» для ряда кнопок карточки.

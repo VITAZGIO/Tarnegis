@@ -160,6 +160,18 @@ object AndroidApi : mobile.API {
             "/api/adblock/stats" -> mobile.Mobile.adStatsJSON()
             "/api/update/check" -> updateCheck()
             "/api/update/download" -> updateDownload()
+            // Обновление сети устройств (ТЗ 40): решает Go (mobile/netupdate.go).
+            "/api/update/net" -> TunnelService.netUpdate(app, method, obj(body).optString("version"))
+            "/api/update/now" -> TunnelService.netUpdateNow(app, obj(body).optString("version"))
+            "/api/update/auto" -> {
+                val o = obj(body)
+                if (!o.has("on")) err("on?") else {
+                    s.autoUpdate = o.getBoolean("on")
+                    s.autoUpdateT = System.currentTimeMillis() / 1000
+                    TunnelService.pushAutoUpdate(s)
+                    JSONObject().put("ok", true).put("state", JSONObject(TunnelService.netUpdateState())).toString()
+                }
+            }
             "/api/processes" -> apps()
             "/api/appicon" -> appIcon(q.getQueryParameter("pkg") ?: q.getQueryParameter("path") ?: "")
             else -> err(Lang.wrap(app).getString(R.string.api_not_on_phone))
@@ -705,7 +717,8 @@ object AndroidApi : mobile.API {
         return JSONObject().put("result", JSONObject()
             .put("installed", r.installed).put("latest", r.latest)
             .put("newer", r.newer).put("ahead", r.ahead).put("unknown", false)
-            .put("url", r.releaseUrl).put("assetUrl", r.apkUrl)).toString()
+            .put("url", r.releaseUrl).put("assetUrl", r.apkUrl))
+            .put("net", TunnelService.netDecision(r.installed, r.latest)).toString()
     }
 
     // Скачивание APK идёт в фоновом потоке: handle() — это один синхронный

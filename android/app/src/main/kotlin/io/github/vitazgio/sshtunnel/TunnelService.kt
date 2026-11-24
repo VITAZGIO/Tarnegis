@@ -133,6 +133,53 @@ class TunnelService : VpnService(), Callbacks {
         fun meshStatus(): String =
             current?.tunnel?.meshStatusJSON() ?: """{"state":"stopped"}"""
 
+        // ---- обновление сети устройств (ТЗ 40), решает Go: mobile/netupdate.go ----
+
+        /** GET /api/update/net — JSON updater.AutoState. */
+        fun netUpdateState(): String =
+            current?.tunnel?.netUpdateState() ?: """{"enabled":true,"installed":"${BuildConfig.VERSION_NAME}"}"""
+
+        /** /api/update/net: GET — состояние, POST {"version"} — обновить всю сеть. */
+        fun netUpdate(ctx: Context, method: String, version: String): String {
+            if (method == "GET" || version.isBlank()) return netUpdateState()
+            val t = current?.tunnel ?: return errJson(ctx, R.string.err_tunnel_off)
+            return try {
+                t.requestNetUpdate(version)
+                JSONObject().put("ok", true).put("state", JSONObject(netUpdateState())).toString()
+            } catch (e: Exception) {
+                JSONObject().put("error", e.message ?: "").toString()
+            }
+        }
+
+        /** POST /api/update/now {"version"} — скачать обновление до версии сети. */
+        fun netUpdateNow(ctx: Context, version: String): String {
+            val t = current?.tunnel ?: return errJson(ctx, R.string.err_tunnel_off)
+            return try {
+                t.updateNow(version)
+                JSONObject().put("ok", true).toString()
+            } catch (e: Exception) {
+                JSONObject().put("error", e.message ?: "").toString()
+            }
+        }
+
+        /** Галочка «Автообновление» поменялась — ядру и серверам. */
+        fun pushAutoUpdate(s: Settings) {
+            current?.tunnel?.setAutoUpdate(s.autoUpdate, s.autoUpdateT)
+        }
+
+        /** Решение «Проверить обновления» по версии сети (как updater.NetDecision). */
+        fun netDecision(installed: String, latest: String): JSONObject {
+            val st = try { JSONObject(netUpdateState()) } catch (_: Exception) { JSONObject() }
+            val net = st.optString("netVersion")
+            val mine = st.optBoolean("mine")
+            val d = try { Mobile.netDecision(installed, latest, net, mine) } catch (_: Exception) { "" }
+            val o = JSONObject().put("version", net).put("mine", mine).put("decision", d)
+            if (d == "self") {
+                try { current?.tunnel?.updateNow(net) } catch (e: Exception) { o.put("error", e.message ?: "") }
+            }
+            return o
+        }
+
         /**
          * Самопроверка не требует поднятого туннеля — соединение для неё
          * отдельное — но всё равно идёт через уже настроенный tunnel, чтобы
@@ -166,6 +213,8 @@ class TunnelService : VpnService(), Callbacks {
         private const val NOTIFICATION_ID = 1
         private const val NET_CHANNEL = "netservers"
         private const val NET_NOTIFICATION_ID = 4017
+        private const val UPD_CHANNEL = "netupdate"
+        private const val UPD_NOTIFICATION_ID = 4018
         private const val MTU = 1500
 
         /**
@@ -482,6 +531,53 @@ class TunnelService : VpnService(), Callbacks {
         tunnel.setNetServersListener(object : mobile.NetServersListener {
             override fun onNetServers() = applyNetServers()
         })
+        // Обновление сети устройств (ТЗ 40): ядро качает APK версии сети и
+        // говорит сюда — уведомление открывает системный установщик.
+        val st = Settings(this)
+        tunnel.setAutoUpdate(st.autoUpdate, st.autoUpdateT)
+        tunnel.setUpdateListener(object : mobile.UpdateListener {
+            override fun onUpdateReady(path: String, version: String) = updateReadyNotice(path, version)
+            override fun onAutoUpdate(on: Boolean, t: Long) {
+                val s = Settings(this@TunnelService)
+                if (t > s.autoUpdateT) {
+                    s.autoUpdate = on
+                    s.autoUpdateT = t
+                }
+            }
+        }, java.io.File(cacheDir, "updates").absolutePath)
+    }
+
+    /** «Обновление vX готово — установить»: нажатие открывает установщик. */
+    private fun updateReadyNotice(path: String, version: String) {
+        val nm = notificationManager()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                NotificationChannel(UPD_CHANNEL, getString(R.string.upd_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val text = getString(R.string.upd_ready, version)
+        onLog(text)
+        val pi = try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", java.io.File(path))
+            val open = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            PendingIntent.getActivity(this, UPD_NOTIFICATION_ID, open,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        } catch (_: Exception) {
+            null
+        }
+        val b = Notification.Builder(this, UPD_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle(getString(R.string.upd_channel_name))
+            .setContentText(text)
+            .setAutoCancel(true)
+        if (pi != null) b.setContentIntent(pi)
+        try {
+            nm.notify(UPD_NOTIFICATION_ID, b.build())
+        } catch (_: SecurityException) {
+            // Нет разрешения на уведомления — строка есть в журнале.
+        }
     }
 
     private val netServersLock = Any()

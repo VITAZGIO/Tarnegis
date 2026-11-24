@@ -21,3 +21,13 @@
 .upd-all .ua-row .ua-s.ok{color:var(--ok)}
 .upd-all .ua-row .ua-s.err{color:var(--err)}
 @media (max-width:760px){.upd-all .ua-row{grid-template-columns:1fr}}
+/* Устройства сети (ТЗ 40): имя, версия, шаг, кнопка. */
+.nd-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.4fr) auto;gap:10px;align-items:center;
+  padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.nd-row .nd-n{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nd-row .nd-n svg{width:14px;height:14px;flex:none}
+.nd-row .nd-v{color:var(--dim);font-variant-numeric:tabular-nums}
+.nd-row .nd-s.ok{color:var(--ok)}
+.nd-row .nd-s.behind,.nd-row .nd-s.off{color:var(--warn)}
+.nd-row .nd-s.offline,.nd-row .nd-s.unknown{color:var(--dim)}
+@media (max-width:760px){.nd-row{grid-template-columns:1fr auto}}

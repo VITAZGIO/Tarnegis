@@ -126,6 +126,50 @@
 Настольного (`/api/bootstart`, `/api/pickfile`, `/api/vpssetup/*`, `/api/window`
 …) на телефоне нет — ответ `{"error":…}`, экран эти пункты не показывает.
 
+## Обновление сети устройств (ТЗ 40)
+
+Окно программы (ПК, Linux; на телефоне — те же адреса в `AndroidApi.kt`):
+
+- `GET /api/update/check` — как раньше, плюс `net`:
+  `{"version":"<версия сети>","mine":bool,"decision":"self"|"network"|""}`.
+  `self` — серверы уже новее этого устройства: программа сразу начала
+  обновляться сама; `network` — на GitHub новее серверов и у устройства роль
+  «Моё устройство»: окно спрашивает «Обновить сеть до vX?».
+- `GET /api/update/net` → `{enabled, enabledT, installed, netVersion, mine,
+  offer, stage, target, error, path, canInstall}`. `offer` — версия сети новее,
+  а автообновление выключено (строка «Есть новая версия сети vX — обновить?»);
+  `stage` — `download` / `install` / `ready` (скачано, ставит человек —
+  `path`) / `error`.
+- `POST /api/update/net` `{"version":"1.10.8"}` — обновить всю сеть: просьба
+  уходит на серверы, где у устройства роль «Моё устройство»; ответ приходит,
+  когда панель сервера приняла (до ~45 с) или отказала (`error`). Это
+  устройство обновляется тоже.
+- `POST /api/update/now` `{"version"}` — обновить только это устройство до
+  версии сети (без часового ограничения).
+- `POST /api/update/auto` `{"on":bool}` — галочка «Автообновление»
+  (Настройки → Дополнительно; в настройках `autoUpdateOff`, `autoUpdateT`).
+
+Панель сервера:
+
+- `GET /api/update/devices` → `{"target":"<версия сети>","old":bool,
+  "devices":[{net,netName,id,name,version,platform,build,online,here,lastSeen,
+  autoUpd,updSt,state,canUpdate}]}`; `state` — `ok` / `behind` / `offline` /
+  `off` (автообновление выключено) / `unknown`; `old` — `meshd` до версии 8.
+- `POST /api/update/devices` `{}` → `{"ok":true,"sent":N}` — «Обновить все
+  устройства» (каждому отстающему на связи с этим сервером).
+- `POST /api/update/device` `{net, device}` — «Обновить» у одного.
+- `POST /api/mesh/autoupd` `{net, device, on}` — «Получать автообновление».
+
+`meshd` 8 (вход панели): `GET/POST /v1/netver` `{"version"}`,
+`POST /v1/devupdate` `{net, device}`, `POST /v1/autoupd` `{net, device, on}` →
+`{"t"}`, `POST /v1/netupdate` `{"answers":[{call,error}]}` →
+`{"requests":[{call,net,device,name,user,version,at}]}`; в `/v1/state` —
+`netVer`, у устройств `build`, `autoUpd`, `autoUpdT`, `updSt`, `mine`.
+Провод: в `hello` — `build`, `au`, `auT`, `updSt`; в `welcome` и `op netver` —
+`netVer`, `upd`, `force`, `mine`, `au`, `auT`; `op autoupd`; `op upd`
+(устройство → сервер); `op netupdate` (просьба и ответ). Все поля
+необязательные: старые клиенты и старый `meshd` их пропускают.
+
 ## Диагностика
 
 Отвечают, только пока соответствующее приложение добавлено и включено (иначе

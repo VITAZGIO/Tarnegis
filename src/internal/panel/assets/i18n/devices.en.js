@@ -91,4 +91,8 @@ Object.assign(I18N.en, {
   ex_hint:'The device applies it as its own “Exit via” setting for this server if it is newer. The person on the device can change it — you will see it here.',
   renamed:'Name changed',
   dev_close:'Close (Esc)',
+  dev_autoupd:'Receive auto-updates',
+  dev_upd_state:'Update',
+  autoupd_on_ok:'Auto-update on — the device learns it when connected',
+  autoupd_off_ok:'Auto-update off — the device learns it when connected',
 });

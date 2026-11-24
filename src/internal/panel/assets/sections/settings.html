@@ -164,6 +164,14 @@
              data-i18n="update_open_release">Открыть страницу релиза</a></p>
       </div>
     </div>
+    <!-- Устройства сети (ТЗ 40): версия каждого устройства, «Обновить» по
+         одному и всем. Устройства обновляются сами, файл — с GitHub. -->
+    <div class="card" id="netDevCard" hidden>
+      <h1 data-i18n="nu_title">Устройства сети</h1>
+      <p class="note" id="netDevNote" style="margin:0 0 8px"></p>
+      <div id="netDevList"></div>
+      <button class="btn ghost" id="netDevAllBtn" hidden style="margin-top:10px" data-i18n="nu_update_all">Обновить все устройства</button>
+    </div>
     </div>
     <div class="set-col">
     <div class="card">
