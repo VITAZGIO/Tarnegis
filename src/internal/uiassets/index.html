@@ -184,6 +184,9 @@
      = 128px, высота 50px). Виден, пока открыт список устройств; кнопку
      избранных плагинов на это время прячем. */
   .bar .hexwrap#devUpWrap{position:absolute;left:50%;top:11px;width:128px;margin:0 0 0 -64px}
+  /* Крупнее стрелка и подпись: шестиугольник тот же, а пустого места внутри меньше. */
+  #devUp{gap:0;font-size:15px;font-weight:700;letter-spacing:.01em}
+  #devUp svg{width:26px;height:26px;stroke-width:2.4}
   body.devOpen #quickBtn,body.devOpen #quickPanel{display:none}
   .devHead{display:flex;align-items:baseline;gap:8px;margin:6px 2px 8px;font-size:11.5px;
            letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -3297,12 +3300,24 @@ function show(name){
   document.body.dataset.view = name;
   VIEWS.forEach(v => $(v).classList.toggle('on', v === name));
   closeMenu();
+  clearCopied();
   syncDevBar();
   if(name === 'viewLog') $('log').scrollTop = $('log').scrollHeight;
 }
 // «Наверх» в шапке — только пока на главном открыт список устройств (ТЗ 38).
+// ТЗ 42: решает не таймер и не флаг, а прокрутка. «Наверх» виден, только
+// когда шестиугольник «Устройства» целиком ушёл под шапку, — так двух
+// зелёных шестиугольников разом не бывает при любой скорости и при ручной
+// прокрутке. Без шестиугольника (сеть выключили при открытом списке) —
+// по флагу mainAtDev.
+function devHexGone(){
+  const w = $('devWrap');
+  if(w.hidden) return mainAtDev;
+  const top = $('viewMain').getBoundingClientRect().top;
+  return w.getBoundingClientRect().bottom <= top + 0.5;
+}
 function syncDevBar(){
-  const on = current === 'viewMain' && mainAtDev && !$('devPage').hidden;
+  const on = current === 'viewMain' && !$('devPage').hidden && devHexGone();
   $('devUpWrap').hidden = !on;
   document.body.classList.toggle('devOpen', on);
   if(on) closeQuick();
@@ -3333,6 +3348,7 @@ function scrollMainTo(top){
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   $('viewMain').scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
 }
+$('viewMain').addEventListener('scroll', syncDevBar, {passive: true});
 window.addEventListener('resize', () => {
   $('viewMain').scrollTop = mainAtDev && !$('devPage').hidden ? $('devPage').offsetTop : 0;
 });
@@ -4462,8 +4478,16 @@ setInterval(pollMesh, 3000);
 // непрозрачная плашка ровно по рамке элемента, через ~1 с гаснет. Лежит в
 // body с position:fixed — высоту и соседей не меняет. Один помощник на все
 // места, где щелчок что-то копирует.
+// clearCopied — убрать плашки сразу: сменился экран или страница прокрутилась
+// (ТЗ 42). Плашка лежит в body и сама за страницей не едет.
+function clearCopied(){
+  document.querySelectorAll('.copiedBadge').forEach(b => b.remove());
+}
+// scroll не всплывает — ловим на погружении, любой прокручиваемый блок.
+document.addEventListener('scroll', clearCopied, true);
 function flashCopied(el){
   if(!el) return;
+  clearCopied();
   const r = el.getBoundingClientRect();
   if(!r.width || !r.height) return;
   const b = document.createElement('div');
@@ -5813,6 +5837,10 @@ function showAddons(open){
 const addonName = m => (m.name && (m.name[LANG] || m.name.ru)) || m.id;
 async function openQuick(id){
   closeQuick();
+  // Выбор «здесь / в окне» могли поменять в другом окне или фрейме, а
+  // сообщение об этом не дошло (канал между окнами не гарантирован): берём
+  // свежее состояние у ядра, как это делает список «Плагины» (ТЗ 42).
+  await loadAddons();
   const m = addonsState.catalog.find(x => x.id === id);
   const e = addonsState.added.find(x => x.id === id);
   const win = e && e.win != null ? e.win : !!(m && m.window);
