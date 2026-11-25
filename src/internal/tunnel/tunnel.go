@@ -1370,6 +1370,7 @@ func (t *Tunnel) dialSSH(addr string) (*ssh.Client, error) {
 
 func (t *Tunnel) dialSSHWire(ctx context.Context, addr string) (*ssh.Client, *wireConn, error) {
 	cfg := t.clientConfig()
+	cfg.HostKeyAlgorithms = hostkey.Algorithms(t.cfg.KnownHostsPath, addr)
 	conn, err := t.directDialer(cfg.Timeout).DialContext(ctx, sshNetwork(t.cfg.IPVersion), addr)
 	if err != nil {
 		return nil, nil, err

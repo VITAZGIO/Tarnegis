@@ -182,8 +182,9 @@ func vpsDial(user, addr string, auth ssh.AuthMethod, bus *events.Bus) (*ssh.Clie
 	cfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{auth},
-		HostKeyCallback: cb,
-		Timeout:         vpsDialTimeout,
+		HostKeyCallback:   cb,
+		HostKeyAlgorithms: hostkey.Algorithms(config.KnownHostsPath(), addr),
+		Timeout:           vpsDialTimeout,
 	}
 	conn, err := net.DialTimeout("tcp", addr, vpsDialTimeout)
 	if err != nil {
