@@ -8,19 +8,51 @@ Each device has its own key and its own system account on the server.
 1. Press **+ Add device**.
 2. Enter the **Device name** ("Laptop", "Phone") and choose the type: Windows,
    Linux or Android.
-3. The panel creates the device and shows the ready settings.
+3. Tick the **Servers** the device may use. This server is always ticked: the
+   device joins through it. Later you can untick it like any other.
+4. **Device network** is on by default. Turn it off if the device only needs
+   internet access through the server.
+5. Press **Create invite**.
 
-Right after creation there is a QR code and a **Copy link** button (the
-`sshtunnel://` link). They are shown once, so save them straight away.
+The panel shows an **invite** — one line starting with `sshtun1:` and its QR
+code. Paste the line into the program on the device (a phone can scan the
+code). The invite works for 24 hours and only once; the panel does not show it
+again. The card also says which server the device will join through: always
+the server whose panel created it, even if that panel is open only locally.
 
-Later the device keeps a **Show settings** button. It holds the settings file
-and the fields: address, port, user and key. There is no QR code there.
+The program makes its own key: the private key never leaves the device and the
+panel does not know it. From then on the panel decides which servers the device
+may use and whether it has the device network, and the program follows by
+itself.
 
-There are three ways to pass the settings on:
+Unused invites are listed under the device list: for whom, when issued and
+until when they work. Drop one with **Revoke**. At most 20 invites can be open.
 
-- on a phone, scan the QR code;
-- on a computer, paste the link with the **Paste** button in the program;
-- download the file and open it with the **Import** button.
+Devices created before invites still have the **Show settings** button (the
+settings file with the key). New ones do not: the panel has no key for them.
+
+## A device's servers and network
+
+The **Servers and network** button in the device card:
+
+- **Servers** — which servers of the network the device may log in to. On a
+  server without the tick the device's account does not exist at all — no user,
+  no key. Untick a server and the account leaves it at the next sync between
+  servers; tick it and the account appears.
+- **Device network** — when off, the device cannot join the device network on
+  any server (the server itself refuses, not just the program).
+
+The change can be made on the panel of any server of the network — it reaches
+every server and the program on the device by itself. Devices that are not
+allowed on this server are in the list too: their card says there is no
+account here, and the same button lets them in.
+
+Devices created earlier have all servers ticked and the device network on — as
+before.
+
+**New invite** — when the device lost its key (the program was reinstalled, a
+new phone). It adds one more key to the same account; old keys stay until you
+remove them in **Servers and network** → **Keys**.
 
 ## The list: address, name, system
 
@@ -42,8 +74,9 @@ Each device has three actions. They differ in strength:
   **Unfreeze** gives access back without a new setup.
 - **Disconnect** — ends the current sessions but does not touch the key. The
   device can connect again.
-- **Delete** — erases the account and the key. Without new settings the device
-  will not log in again. The panel asks for confirmation.
+- **Delete** — erases the account and its keys on every server of the network
+  (servers that are offline now — at their next sync). Without a new invite the
+  device will not log in again. The panel asks for confirmation.
 
 ## Why an SSH login and a network device are one row
 

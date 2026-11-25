@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -117,6 +118,21 @@ type Client struct {
 	// ключа у такой записи на этом сервере нет (он не передаётся).
 	ExtraKeys []string `json:"extraKeys,omitempty"`
 	Origin    string   `json:"origin,omitempty"`
+
+	// Устройство из панели (ТЗ 47). Servers — id серверов сети, на которых
+	// у учётной записи есть вход (nil — на всех, так у записей до ТЗ 47);
+	// на сервере не из списка учётной записи нет совсем. NoMesh — «Сеть
+	// устройств» выключена: meshd на всех серверах отказывает. Rev — когда
+	// запись последний раз менялась здесь (мс, только растёт): по нему
+	// программа узнаёт, что профиль пора перечитать (/api/me/profile).
+	Servers []string `json:"servers,omitempty"`
+	NoMesh  bool     `json:"noMesh,omitempty"`
+	Rev     int64    `json:"rev,omitempty"`
+}
+
+// allowedOn — учётной записи с таким списком серверов есть вход на сервер id.
+func allowedOn(servers []string, id string) bool {
+	return servers == nil || slices.Contains(servers, id)
 }
 
 // keys — все открытые ключи клиента.

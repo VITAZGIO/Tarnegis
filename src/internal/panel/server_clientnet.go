@@ -28,6 +28,12 @@ type clientNet struct {
 	ViaServerID string  `json:"viaServerId,omitempty"`
 	ViaRTTMs    float64 `json:"viaRttMs,omitempty"`
 	LastSeenAny int64   `json:"lastSeenAny,omitempty"`
+	// Elsewhere — учётная запись сети, которой этот сервер не разрешён
+	// (ТЗ 47): здесь её пользователя нет.
+	Elsewhere bool `json:"elsewhere,omitempty"`
+	// HasPrivateKey — у записи есть закрытый ключ панели (заведена до
+	// ТЗ 47): только тогда есть что показать по «Показать настройки».
+	HasPrivateKey bool `json:"hasPrivateKey,omitempty"`
 }
 
 // clientWithNet — клиент в ответе /api/clients.

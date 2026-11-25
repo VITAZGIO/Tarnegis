@@ -437,6 +437,9 @@ type Policy struct {
 	Enabled bool                `json:"enabled"`
 	Users   map[string][]string `json:"users,omitempty"`
 	Rules   []PolicyRule        `json:"rules,omitempty"`
+	// NoMesh — пользователи, которым сеть устройств не разрешена (meshd 9,
+	// ТЗ 47). Старый meshd поле не знает и пускает их, как прежде.
+	NoMesh []string `json:"nomesh,omitempty"`
 }
 
 // SetPolicy передаёт meshd права доступа устройств (он их сохраняет сам).

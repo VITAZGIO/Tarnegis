@@ -24,6 +24,11 @@
       <div class="dscroll" id="devScroll">
         <div id="devRows"></div>
         <div class="empty" id="devRowsEmpty" hidden></div>
+        <!-- ТЗ 47: неиспользованные приглашения -->
+        <div class="invbox" id="invBox" hidden>
+          <h2 data-i18n="inv_list_title">Приглашения</h2>
+          <div id="invRows"></div>
+        </div>
       </div>
     </div>
 
@@ -40,10 +45,9 @@
       <!-- добавить устройство -->
       <div class="card" id="addClientForm" hidden>
         <h1 data-i18n="add_device_title">Добавить устройство</h1>
-        <p class="note" data-i18n="add_device_note">Выбери, на чём стоит программа, и придумай имя,
-          по которому потом узнаешь это устройство в списке. Сразу после создания панель один раз
-          покажет готовые настройки вместе с ключом: для телефона — QR-кодом, для компьютера —
-          кнопкой «Скопировать» или файлом.</p>
+        <p class="note" data-i18n="add_device_note">Панель выдаст приглашение — одну строку (и QR-код).
+          Её вставляют в программу на устройстве: ключ программа сделает сама, а на какие серверы
+          ей можно и есть ли сеть устройств, дальше решает панель.</p>
         <div id="addClientMsg"></div>
         <div class="field">
           <label for="newClientName" data-i18n="client_name_label">Имя устройства</label>
@@ -57,9 +61,50 @@
             <option value="android">Android</option>
           </select>
         </div>
+        <h2><span data-i18n="scope_servers">Серверы</span><button class="hint" data-hint="hint_scope_servers">?</button></h2>
+        <div id="newDevServers" class="acc-checks"></div>
+        <label class="acc-line"><input type="checkbox" id="newDevMesh" checked> <span data-i18n="scope_mesh">Сеть устройств</span></label>
         <div class="row-inline">
-          <button class="btn" id="createClientBtn" data-i18n="create_client">Создать</button>
+          <button class="btn" id="createClientBtn" data-i18n="create_invite">Создать приглашение</button>
           <button class="btn ghost" id="cancelClientBtn" data-i18n="cancel">Отмена</button>
+        </div>
+      </div>
+
+      <!-- приглашение устройства (ТЗ 47): строка один раз, QR, куда ведёт -->
+      <div class="card" id="inviteCard" hidden>
+        <h1 data-i18n="inv_title">Приглашение готово</h1>
+        <p class="note" data-i18n="inv_note">Вставь эту строку в программу на устройстве (или отсканируй
+          QR-код телефоном). Действует 24 часа и только один раз; второй раз панель её не покажет.</p>
+        <div id="inviteMsg"></div>
+        <p class="note" id="inviteTarget"></p>
+        <div style="text-align:center;margin-bottom:14px">
+          <img id="inviteQR" class="invqr" alt="QR">
+        </div>
+        <div class="field">
+          <textarea id="inviteText" readonly rows="3"
+            style="font-family:var(--mono);font-size:11.5px;resize:vertical;width:100%"></textarea>
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="copyInviteBtn" data-i18n="copy_config">Скопировать</button>
+          <button class="btn ghost" id="closeInviteBtn" data-i18n="close">Закрыть</button>
+        </div>
+      </div>
+
+      <!-- серверы, сеть устройств и ключи одного устройства (ТЗ 47) -->
+      <div class="card" id="clientScopeCard" hidden>
+        <h1 id="clientScopeTitle"></h1>
+        <div id="clientScopeMsg"></div>
+        <h2><span data-i18n="scope_servers">Серверы</span><button class="hint" data-hint="hint_scope_servers">?</button></h2>
+        <div id="scopeServers" class="acc-checks"></div>
+        <label class="acc-line"><input type="checkbox" id="scopeMesh"> <span data-i18n="scope_mesh">Сеть устройств</span></label>
+        <p class="note" data-i18n="scope_note">Изменение само дойдёт до всех серверов сети и до программы на устройстве.</p>
+        <div id="scopeKeysBox">
+          <h2 data-i18n="scope_keys">Ключи</h2>
+          <div id="scopeKeys"></div>
+        </div>
+        <div class="row-inline">
+          <button class="btn" id="saveClientScopeBtn" data-i18n="save">Сохранить</button>
+          <button class="btn ghost" id="closeClientScopeBtn" data-i18n="close">Закрыть</button>
         </div>
       </div>
 

@@ -1,0 +1,67 @@
+# Вход по приглашению на настоящем sshd (ТЗ 47): пользователь tun_join, его
+# блок sshd_config, AuthorizedKeysCommand / ForceCommand / ExposeAuthInfo и
+# вход самообслуживания панели. Одна машина CI, наружу не ходит
+# (src/internal/panel/join_lab_test.go).
+name: join-lab
+
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "src/internal/panel/joinsys*"
+      - "src/internal/panel/devinvite*"
+      - "src/internal/panel/device_registry*"
+      - "src/internal/panel/join_lab_test.go"
+      - "src/internal/panel/selfservice*"
+      - "src/internal/panel/sshd*"
+      - "src/cmd/ssh_tunnel_panel/**"
+      - ".github/workflows/join-lab.yml"
+  pull_request:
+    paths:
+      - "src/internal/panel/joinsys*"
+      - "src/internal/panel/devinvite*"
+      - "src/internal/panel/device_registry*"
+      - "src/internal/panel/join_lab_test.go"
+      - "src/internal/panel/selfservice*"
+      - "src/internal/panel/sshd*"
+      - "src/cmd/ssh_tunnel_panel/**"
+      - ".github/workflows/join-lab.yml"
+  workflow_dispatch:
+
+jobs:
+  join:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+
+      - name: sshd
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server >/dev/null
+          sudo mkdir -p /run/sshd
+          sudo systemctl start ssh.service || sudo systemctl start sshd.service
+          sudo systemctl is-active ssh.service || sudo systemctl is-active sshd.service
+
+      - name: Собрать панель и тест
+        run: |
+          cd src
+          CGO_ENABLED=0 go build -o /tmp/ssh_tunnel_panel ./cmd/ssh_tunnel_panel
+          sudo install -o root -g root -m 755 /tmp/ssh_tunnel_panel /usr/local/bin/ssh_tunnel_panel
+          go test -c -tags joinlab -o /tmp/panel.test ./internal/panel
+
+      - name: Стенд
+        run: |
+          cd /tmp
+          sudo env JOIN_LAB=1 PATH="$PATH:/usr/sbin:/sbin" /tmp/panel.test -test.run 'TestJoinLab$' -test.v -test.timeout 5m
+
+      - name: Журнал sshd при неудаче
+        if: failure()
+        run: |
+          sudo sed -n '/BEGIN ssh_tunnel_panel join/,/END ssh_tunnel_panel join/p' /etc/ssh/sshd_config
+          sudo journalctl -u ssh -u sshd --no-pager -n 80 || true

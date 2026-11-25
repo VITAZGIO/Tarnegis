@@ -103,6 +103,8 @@ function selectDev(key, open){
     MESH_EDIT = null;
     // Открытые формы другого клиента закрываем, чтобы не спутать, чьи они.
     if (key !== 'c:' + ACCESS_CLIENT) $('clientAccessCard').hidden = true;
+    if (key !== 'c:' + SCOPE_CLIENT) $('clientScopeCard').hidden = true;
+    closeInvite();
     if (CONFIG_FOR && key !== 'c:' + CONFIG_FOR) closeClientConfig();
   }
   $('addClientForm').hidden = true;
@@ -124,12 +126,15 @@ function closeDevPane(){
   $('devsBox').classList.remove('open');
   $('addClientForm').hidden = true;
   $('clientAccessCard').hidden = true;
+  $('clientScopeCard').hidden = true;
+  closeInvite();
   if (CONFIG_FOR || !$('clientConfigCard').hidden) closeClientConfig();
 }
 // devPaneCheck — показывать справа нечего (устройство пропало, формы
 // закрыты) — возвращаем фон, а не пустую карточку.
 function devPaneCheck(){
   const any = !$('addClientForm').hidden || !$('clientConfigCard').hidden || !$('clientAccessCard').hidden ||
+    !$('inviteCard').hidden || !$('clientScopeCard').hidden ||
     devItems().some(i => i.key === DEV_SEL);
   if (!any) $('devsBox').classList.remove('open');
 }
@@ -267,6 +272,26 @@ function renderDetail(){
     box.appendChild(part);
     return;
   }
+  // ТЗ 47: учётная запись сети, которой нельзя на этот сервер.
+  if (c.elsewhere){
+    part.appendChild(el('p', 'note', t('dev_elsewhere')));
+    const facts = el('div', 'facts');
+    fact(facts, t('client_name_label'), c.name);
+    fact(facts, t('dev_type'), t('device_' + c.deviceType));
+    fact(facts, t('scope_servers'), scopeText(c));
+    fact(facts, t('scope_mesh'), t(c.noMesh ? 'scope_mesh_off' : 'scope_mesh_on'));
+    part.appendChild(facts);
+    const acts = el('div', 'dacts');
+    const sb = el('button', 'btn small ghost', t('scope_btn'));
+    sb.addEventListener('click', () => openClientScope(c.id));
+    acts.appendChild(sb);
+    const db = el('button', 'btn small danger', t('delete_client'));
+    db.addEventListener('click', () => deleteClient(c.id));
+    acts.appendChild(db);
+    part.appendChild(acts);
+    box.appendChild(part);
+    return;
+  }
   const facts = el('div', 'facts');
   fact(facts, t('client_name_label'), c.name);
   if (c.username) fact(facts, t('user_label'), c.username);
@@ -274,6 +299,8 @@ function renderDetail(){
   fact(facts, t('dev_created'), fmtDate(c.createdAt));
   fact(facts, t('dev_traffic'), '↓' + fmtBytes(c.rxBytes) + ' ↑' + fmtBytes(c.txBytes));
   fact(facts, t('dev_link'), onlineText(c));
+  fact(facts, t('scope_servers'), scopeText(c));
+  fact(facts, t('scope_mesh'), t(c.noMesh ? 'scope_mesh_off' : 'scope_mesh_on'));
   if ((c.groups && c.groups.length) || c.canCreate){
     fact(facts, t('acc_groups'), ((c.groups || []).join(', ') || '—') + (c.canCreate ? ' · ' + t('acc_creator_short') : ''));
   }
@@ -287,7 +314,10 @@ function renderDetail(){
   if (c.state === 'frozen') btn('ghost', 'unfreeze_client', () => clientAction('unfreeze', c.id));
   else btn('ghost', 'freeze_client', () => clientAction('freeze', c.id));
   btn('ghost', 'disconnect_client', () => clientAction('disconnect', c.id));
-  btn('ghost', 'show_settings', () => showClientConfig(c.id));
+  // Закрытый ключ есть только у записей до ТЗ 47 — у новых показывать нечего.
+  if (c.hasPrivateKey) btn('ghost', 'show_settings', () => showClientConfig(c.id));
+  btn('ghost', 'scope_btn', () => openClientScope(c.id));
+  if (c.state !== 'frozen') btn('ghost', 'inv_new', () => newInvite(c.id));
   btn('ghost', 'acc_client_btn', () => openClientAccess(c.id));
   btn('danger', 'delete_client', () => deleteClient(c.id));
   part.appendChild(acts);
@@ -394,10 +424,14 @@ async function deleteClient(id){
   emitPanel('refresh');
 }
 
-$('addClientBtn').addEventListener('click', () => {
+$('addClientBtn').addEventListener('click', async () => {
   showMsg($('addClientMsg'), '', '');
   $('newClientName').value = '';
   $('newClientType').value = 'windows';
+  $('newDevMesh').checked = true;
+  closeInvite();
+  await loadDevServers();
+  renderServerChecks($('newDevServers'), null, true);
   $('addClientForm').hidden = false;
   openDevPane(false);
   $('addClientForm').scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -410,18 +444,15 @@ $('createClientBtn').addEventListener('click', async () => {
   const name = $('newClientName').value.trim();
   const deviceType = $('newClientType').value;
   if (!name){ showMsg($('addClientMsg'), errText('bad_request'), 'err'); return; }
+  // ТЗ 47: панель больше не заводит ключ сама — выдаёт приглашение.
+  const servers = checkedServers($('newDevServers'));
   $('createClientBtn').disabled = true;
-  const {ok, data} = await api('/api/clients/create', {name, deviceType});
+  const {ok, data} = await api('/api/devices/invite', {name, deviceType, servers, mesh: $('newDevMesh').checked});
   $('createClientBtn').disabled = false;
   if (!ok){ showMsg($('addClientMsg'), errText(data.error, data), 'err'); return; }
   $('addClientForm').hidden = true;
-  await loadClients();
-  if (data.client) selectDev('c:' + data.client.id, true);
-  // QR и ссылка приходят только в ответе на создание — второй раз их не
-  // получить (п. 16), поэтому показываем то, что пришло, без запроса.
-  if (!data.config){ showMsg($('devicesMsg'), errText(data.configError, data), 'err'); return; }
-  CONFIG_FOR = data.client ? data.client.id : '';
-  renderClientConfig(data.config, true);
+  renderInvite(data.result);
+  loadInvites();
 });
 
 /* ---------- настройки клиента: QR / буфер / файл ---------- */
@@ -720,7 +751,7 @@ async function renameDevice(d, alias){
 
 /* ---------- события каркаса ---------- */
 // Группы нужны форме прав клиента — грузим при каждом открытии раздела.
-onPanel('show:Devices', () => loadAccess());
+onPanel('show:Devices', () => { loadAccess(); loadDevServers(); loadInvites(); });
 onPanel('clients', () => { renderDevList(); renderDetail(); });
 onPanel('access', () => renderDetail());
 onPanel('detail', () => renderDetail());
@@ -728,4 +759,151 @@ onPanel('focusDevice', id => focusDeviceNow(id));
 onPanel('mesh', () => {
   renderDevList();
   renderDetail();
+});
+
+/* ---------- устройства из панели (ТЗ 47) ---------- */
+/* Приглашение вместо ключа, «Серверы» и «Сеть устройств» у устройства,
+   список неиспользованных приглашений. */
+let DEV_SERVERS = [];   // [{id, name, self}] — серверы сети для галочек
+let INVITES = [];
+async function loadDevServers(){
+  const {ok, data} = await api('/api/devices/servers');
+  if (ok) DEV_SERVERS = data.servers || [];
+}
+function serverLabel(id){
+  const s = DEV_SERVERS.find(v => v.id === id);
+  return s ? s.name : id;
+}
+// scopeText — на каких серверах у устройства есть вход.
+function scopeText(c){
+  if (!c.servers || !c.servers.length) return t('scope_all');
+  return c.servers.map(serverLabel).join(', ');
+}
+// renderServerChecks — галочки серверов; selected null — «все»; lockSelf —
+// этот сервер отмечен и не снимается (через него устройство войдёт).
+function renderServerChecks(box, selected, lockSelf){
+  box.innerHTML = '';
+  DEV_SERVERS.forEach(s => {
+    const l = el('label', 'g');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = s.id;
+    cb.checked = lockSelf ? !!s.self : (!selected || selected.includes(s.id));
+    if (lockSelf && s.self) cb.disabled = true;
+    l.appendChild(cb);
+    l.appendChild(document.createTextNode(s.name + (s.self ? ' · ' + t('scope_this') : '')));
+    box.appendChild(l);
+  });
+}
+function checkedServers(box){
+  return [...box.querySelectorAll('input:checked')].map(cb => cb.value);
+}
+
+// renderInvite — строка приглашения: один раз, сразу после выдачи.
+function renderInvite(res){
+  showMsg($('inviteMsg'), '', '');
+  $('inviteText').value = res.text;
+  $('inviteTarget').textContent = t('inv_target')
+    .replace('{h}', res.host + (res.port && res.port !== 22 ? ':' + res.port : ''))
+    .replace('{n}', res.invite.name).replace('{t}', fmtClock(res.invite.expires));
+  $('inviteQR').hidden = !res.qrPngBase64;
+  if (res.qrPngBase64){
+    $('inviteQR').src = 'data:image/png;base64,' + res.qrPngBase64;
+    $('qrFullImg').src = $('inviteQR').src;
+  }
+  $('inviteCard').hidden = false;
+  openDevPane(false);
+  $('inviteCard').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function closeInvite(){
+  $('inviteText').value = '';
+  $('inviteQR').removeAttribute('src');
+  $('inviteCard').hidden = true;
+}
+$('inviteQR').addEventListener('click', () => { if ($('inviteQR').src) $('qrOverlay').hidden = false; });
+$('copyInviteBtn').addEventListener('click', async () => copyFlash($('copyInviteBtn'), await copyText($('inviteText').value)));
+$('closeInviteBtn').addEventListener('click', () => { closeInvite(); devPaneCheck(); });
+
+// newInvite — «Новое приглашение»: устройство потеряло ключ; старые ключи
+// остаются, пока их не убрать.
+async function newInvite(id){
+  showMsg($('devicesMsg'), '', '');
+  const {ok, data} = await api('/api/devices/invite', {user: id});
+  if (!ok){ showMsg($('devicesMsg'), errText(data.error, data), 'err'); return; }
+  renderInvite(data.result);
+  loadInvites();
+}
+
+async function loadInvites(){
+  const {ok, data} = await api('/api/devices/invites');
+  if (!ok) return;
+  INVITES = data.invites || [];
+  renderInvites();
+}
+function renderInvites(){
+  const box = $('invRows');
+  box.innerHTML = '';
+  $('invBox').hidden = !INVITES.length;
+  INVITES.forEach(v => {
+    const row = el('div', 'invrow');
+    const nm = el('div', 'nm');
+    nm.appendChild(el('div', 'n', v.name + (v.user ? ' · ' + t('inv_rekey') : '')));
+    nm.appendChild(el('div', 'h', t('inv_when').replace('{c}', fmtClock(v.created)).replace('{e}', fmtClock(v.expires))));
+    row.appendChild(nm);
+    const b = el('button', 'btn ghost small', t('inv_revoke'));
+    b.addEventListener('click', async () => {
+      const {ok, data} = await api('/api/devices/invite/revoke', {id: v.id});
+      if (!ok){ toast(errText(data.error, data), 'err'); return; }
+      toast(t('inv_revoked'));
+      loadInvites();
+    });
+    row.appendChild(b);
+    box.appendChild(row);
+  });
+}
+
+// Серверы, сеть устройств и ключи — отдельной карточкой (как «Права»):
+// карточка устройства перерисовывается при каждом опросе.
+let SCOPE_CLIENT = '';
+async function openClientScope(id){
+  const c = CLIENTS.find(v => v.id === id);
+  if (!c) return;
+  SCOPE_CLIENT = id;
+  await loadDevServers();
+  $('clientScopeTitle').textContent = t('scope_btn') + ': ' + c.name;
+  showMsg($('clientScopeMsg'), '', '');
+  renderServerChecks($('scopeServers'), c.servers && c.servers.length ? c.servers : null, false);
+  $('scopeMesh').checked = !c.noMesh;
+  const keys = [c.publicKey, ...(c.extraKeys || [])].filter(Boolean);
+  $('scopeKeysBox').hidden = !!c.elsewhere || keys.length < 2;
+  const kb = $('scopeKeys');
+  kb.innerHTML = '';
+  keys.forEach(k => {
+    const row = el('div', 'keyrow');
+    const f = k.split(' ');
+    row.appendChild(el('code', '', f[0].replace('ssh-', '') + ' …' + (f[1] || '').slice(-12)));
+    const b = el('button', 'btn ghost small', t('scope_key_remove'));
+    b.addEventListener('click', async () => {
+      if (!await appConfirm(t('scope_key_confirm'))) return;
+      const {ok, data} = await api('/api/clients/key/remove', {id, key: k});
+      if (!ok){ showMsg($('clientScopeMsg'), errText(data.error, data), 'err'); return; }
+      await loadClients();
+      openClientScope(id);
+    });
+    row.appendChild(b);
+    kb.appendChild(row);
+  });
+  $('clientScopeCard').hidden = false;
+  openDevPane(false);
+  $('clientScopeCard').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+$('closeClientScopeBtn').addEventListener('click', () => { $('clientScopeCard').hidden = true; devPaneCheck(); });
+$('saveClientScopeBtn').addEventListener('click', async () => {
+  const msg = $('clientScopeMsg');
+  showMsg(msg, '', '');
+  const servers = checkedServers($('scopeServers'));
+  if (!servers.length){ showMsg(msg, t('scope_none'), 'err'); return; }
+  const {ok, data} = await api('/api/clients/scope', {id: SCOPE_CLIENT, servers, mesh: $('scopeMesh').checked});
+  if (!ok){ showMsg(msg, errText(data.error, data), 'err'); return; }
+  showMsg(msg, t('scope_saved'), 'ok');
+  loadClients();
 });

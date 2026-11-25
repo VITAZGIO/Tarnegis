@@ -134,8 +134,9 @@ const (
 	// список серверов сети с отметкой «учётная запись есть» (ТЗ 22); "7" —
 	// пересылка между серверами сети (ТЗ 24, «пересылка между серверами»);
 	// "8" — обновление сети устройств: версия сети, автообновление,
-	// «обновить сеть» с устройства (ТЗ 40).
-	version = "8"
+	// «обновить сеть» с устройства (ТЗ 40); "9" — устройства без сети
+	// устройств: учётным записям из policy.nomesh отказ (ТЗ 47).
+	version = "9"
 
 	maxLine          = 4096
 	maxNetworks      = 1000
@@ -1009,6 +1010,11 @@ func (s *server) control(conn net.Conn, m msg) {
 	defer c.close()
 
 	s.mu.Lock()
+	if s.policy.meshOff(user) {
+		s.mu.Unlock()
+		writeMsg(conn, msg{Op: "error", Error: noMeshText})
+		return
+	}
 	n := s.nets[id]
 	if n == nil {
 		if len(s.nets) >= maxNetworks {
@@ -1313,6 +1319,11 @@ func (s *server) dial(conn net.Conn, m msg) {
 		// не пускаем, иначе можно звонить от имени чужого устройства.
 		s.mu.Unlock()
 		fail("это устройство подключено под другим пользователем")
+		return
+	}
+	if s.policy.meshOff(user) {
+		s.mu.Unlock()
+		fail(noMeshText)
 		return
 	}
 	if from.blocked() {
@@ -3612,6 +3623,27 @@ type policy struct {
 	Enabled bool                `json:"enabled"`
 	Users   map[string][]string `json:"users,omitempty"` // пользователь → группы
 	Rules   []policyRule        `json:"rules,omitempty"`
+	// NoMesh — SSH-пользователи, которым сеть устройств не разрешена
+	// (ТЗ 47, «Сеть устройств» выключена в профиле устройства в панели):
+	// их управляющее соединение и звонки отклоняются, живые — рвутся.
+	// Действует и при выключенных правилах доступа.
+	NoMesh []string `json:"nomesh,omitempty"`
+}
+
+// noMeshText — что видит устройство без права на сеть устройств.
+const noMeshText = "этому устройству сеть устройств не разрешена (выключено в панели сервера)"
+
+// meshOff — пользователю user сеть устройств не разрешена.
+func (p policy) meshOff(user string) bool {
+	if user == "" || user == serversGroup {
+		return false
+	}
+	for _, u := range p.NoMesh {
+		if u == user {
+			return true
+		}
+	}
+	return false
 }
 
 func (p policy) member(user, group string) bool {
@@ -3700,6 +3732,14 @@ func (p policy) validate() error {
 			return err
 		}
 	}
+	if len(p.NoMesh) > maxDevicesPerNet {
+		return errors.New("слишком длинный список nomesh")
+	}
+	for _, u := range p.NoMesh {
+		if u == "" || len(u) > 64 {
+			return errors.New("неверный пользователь в nomesh")
+		}
+	}
 	for u, gs := range p.Users {
 		if u == "" || len(u) > 64 || len(gs) > maxGroups {
 			return errors.New("неверный пользователь в политике")
@@ -3766,6 +3806,14 @@ func (s *server) setPolicy(p policy) error {
 	}
 	s.mu.Lock()
 	s.policy = p
+	// Устройства, которым сеть больше не разрешена, — вон сразу.
+	for _, n := range s.nets {
+		for _, d := range n.Devices {
+			if d.ctrl != nil && p.meshOff(d.User) {
+				d.ctrl.conn.Close()
+			}
+		}
+	}
 	s.broadcastAllLocked()
 	s.netVerAllLocked(false)
 	s.mu.Unlock()

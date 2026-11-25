@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"sshtunnel/internal/updater"
@@ -68,6 +69,13 @@ type Server struct {
 	// connUID узнаёт uid звонящего на входе создания пользователей
 	// (selfservice.go); nil — по /proc/net/tcp. Подменяется в тестах.
 	connUID func(*http.Request) (int, bool)
+
+	// Устройства из панели (ТЗ 47): приглашения (device-invites.json),
+	// uid пользователя tun_join и ключи этого сервера — подменяются в тестах.
+	invMu      sync.Mutex
+	invites    *inviteStore
+	joinUID    func() (int, bool)
+	hostKeysFn func() []string
 }
 
 // WithHistory подключает историю трафика по дням (traffic_history.go).
@@ -133,6 +141,7 @@ func (s *Server) Handler() http.Handler {
 	s.nodeRoutes(mux)
 	s.egressRoutes(mux)
 	s.diagRoutes(mux)
+	s.registryRoutes(mux)
 	return mux
 }
 
@@ -327,7 +336,25 @@ func (s *Server) handleClients(w http.ResponseWriter, r *http.Request) {
 	}
 	// Сведения всей сети серверов (ТЗ 31): на связи ли где-либо и через
 	// какой сервер — server_clientnet.go.
-	writeJSON(w, http.StatusOK, map[string]any{"clients": s.clientsWithNet(r.Context(), list)})
+	out := s.clientsWithNet(r.Context(), list)
+	for i := range out {
+		if full, ok := s.clients.Get(out[i].ID); ok && full.PrivateKey != "" {
+			out[i].HasPrivateKey = true
+		}
+	}
+	// ТЗ 47: учётные записи сети, которым этот сервер не разрешён, — тоже в
+	// списке (elsewhere): их можно пустить сюда, поменять или удалить.
+	if other := s.elsewhereClients(); len(other) > 0 {
+		for _, c := range s.clientsWithNet(r.Context(), other) {
+			c.Elsewhere = true
+			out = append(out, c)
+		}
+	}
+	servers := s.devServers()
+	if servers == nil {
+		servers = []devServer{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"clients": out, "servers": servers})
 }
 
 // handleClientCreate заводит нового клиента: unix-пользователя, пару
@@ -384,7 +411,7 @@ func (s *Server) handleClientDelete(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad_request"})
 		return
 	}
-	if err := s.clients.DeleteClient(req.ID); err != nil {
+	if err := s.deleteDevice(req.ID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

@@ -58,6 +58,7 @@ type demoBackend struct {
 	meshJob, nodeJob demoJob
 
 	clients  []Client
+	invites  []inviteView // приглашения устройств (ТЗ 47, demo_registry.go)
 	access   AccessSettings
 	newDev   string // «Новое устройство» (ТЗ 28)
 	nets     []*MeshNetwork
@@ -703,7 +704,11 @@ func (d *demoBackend) routes() http.Handler {
 			list[i].PrivateKey, list[i].CreatorHash = "", ""
 		}
 		// Сведения всей сети — как у настоящей панели (ТЗ 31).
-		writeJSON(w, http.StatusOK, map[string]any{"clients": withNet(list, clientNetOf(d.state()), d.servers[0].Name)})
+		out := withNet(list, clientNetOf(d.state()), d.servers[0].Name)
+		for i := range out {
+			out[i].HasPrivateKey = d.clients[i].PrivateKey != ""
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"clients": out, "servers": d.demoDevServers()})
 	})
 	h("/api/clients/create", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -1189,6 +1194,7 @@ func (d *demoBackend) routes() http.Handler {
 		writeJSON(w, http.StatusOK, meshsvc.Events{Seq: d.seq, Events: out})
 	})
 	d.deviceRoutes(h)
+	d.registryRoutes(h)
 	d.srvnetRoutes(h)
 	d.demoViewRoutes(h)
 	h("/api/mesh/check", func(w http.ResponseWriter, r *http.Request) {

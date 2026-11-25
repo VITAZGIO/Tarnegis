@@ -2,6 +2,7 @@ package panel
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,15 @@ type ClientManager struct {
 
 // notify сообщает сети серверов об изменении записи.
 func (m *ClientManager) notify(c Client, deleted bool) {
+	// Rev (ТЗ 47) — любая правка записи здесь: профиль устройства поменялся.
+	if !deleted {
+		if cur, ok := m.store.Get(c.ID); ok {
+			cur.Rev = nextRev(cur.Rev)
+			if m.store.Put(cur) == nil {
+				c.Rev = cur.Rev
+			}
+		}
+	}
 	if f := m.onChange; f != nil {
 		f(c, deleted)
 	}
@@ -121,7 +131,138 @@ func (m *ClientManager) Update(id string, fn func(*Client)) error {
 	return nil
 }
 
+// nextRev — следующий Rev: время в мс, но не меньше прошлого + 1.
+func nextRev(prev int64) int64 {
+	return max(prev+1, time.Now().UnixMilli())
+}
+
+// CreateClientWithKey — устройство из приглашения (ТЗ 47): ключ сделала
+// программа, закрытого здесь нет и не будет.
+func (m *ClientManager) CreateClientWithKey(name string, deviceType DeviceType, pubKey string, extra func(*Client)) (Client, error) {
+	keys := cleanKeys([]string{pubKey})
+	if len(keys) == 0 {
+		return Client{}, fmt.Errorf("неверный открытый ключ")
+	}
+	if m.keyOwner(keys[0]) != "" {
+		return Client{}, fmt.Errorf("этот ключ уже у другого устройства")
+	}
+	return m.createClientKey(name, deviceType, keys[0], extra)
+}
+
+// keyOwner — у какого клиента уже есть ключ key.
+func (m *ClientManager) keyOwner(key string) string {
+	for _, c := range m.store.List() {
+		if slices.Contains(c.keys(), key) {
+			return c.ID
+		}
+	}
+	return ""
+}
+
+// AddKey — ещё один ключ уже заведённому устройству («Новое приглашение»):
+// старые остаются, пока их не уберут.
+func (m *ClientManager) AddKey(id, pubKey string) error {
+	keys := cleanKeys([]string{pubKey})
+	if len(keys) == 0 {
+		return fmt.Errorf("неверный открытый ключ")
+	}
+	key := keys[0]
+	if owner := m.keyOwner(key); owner == id {
+		return nil
+	} else if owner != "" {
+		return fmt.Errorf("этот ключ уже у другого устройства")
+	}
+	return m.setKeys(id, func(c *Client) error {
+		if len(c.keys()) >= 8 {
+			return fmt.Errorf("у устройства уже 8 ключей — убери старые")
+		}
+		if c.PublicKey == "" {
+			c.PublicKey = key
+		} else {
+			c.ExtraKeys = append(c.ExtraKeys, key)
+		}
+		return nil
+	})
+}
+
+// RemoveKey — убрать ключ устройства; последний убрать нельзя (для этого
+// есть «Удалить устройство»). Закрытый ключ панели уходит вместе со своим.
+func (m *ClientManager) RemoveKey(id, pubKey string) error {
+	keys := cleanKeys([]string{pubKey})
+	if len(keys) == 0 {
+		return fmt.Errorf("неверный открытый ключ")
+	}
+	key := keys[0]
+	return m.setKeys(id, func(c *Client) error {
+		all := c.keys()
+		if !slices.Contains(all, key) {
+			return fmt.Errorf("у устройства нет такого ключа")
+		}
+		if len(all) == 1 {
+			return fmt.Errorf("это последний ключ устройства — удали устройство целиком")
+		}
+		rest := slices.DeleteFunc(slices.Clone(all), func(k string) bool { return k == key })
+		if c.PublicKey == key {
+			c.PrivateKey = ""
+		}
+		c.PublicKey, c.ExtraKeys = rest[0], rest[1:]
+		if len(c.ExtraKeys) == 0 {
+			c.ExtraKeys = nil
+		}
+		return nil
+	})
+}
+
+func (m *ClientManager) setKeys(id string, fn func(*Client) error) error {
+	m.editMu.Lock()
+	defer m.editMu.Unlock()
+	c, ok := m.store.Get(id)
+	if !ok {
+		return fmt.Errorf("нет клиента %q", id)
+	}
+	if err := fn(&c); err != nil {
+		return err
+	}
+	if c.State != StateFrozen {
+		content, err := m.provisioner.ReadAuthorizedKeys(c.Username)
+		if err != nil {
+			return err
+		}
+		updated, err := withClientKeys(content, c)
+		if err != nil {
+			return err
+		}
+		if err := m.provisioner.WriteAuthorizedKeys(c.Username, updated); err != nil {
+			return err
+		}
+	}
+	if err := m.store.Put(c); err != nil {
+		return err
+	}
+	m.notify(c, false)
+	return nil
+}
+
+// dropLocal — учётной записи больше нельзя на этот сервер (ТЗ 47): её
+// пользователь здесь уходит, а в сети запись остаётся. Сеть уже знает —
+// onChange не зовётся.
+func (m *ClientManager) dropLocal(id string) error {
+	m.editMu.Lock()
+	defer m.editMu.Unlock()
+	c, ok := m.store.Get(id)
+	if !ok {
+		return nil
+	}
+	return m.deleteClient(c)
+}
+
 func (m *ClientManager) createClient(name string, deviceType DeviceType, extra func(*Client)) (Client, error) {
+	return m.createClientKey(name, deviceType, "", extra)
+}
+
+// createClientKey — pubKey пустой: ключевую пару делает панель (старый
+// путь, «Показать настройки»).
+func (m *ClientManager) createClientKey(name string, deviceType DeviceType, pubKey string, extra func(*Client)) (Client, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Client{}, fmt.Errorf("имя клиента не может быть пустым")
@@ -149,9 +290,12 @@ func (m *ClientManager) createClient(name string, deviceType DeviceType, extra f
 	}
 	clientID := ClientID(username)
 
-	pubKey, privKey, err := generateKeyPair()
-	if err != nil {
-		return Client{}, fmt.Errorf("не могу создать ключ: %w", err)
+	privKey := ""
+	if pubKey == "" {
+		pubKey, privKey, err = generateKeyPair()
+		if err != nil {
+			return Client{}, fmt.Errorf("не могу создать ключ: %w", err)
+		}
 	}
 	akLine, err := AuthorizedKeysLine(pubKey, clientID)
 	if err != nil {
