@@ -5483,17 +5483,26 @@ function liveRetitleEditingTab(){
 // refreshLatencyBadges — отклик у каждой вкладки. Не влияет на то, к какому
 // серверу подключается программа, — только показывает цифры рядом с именем.
 let latencyRunning = false;
+// latCache — последняя измеренная задержка по id сервера: список
+// перерисовывается, а мерить заново каждый раз незачем (раз в минуту).
+const latCache = {};
+let latencyAt = 0;
 async function refreshLatencyBadges(){
   if(latencyRunning) return;
+  const missing = (cfg.profiles || []).some(p => !(p.id in latCache));
+  if(!missing && Date.now() - latencyAt < 60000) return;
   latencyRunning = true;
-  document.querySelectorAll('.srv .lat').forEach(el => el.textContent = tr('latency_measuring'));
+  latencyAt = Date.now();
+  document.querySelectorAll('.srv .lat').forEach(el => { if(!el.textContent) el.textContent = tr('latency_measuring'); });
   try{
     const r = await api('/api/profile/latency', {});
     (r.results || []).forEach(res => {
       const el = document.querySelector('.srv .lat[data-lat-id="' + CSS.escape(res.id) + '"]');
-      if(!el) return;
-      el.textContent = res.error ? tr('latency_unreachable') : res.ms + tr('unit_ms');
+      latCache[res.id] = res.error ? tr('latency_unreachable') : res.ms + tr('unit_ms');
+      if(el) el.textContent = latCache[res.id];
     });
+    // Не ответил вовсе — не мерить его заново при каждой перерисовке.
+    (cfg.profiles || []).forEach(p => { if(!(p.id in latCache)) latCache[p.id] = ''; });
   } catch(e){ /* тихо: это необязательное украшение вкладок */ }
   latencyRunning = false;
 }
@@ -5511,14 +5520,27 @@ let srvOpen = false;
 const SVG_PEN = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
 const SVG_EXPORT = '<svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>';
 
+// tabsSig — что нарисовано в списке серверов. Настройки приходят заново
+// часто (событие config, опрос состояния, ответ /api/device), а пересборка
+// списка дёргает весь экран и заново меряет задержку — поэтому, пока
+// нарисованное не изменилось, список не трогаем.
+let tabsSig = '';
 function renderTabs(){
   const box = $('profileTabs');
   const panel = $('serverPanel');
+  const removed = (devInfo && devInfo.device && devInfo.device.removed) || [];
+  const sig = JSON.stringify([LANG, cfg.activeProfile, srvOpen, editingProfileId, showHidden,
+    (cfg.profiles || []).map(p => [p.id, p.name, p.host, p.flag, !!p.hidden, p.fromPanel || '']), removed]);
+  if(sig === tabsSig && box.firstChild){
+    renderGeneralVisibility();
+    renderServersSummary();
+    return;
+  }
+  tabsSig = sig;
   $('viewServers').insertBefore(panel, box.nextSibling);
   box.innerHTML = '';
   // Скрытые (до ТЗ 51) и удалённые у себя серверы из панели (ТЗ 51) —
   // под одной кнопкой «Показать скрытые»; удалённые — с «Вернуть».
-  const removed = (devInfo && devInfo.device && devInfo.device.removed) || [];
   const hiddenN = (cfg.profiles || []).filter(p => p.hidden).length + removed.length;
   $('showHiddenBtn').hidden = !hiddenN;
   $('showHiddenBtn').textContent = (showHidden ? tr('hidden_hide') : tr('hidden_show')) + ' (' + hiddenN + ')';
@@ -5532,7 +5554,7 @@ function renderTabs(){
       '<button type="button" class="rad' + (p.id === cfg.activeProfile ? ' on' : '') + '"></button>' +
       '<button type="button" class="nmb"><span class="flagicon">' + tabFlagHTML(resolveFlagCode(p.flag)) + '</span>' +
         '<span class="nmw"><span class="nm"></span><span class="hs"></span></span></button>' +
-      '<span class="lat" data-lat-id="' + p.id + '"></span>' +
+      '<span class="lat" data-lat-id="' + p.id + '">' + (latCache[p.id] || '') + '</span>' +
       '<button type="button" class="mi exp">' + SVG_EXPORT + '</button>' +
       '<button type="button" class="mi ed' + (open ? ' on' : '') + '">' + SVG_PEN + '</button>';
     row.querySelector('.nm').textContent = p.name;
@@ -6442,7 +6464,12 @@ loadAppProfiles();
 // applyDoc — центральная точка «пришли свежие настройки, разложи их по
 // экрану». keepEditing=false используется после удаления сервера: править
 // удалённый профиль больше нельзя, форма переключается на активный.
+let lastDocJSON = '';
 function applyDoc(newCfg, keepEditing){
+  // Пришли те же настройки (событие config, опрос) — экран уже такой.
+  const j = JSON.stringify(newCfg);
+  if(j === lastDocJSON && keepEditing !== false && !formDirty) return;
+  lastDocJSON = j;
   cfg = newCfg;
   if(keepEditing === false || !(cfg.profiles || []).some(p => p.id === editingProfileId)){
     editingProfileId = cfg.activeProfile;

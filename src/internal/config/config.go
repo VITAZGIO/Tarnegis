@@ -613,10 +613,12 @@ func Default() Config {
 		Profiles:      []Profile{p},
 		ActiveProfile: p.ID,
 		SysProxy:      true,
-		SetEnvVars:    true,
-		Language:      "ru",
-		Prefs:         prefsOf(p),
-		PrefsV:        PrefsVersion,
+		// Выбор сервера на главном — сразу: без него сервер с главного не сменить.
+		ShowServerPicker: true,
+		SetEnvVars:       true,
+		Language:         "ru",
+		Prefs:            prefsOf(p),
+		PrefsV:           PrefsVersion,
 	}
 }
 
