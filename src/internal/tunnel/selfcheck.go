@@ -274,7 +274,8 @@ func sshHandshake(ctx context.Context, conn net.Conn, addr string, opt SelfCheck
 	cfg := &ssh.ClientConfig{
 		User:            opt.User,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: hostkey.Callback(opt.KnownHostsPath, nil),
+		HostKeyCallback:   hostkey.Callback(opt.KnownHostsPath, nil),
+		HostKeyAlgorithms: hostkey.Algorithms(opt.KnownHostsPath, addr),
 		Timeout:         opt.DialTimeout,
 		Config:          ssh.Config{Ciphers: sshCiphers(opt.Cipher)},
 	}

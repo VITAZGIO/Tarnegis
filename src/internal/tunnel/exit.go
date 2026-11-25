@@ -288,6 +288,7 @@ func (t *Tunnel) dialChain(ctx context.Context) (*chain, error) {
 			return fail(i, err)
 		}
 		cfg := t.hopConfig(i, h)
+		cfg.HostKeyAlgorithms = hostkey.Algorithms(t.cfg.KnownHostsPath, addr)
 		// Канал direct-tcpip (client.Dial) не умеет SetDeadline — сервер SSH
 		// такого соединения не даёт («deadline not supported»), а
 		// sshHandshakeWire его требует для срока «тишина/потолок». Снаружи
