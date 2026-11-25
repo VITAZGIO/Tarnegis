@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"sshtunnel/android/core"
+	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/calendar"
 	"sshtunnel/internal/config"
 	core2 "sshtunnel/internal/core"
@@ -151,6 +152,9 @@ func NewTunnel() *Tunnel {
 			cb.OnLog(text)
 		}
 	}
+	hostkey.SetVouchLog(func(host, fp string) {
+		logf("", "Ключ сервера "+host+" обновлён по данным сети серверов: "+fp)
+	})
 	t.meshHost = tunnel.NewMeshHost(logf)
 	t.meshLinks = tunnel.NewMeshLinks(t.meshHost, logf)
 	// Календарь ходит к Nextcloud через это ядро (calendar.go).
@@ -396,6 +400,10 @@ func (t *Tunnel) ServerDownKind() string {
 }
 
 func errorKind(err error) string {
+	var changed *hostkey.ErrChanged
+	if errors.As(err, &changed) {
+		return tunnel.HostKeyChangedKind
+	}
 	var ce *tunnel.ConnError
 	if errors.As(err, &ce) {
 		return string(ce.Kind)

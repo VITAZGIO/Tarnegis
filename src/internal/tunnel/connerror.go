@@ -20,6 +20,10 @@ import (
 // своего I18N нет).
 type ConnErrorKind string
 
+// HostKeyChangedKind — код причины «ключ сервера изменился» (hostkey.ErrChanged)
+// для экрана: карточка с отпечатками и «принять новый ключ» (ТЗ 46).
+const HostKeyChangedKind = "hostkey_changed"
+
 const (
 	// ConnErrorAuth — сервер отверг ключ на этапе аутентификации SSH.
 	ConnErrorAuth ConnErrorKind = "auth"

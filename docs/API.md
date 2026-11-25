@@ -123,6 +123,14 @@
   `GET /api/appicon?pkg=<пакет>` — значок PNG.
 - `/api/update/download` скачивает APK и открывает установщик.
 
+Общее с ПК, но через Go-ядро телефона (`mobile.HostKeyAPI`): `/api/hostkey`
+— смена ключа сервера (ТЗ 46). `GET` — ожидающие решения
+`{"pending":[{host,server,port,keyType,fingerprint,old,cmd}]}`;
+`GET ?host=&port=` — записанные ключи `{keys,pending}`; `POST`
+`{"op":"accept","host":"h:p","fingerprint"}` (принимается только ключ,
+который показал сервер, отпечаток сверяется), `{"op":"dismiss","host"}`,
+`{"op":"forget","host","port"}`.
+
 Настольного (`/api/bootstart`, `/api/pickfile`, `/api/vpssetup/*`, `/api/panelfwd`, `/api/window`
 …) на телефоне нет — ответ `{"error":…}`, экран эти пункты не показывает.
 

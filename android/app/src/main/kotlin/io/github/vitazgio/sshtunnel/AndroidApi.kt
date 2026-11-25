@@ -143,6 +143,9 @@ object AndroidApi : mobile.API {
             "/api/appprofiles" -> JSONObject().put("state", appProfilesState(AppProfiles(app, s))).toString()
             "/api/appprofiles/enable", "/api/appprofiles/add",
             "/api/appprofiles/switch", "/api/appprofiles/delete" -> appProfileAction(s, path, obj(body))
+            // Смена ключа сервера (ТЗ 46): та же логика и JSON, что на ПК (Go).
+            "/api/hostkey" -> mobile.Mobile.hostKeyAPI(s.knownHostsFile.absolutePath, method,
+                q.getQueryParameter("host") ?: "", q.getQueryParameter("port") ?: "", body)
             "/api/mesh" -> TunnelService.meshStatus()
             "/api/checkip" -> TunnelService.checkIP(app)
             "/api/speedtest" -> TunnelService.speedTest(app)
@@ -204,7 +207,10 @@ object AndroidApi : mobile.API {
         }
         val tunnel = JSONObject().put("want", bypass).put("phase", phase(bypass))
         val err = localError.ifEmpty { if (st == "error") TunnelService.detail else "" }
-        if (err.isNotEmpty() && !bypass && !mesh) tunnel.put("phase", "error").put("error", err)
+        if (err.isNotEmpty() && !bypass && !mesh) {
+            tunnel.put("phase", "error").put("error", err)
+            if (localError.isEmpty() && TunnelService.errorKind.isNotEmpty()) tunnel.put("errorKind", TunnelService.errorKind)
+        }
         // Туннель поднят без сервера ради сети устройств (ТЗ 11): большая
         // кнопка гаснет с ошибкой сервера, как на ПК (core.ServerDownError) —
         // текст как есть и код причины, перевод — на экране.
