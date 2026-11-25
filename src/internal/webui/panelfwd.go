@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -42,6 +43,44 @@ type panelForward struct {
 	// lastErr — почему проброс закрылся сам (оборвалась связь с сервером);
 	// показывается один раз в ответе status.
 	lastErr string
+	// leaseUntil — проброс держит отдельное окно «Панель сервера»: окно раз в
+	// несколько секунд продлевает аренду (op ping). Окно закрыли — продлений
+	// нет, и проброс закрывается сам. Нулевое — аренды нет (полоска в окне
+	// программы, закрывается кнопкой).
+	leaseUntil time.Time
+}
+
+// panelLease — на сколько продлевает аренду одно сообщение окна.
+var panelLease = 15 * time.Second
+
+// ping продлевает аренду окна; false — проброса уже нет.
+func (f *panelForward) ping() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.ln == nil {
+		return false
+	}
+	f.leaseUntil = time.Now().Add(panelLease)
+	return true
+}
+
+// watchLease закрывает проброс, когда окно перестало продлевать аренду.
+func (f *panelForward) watchLease(ln net.Listener) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for range t.C {
+		f.mu.Lock()
+		if f.ln != ln {
+			f.mu.Unlock()
+			return
+		}
+		if !f.leaseUntil.IsZero() && time.Now().After(f.leaseUntil) {
+			f.closeLocked("окно панели закрыто")
+			f.mu.Unlock()
+			return
+		}
+		f.mu.Unlock()
+	}
 }
 
 // panelFwdState — то, что видит окно.
@@ -89,6 +128,7 @@ func (f *panelForward) closeLocked(reason string) {
 		f.lastErr = reason
 	}
 	f.ln, f.client, f.profileID, f.name, f.port = nil, nil, "", "", 0
+	f.leaseUntil = time.Time{}
 }
 
 // panelDial — вход на сервер ключом профиля под администратором. Отдельная
@@ -110,7 +150,7 @@ var panelDial = func(user, addr, keyPath string) (*ssh.Client, error) {
 
 // open поднимает проброс для профиля p. Уже открыт для него же — отдаёт
 // текущий; для другого — закрывает старый.
-func (f *panelForward) open(p config.Profile, adminUser string) (panelFwdState, error) {
+func (f *panelForward) open(p config.Profile, adminUser string, window bool) (panelFwdState, error) {
 	if strings.TrimSpace(p.Host) == "" {
 		return panelFwdState{}, errors.New("у сервера не указан адрес")
 	}
@@ -133,6 +173,9 @@ func (f *panelForward) open(p config.Profile, adminUser string) (panelFwdState, 
 
 	f.mu.Lock()
 	if f.ln != nil && f.profileID == p.ID {
+		if window {
+			f.leaseUntil = time.Now().Add(panelLease)
+		}
 		st := f.stateLocked()
 		f.mu.Unlock()
 		return st, nil
@@ -163,10 +206,14 @@ func (f *panelForward) open(p config.Profile, adminUser string) (panelFwdState, 
 	f.mu.Lock()
 	f.ln, f.client, f.profileID, f.name = ln, client, p.ID, p.Name
 	f.port = ln.Addr().(*net.TCPAddr).Port
+	if window {
+		f.leaseUntil = time.Now().Add(panelLease)
+	}
 	st := f.stateLocked()
 	f.mu.Unlock()
 
 	go f.serve(ln, client)
+	go f.watchLease(ln)
 	go func() {
 		// Связь с сервером оборвалась — проброс бесполезен, закрываем.
 		client.Wait()
@@ -220,6 +267,8 @@ func (s *Server) handlePanelFwd(w http.ResponseWriter, r *http.Request) {
 		Op        string `json:"op"`
 		ID        string `json:"id"`
 		AdminUser string `json:"adminUser"`
+		// Window — проброс держит отдельное окно (аренда, см. leaseUntil).
+		Window bool `json:"window"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]string{"error": "не разобрал запрос: " + err.Error()})
@@ -228,6 +277,9 @@ func (s *Server) handlePanelFwd(w http.ResponseWriter, r *http.Request) {
 	switch req.Op {
 	case "close":
 		s.panelFwd.close("")
+		writeJSON(w, s.panelFwd.state())
+	case "ping":
+		s.panelFwd.ping()
 		writeJSON(w, s.panelFwd.state())
 	case "open":
 		var prof *config.Profile
@@ -246,13 +298,13 @@ func (s *Server) handlePanelFwd(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]string{"error": "имя администратора: только латиница, цифры, «-» и «_», с буквы"})
 			return
 		}
-		st, err := s.panelFwd.open(*prof, req.AdminUser)
+		st, err := s.panelFwd.open(*prof, req.AdminUser, req.Window)
 		if err != nil {
 			writeJSON(w, map[string]string{"error": err.Error()})
 			return
 		}
 		writeJSON(w, st)
 	default:
-		writeJSON(w, map[string]string{"error": "op: open или close"})
+		writeJSON(w, map[string]string{"error": "op: open, ping или close"})
 	}
 }

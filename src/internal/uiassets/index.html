@@ -4232,7 +4232,9 @@ $('vpsResAgain').onclick = () => {
   $('vpsLogCopy').hidden = true;
   vpsShowForm();
 };
-$('vpsResOpenPanel').onclick = () => openServerPanel(vpsResProfile, '', $('vpsResHint'));
+// Логин и одноразовый пароль из итога мастера — их покажет и окно панели.
+let vpsResCred = null;
+$('vpsResOpenPanel').onclick = () => openServerPanel(vpsResProfile, '', $('vpsResHint'), vpsResCred);
 
 async function onVpsSetupEvent(e){
   if(e.done){
@@ -4256,6 +4258,10 @@ async function onVpsSetupEvent(e){
         const st = await api('/api/status');
         if(st && st.config && !formDirty) applyDoc(st.config, true);
       } catch(_){ }
+      // Панель поставлена — сразу открываем окно «Панель сервера» (и браузер):
+      // настроить сеть устройств можно, не разбираясь, где кнопка.
+      vpsResCred = e.vps.panelPass ? {login: e.vps.panelLogin || 'admin', pass: e.vps.panelPass} : null;
+      if(e.vps.panel && vpsResProfile) openServerPanel(vpsResProfile, '', $('vpsResHint'), vpsResCred);
     }
     return;
   }
@@ -6590,14 +6596,26 @@ async function pollPanelFwd(){
   }
   renderPanelBar(st);
 }
-async function openServerPanel(id, adminUser, noteEl){
+// openServerPanel — отдельное окно «Панель сервера»: оно само открывает
+// проброс, показывает адрес, кнопки «Открыть в браузере» / «Скопировать» и
+// (после мастера) логин с одноразовым паролем. Пока окно открыто — проброс
+// живёт; закрыли окно — закрылся (аренда, /api/panelfwd op ping).
+async function openServerPanel(id, adminUser, noteEl, cred){
   if(!id) return;
-  noteEl.textContent = tr('panel_opening');
-  const r = await api('/api/panelfwd', {op: 'open', id, adminUser: adminUser || ''}).catch(e => ({error: String(e)}));
-  if(!r || r.error){ noteEl.textContent = (r && r.error) || ''; return; }
+  const prof = (cfg.profiles || []).find(p => p.id === id) || {};
+  let url = pageURL('panelwin.html', {id, admin: adminUser || '', name: prof.name || prof.host || ''});
+  if(cred && cred.pass) url += '#' + new URLSearchParams({l: cred.login || 'admin', p: cred.pass}).toString();
   noteEl.textContent = '';
-  renderPanelBar(r);
-  openExternal(r.url);
+  const ok = await openWindow('serverpanel', tr('panel_open_btn') + ' — ssh_tunnel', url);
+  if(!ok && !ANDROID){
+    // Окно не открылось — как раньше: проброс и полоска в этом окне.
+    noteEl.textContent = tr('panel_opening');
+    const r = await api('/api/panelfwd', {op: 'open', id, adminUser: adminUser || ''}).catch(e => ({error: String(e)}));
+    if(!r || r.error){ noteEl.textContent = (r && r.error) || ''; return; }
+    noteEl.textContent = '';
+    renderPanelBar(r);
+    openExternal(r.url);
+  }
 }
 $('openPanelBtn').onclick = () => {
   if(formDirty){ $('openPanelNote').textContent = tr('panel_save_first'); return; }
