@@ -163,6 +163,33 @@ func (s *Server) SelfServiceHandler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"devices": callerMap(st, c.Username),
 			"servers": mapServers(st), "serverLinks": st.ServerLinks})
 	})
+	// Профиль устройства (ТЗ 47, контракт раздел C): на какие серверы ему
+	// можно и есть ли сеть устройств. Без пароля — только про себя.
+	mux.HandleFunc("/api/me/profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "нужен GET"})
+			return
+		}
+		c, ok := s.callerClient(r)
+		if !ok {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "этот сервер тебя не знает как клиента панели"})
+			return
+		}
+		writeJSON(w, http.StatusOK, s.profileOf(c))
+	})
+	// Вход по приглашению (ТЗ 47, контракт раздел B): сюда пересылает
+	// команда join пользователя tun_join (joinsys.go), больше никто.
+	mux.HandleFunc("/v1/join", func(w http.ResponseWriter, r *http.Request) {
+		var req joinReq
+		if !post(w, r, &req) {
+			return
+		}
+		if !s.joinCallerOK(r) {
+			writeJSON(w, http.StatusForbidden, joinResp{Err: joinUnknown})
+			return
+		}
+		writeJSON(w, http.StatusOK, s.redeem(r.Context(), req))
+	})
 	mux.HandleFunc("/v1/create", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Password   string `json:"password"`

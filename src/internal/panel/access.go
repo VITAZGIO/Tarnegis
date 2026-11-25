@@ -127,6 +127,9 @@ func buildPolicy(a AccessSettings, clients []Client) meshsvc.Policy {
 		if len(c.Groups) > 0 && c.Username != "" {
 			p.Users[c.Username] = append([]string(nil), c.Groups...)
 		}
+		if c.NoMesh && c.Username != "" {
+			p.NoMesh = append(p.NoMesh, c.Username)
+		}
 	}
 	for _, r := range a.Rules {
 		p.Rules = append(p.Rules, meshsvc.PolicyRule{From: r.From, To: r.To, Ports: r.Ports})

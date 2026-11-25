@@ -207,6 +207,7 @@ func (n *ServerNet) applyAccounts(items map[string]srvItem) {
 	}
 	n.mu.Lock()
 	n.applying = true
+	self := n.f.Self
 	n.mu.Unlock()
 	defer func() {
 		n.mu.Lock()
@@ -222,7 +223,13 @@ func (n *ServerNet) applyAccounts(items map[string]srvItem) {
 		if it.Del {
 			err = n.srv.clients.ApplyShared(user, nil)
 		} else if rec, ok := decodeItem[acctRec](it); ok {
-			err = n.srv.clients.ApplyShared(user, &rec)
+			// ТЗ 47: учётной записи, которой этот сервер не разрешён,
+			// здесь нет совсем — ни пользователя, ни ключа.
+			if allowedOn(cleanServers(rec.Servers), self) {
+				err = n.srv.clients.ApplyShared(user, &rec)
+			} else {
+				err = n.srv.clients.ApplyShared(user, nil)
+			}
 		}
 		if err != nil {
 			n.mesh.logf("сеть серверов: учётная запись %s: %v", user, err)
@@ -329,8 +336,18 @@ func (n *ServerNet) pushKnown(ctx context.Context, servers map[string]srvRec, ne
 				ID: r.MeshID, HostKey: preferredHostKey(r.HostKeys), Net: netID})
 		}
 		if n.srv != nil {
+			// «Учётная запись есть на всех серверах сети» — по ней старая
+			// программа добавляет серверы сама. Запись со своим списком
+			// серверов (ТЗ 47) сюда не попадает: её серверы программа берёт
+			// из профиля (/api/me/profile).
 			for _, c := range n.srv.clients.List() {
-				shared = append(shared, c.Username)
+				all := true
+				for id := range servers {
+					all = all && allowedOn(c.Servers, id)
+				}
+				if all {
+					shared = append(shared, c.Username)
+				}
 			}
 			sort.Strings(shared)
 		}

@@ -54,6 +54,17 @@ import (
 const defaultListen = "127.0.0.1:47823"
 
 func main() {
+	// Команды для sshd (вход по приглашению, ТЗ 47, panel/joinsys.go) —
+	// раньше всего: их запускает sshd от имени tun_join и nobody, ни флагов,
+	// ни файлов панели им не нужно.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "join":
+			os.Exit(panel.RunJoin(os.Stdin, os.Stdout, os.Getenv, panel.PostJoin))
+		case "join-key":
+			os.Exit(panel.RunJoinKey(os.Args[2:], os.Stdout))
+		}
+	}
 	// Своё имя файла в релизе (ssh_tunnel_panel): по нему проверка и
 	// обновление из настроек ищут, что качать.
 	updater.Panel = true
@@ -94,6 +105,11 @@ func main() {
 
 	if err := panel.EnsureSSHDRestrictions(); err != nil {
 		fatal("не могу подготовить ограничения sshd для клиентов панели: %v", err)
+	}
+	// Вход по приглашению (ТЗ 47): пользователь tun_join, его блок sshd,
+	// fail2ban. Не фатально: без этого не выдаются только новые устройства.
+	if err := panel.EnsureJoinAccess(*sshPort); err != nil {
+		log.Printf("вход по приглашению не настроен: %v", err)
 	}
 	settings, err := panel.OpenSettings(filepath.Join(*dataDir, "settings.json"))
 	if err != nil {

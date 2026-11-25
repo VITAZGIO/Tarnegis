@@ -122,3 +122,12 @@ button.drow.on{background:color-mix(in srgb, var(--accent-muted) 22%, var(--card
 .ddetail .facts .k{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ddetail .facts .v{font-family:var(--mono);font-size:12px;line-height:1.35;margin-top:1px;overflow-wrap:anywhere}
+/* ТЗ 47: приглашения — под списком; QR приглашения; ключи устройства. */
+.invbox{margin-top:16px;padding-top:10px;border-top:1px solid var(--line)}
+.invbox h2{margin:0 0 6px}
+.invrow,.keyrow{display:flex;align-items:center;gap:10px;padding:6px 0}
+.invrow .nm{flex:1 1 auto;min-width:0}
+.invrow .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.invrow .h{color:var(--dim);font-size:12px}
+.keyrow code{flex:1 1 auto;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.invqr{max-width:220px;width:100%;cursor:zoom-in;border-radius:8px;background:#fff;padding:6px}

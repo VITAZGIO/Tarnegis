@@ -25,6 +25,10 @@ type acctRec struct {
 	Groups  []string   `json:"groups,omitempty"`
 	Origin  string     `json:"origin,omitempty"` // имя сервера, где заведена
 	Created time.Time  `json:"created,omitempty"`
+	// ТЗ 47: на каких серверах сети у записи есть вход (нет поля — на всех)
+	// и выключена ли ей сеть устройств. Старые панели этих полей не знают.
+	Servers []string `json:"servers,omitempty"`
+	NoMesh  bool     `json:"noMesh,omitempty"`
 }
 
 // recOfClient — запись для сети из клиента этого сервера.
@@ -34,7 +38,28 @@ func recOfClient(c Client, selfName string) acctRec {
 		origin = selfName
 	}
 	return acctRec{Name: c.Name, Type: c.DeviceType, Keys: c.keys(), Off: c.State == StateFrozen,
-		Groups: append([]string(nil), c.Groups...), Origin: origin, Created: c.CreatedAt}
+		Groups: append([]string(nil), c.Groups...), Origin: origin, Created: c.CreatedAt,
+		Servers: slices.Clone(c.Servers), NoMesh: c.NoMesh}
+}
+
+// cleanServers — список серверов из сети: только похожие на id, без
+// повторов, по порядку. nil остаётся nil («на всех»).
+func cleanServers(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	out := []string{}
+	for _, id := range in {
+		if !validServerID(id) || slices.Contains(out, id) {
+			continue
+		}
+		out = append(out, id)
+		if len(out) >= maxServers {
+			break
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // cleanKeys — открытые ключи из сети: только разбираемые, без опций и
@@ -92,6 +117,7 @@ func (m *ClientManager) ApplyShared(username string, rec *acctRec) error {
 	// Ключи: свой (у которого здесь есть закрытый) остаётся основным.
 	next := c
 	next.Name, next.Groups = name, groups
+	next.Servers, next.NoMesh = cleanServers(rec.Servers), rec.NoMesh
 	if validDeviceType(rec.Type) {
 		next.DeviceType = rec.Type
 	}
@@ -144,7 +170,8 @@ func (m *ClientManager) ApplyShared(username string, rec *acctRec) error {
 
 func sharedEqual(a, b Client) bool {
 	return a.Name == b.Name && a.DeviceType == b.DeviceType && a.State == b.State &&
-		a.PublicKey == b.PublicKey && slices.Equal(a.ExtraKeys, b.ExtraKeys) && slices.Equal(a.Groups, b.Groups)
+		a.PublicKey == b.PublicKey && slices.Equal(a.ExtraKeys, b.ExtraKeys) && slices.Equal(a.Groups, b.Groups) &&
+		slices.Equal(a.Servers, b.Servers) && a.NoMesh == b.NoMesh
 }
 
 // importClient заводит пользователя, пришедшего из сети: те же имя и ключи,
@@ -156,7 +183,7 @@ func (m *ClientManager) importClient(username, name string, rec *acctRec, keys, 
 	c := Client{
 		ID: ClientID(username), Name: name, DeviceType: rec.Type, CreatedAt: rec.Created,
 		State: StateActive, Username: username, PublicKey: keys[0], ExtraKeys: keys[1:],
-		Groups: groups, Origin: rec.Origin,
+		Groups: groups, Origin: rec.Origin, Servers: cleanServers(rec.Servers), NoMesh: rec.NoMesh,
 	}
 	if !validDeviceType(c.DeviceType) {
 		c.DeviceType = DeviceWindows

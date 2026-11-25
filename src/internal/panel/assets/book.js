@@ -144,7 +144,7 @@ const BOOK_HELP = {
   home_sub:'01-about', devices_sub:'03-devices', mesh_sub:'04-networks', access_sub:'05-access', plugins_sub:'11-plugins',
   hint_tile_devices:'03-devices',
   hint_map:'04-networks',
-  hint_acc:'05-access', hint_acc_rules:'05-access', hint_acc_client_groups:'05-access', hint_nd:'05-access',
+  hint_acc:'05-access', hint_acc_rules:'05-access', hint_acc_client_groups:'05-access', hint_scope_servers:'03-devices', hint_nd:'05-access',
   hint_acc_creator:'05-access', hint_sm:'05-access', hint_ck:'05-access',
   hint_tile_servers:'06-servers', hint_servers:'06-servers', hint_mesh_name:'06-servers',
   hint_srv_dn:'06-servers', hint_srv_code:'06-servers',
