@@ -119,6 +119,6 @@ class AppProfiles(context: Context, private val settings: Settings) {
         settings.adBlockSources = ""
         settings.adBlockAllowlist = ""
         settings.udpRelayEnabled = false
-        settings.showServerPicker = false
+        settings.showServerPicker = true
     }
 }
