@@ -925,6 +925,9 @@ type MeshState struct {
 	// между серверами на схеме (ТЗ 24).
 	SelfSrv     string         `json:"selfSrv,omitempty"`
 	ServerLinks []SrvLinkState `json:"serverLinks"`
+	// PanelNet — id сети панели (ТЗ 49): сюда попадают устройства по
+	// приглашению. Пусто — сеть панели ещё не заведена. Ключа здесь нет.
+	PanelNet string `json:"panelNet,omitempty"`
 	// Relays — пересланные между серверами соединения (meshd 7).
 	Relays      []RelayView         `json:"relays"`
 	localRelays []meshsvc.RelayLine // из meshd этого сервера
@@ -953,6 +956,9 @@ func (m *MeshManager) State(ctx context.Context) MeshState {
 		Relays:      []RelayView{},
 	}
 	st.ServerAccess, st.ServerPorts = !s.ServerAccessOff, s.ServerPorts
+	if m.net != nil {
+		st.PanelNet = m.net.PanelNetID()
+	}
 	st.EffectiveRole = s.Role
 	// meshd поставлен мастером настройки VPS, а в панели роль не выбрана —
 	// по сути это уже главный сервер.

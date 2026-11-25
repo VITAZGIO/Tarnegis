@@ -102,6 +102,8 @@ type DeviceResult struct {
 	// MeshOff — панель выключила сеть устройств (было можно — стало нельзя);
 	// MeshBack — вернула.
 	MeshOff, MeshBack bool
+	// NetJoined — устройство перешло в сеть панели (ключ из профиля новый).
+	NetJoined bool
 }
 
 // panelKey — какой сервер профиля устройства этот профиль.
@@ -125,9 +127,9 @@ func (c *Config) SetDevice(d Device, dp DeviceProfile) DeviceResult {
 	if d.Net == nil {
 		n := c.DeviceNetOf()
 		n.On = true
-		if n.Key == "" {
-			n.Key = c.anyMeshKey()
-		}
+		// Сеть устройства из панели — только сеть панели (ТЗ 49): ключ из
+		// профиля, своего устройство не заводит.
+		n.Key = dp.MeshKey
 		d.Net = &n
 	}
 	d.Rev = -1
@@ -138,7 +140,12 @@ func (c *Config) SetDevice(d Device, dp DeviceProfile) DeviceResult {
 // ApplyDevice применяет профиль устройства, если его rev вырос. Профиль
 // другой учётной записи не применяется.
 func (c *Config) ApplyDevice(dp DeviceProfile) DeviceResult {
-	if c.Device == nil || dp.ID != c.Device.ID || dp.Rev <= c.Device.Rev {
+	if c.Device == nil || dp.ID != c.Device.ID {
+		return DeviceResult{}
+	}
+	// Ключ сети панели другой (панель обновили, а rev тот же) — тоже правка.
+	keyNew := dp.MeshKey != "" && (c.Device.Net == nil || c.Device.Net.Key != dp.MeshKey)
+	if dp.Rev <= c.Device.Rev && !keyNew {
 		return DeviceResult{}
 	}
 	return c.applyDevice(dp)
@@ -156,7 +163,10 @@ func (c *Config) applyDevice(dp DeviceProfile) DeviceResult {
 	if dp.Name != "" {
 		d.Name = dp.Name
 	}
-	if dp.MeshKey != "" && d.Net != nil {
+	if d.Net != nil {
+		// Ключ сети — только от панели. Профиль без ключа (панель старше
+		// ТЗ 49) — сети устройств нет, а не своя сеть из одного устройства.
+		res.NetJoined = dp.MeshKey != "" && d.Net.Key != dp.MeshKey
 		d.Net.Key = dp.MeshKey
 	}
 	// Повторы адреса в профиле — один сервер.
@@ -242,10 +252,6 @@ func (c *Config) applyDevice(dp DeviceProfile) DeviceResult {
 		}
 	}
 	c.syncDevice()
-	if len(c.Profiles) == 0 {
-		c.Profiles = []Profile{defaultProfile(1)}
-		c.ActiveProfile = c.Profiles[0].ID
-	}
 	return res
 }
 
@@ -300,12 +306,10 @@ func (c *Config) SetDeviceNet(n DeviceNet) bool {
 	if c.Device == nil {
 		return false
 	}
-	n.Key = strings.TrimSpace(n.Key)
-	if n.Key == "" {
-		n.Key = c.DeviceNetOf().Key
-	}
-	n.ExitVia = slices.Clone(n.ExitVia)
 	old := c.DeviceNetOf()
+	// Ключ сети — от панели (ТЗ 49), не от экрана.
+	n.Key = old.Key
+	n.ExitVia = slices.Clone(n.ExitVia)
 	n.ExitT, n.ExitBy = old.ExitT, old.ExitBy
 	if strings.Join(n.ExitVia, "\x00") != strings.Join(old.ExitVia, "\x00") {
 		now := time.Now().Unix()
@@ -354,17 +358,18 @@ func (c Config) DeviceMeshAllowed() bool {
 	return c.Device == nil || (c.Device.Mesh && !c.Device.Frozen)
 }
 
-// anyMeshKey — ключ сети устройств, который уже есть на устройстве
-// (первый профиль с включённой сетью); нет — новый. Профиль из панели ключа
-// сети не несёт (контракт v1), поэтому устройство остаётся в своей сети.
-func (c Config) anyMeshKey() string {
-	for _, p := range c.Profiles {
-		if p.MeshEnabled && p.MeshKey != "" {
-			return p.MeshKey
-		}
+// DeviceNetMissing — устройству можно в сеть устройств и оно её включило,
+// но панель не выдала ключ сети (сервер старше ТЗ 49): сети нет.
+func (c Config) DeviceNetMissing() bool {
+	if c.Device == nil || !c.DeviceMeshAllowed() {
+		return false
 	}
-	return newMeshKey()
+	n := c.DeviceNetOf()
+	return n.On && n.Key == ""
 }
+
+// DeviceNetMissingText — что сказать человеку при DeviceNetMissing.
+const DeviceNetMissingText = "панель не выдала сеть устройств — обнови сервер"
 
 // dropPanelProfiles — убрать профили прежнего устройства.
 func (c *Config) dropPanelProfiles(id string) {
@@ -441,12 +446,10 @@ func (c *Config) syncDevice() {
 			continue // старые значения профиля, как до ТЗ 48
 		}
 		n := d.Net
-		p.MeshEnabled = n.On && d.Mesh && !d.Frozen
+		// Без ключа от панели сети нет (своего ключа устройство из панели
+		// не заводит, ТЗ 49).
+		p.MeshEnabled = n.On && d.Mesh && !d.Frozen && n.Key != ""
 		p.MeshKey = n.Key
-		if p.MeshEnabled && p.MeshKey == "" {
-			n.Key = newMeshKey()
-			p.MeshKey = n.Key
-		}
 		p.MeshOnlyThis = n.OnlyThis
 		via := slices.DeleteFunc(slices.Clone(n.ExitVia), func(id string) bool { return id == p.ID || id == "" })
 		if len(via) > MaxExitHops {

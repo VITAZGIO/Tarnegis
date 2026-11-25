@@ -60,7 +60,8 @@ func (f *fakeProvisioner) DeleteUser(username string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, ok := f.users[username]; !ok {
-		return fmt.Errorf("пользователь %s не найден", username)
+		// Как настоящий userdel.
+		return fmt.Errorf("userdel: user '%s' does not exist", username)
 	}
 	delete(f.users, username)
 	f.deleted = append(f.deleted, username)

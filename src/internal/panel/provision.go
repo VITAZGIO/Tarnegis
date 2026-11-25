@@ -110,11 +110,36 @@ func (systemProvisioner) DeleteUser(username string) error {
 	// Сессии рвём до userdel: иначе живые процессы держат открытыми файлы в
 	// домашней папке, и "userdel -r" на некоторых системах отказывается её
 	// удалять или удаляет только частично.
+	if _, err := user.Lookup(username); err != nil {
+		var unknown user.UnknownUserError
+		if errors.As(err, &unknown) {
+			return fmt.Errorf("%w: %s", ErrNoUser, username)
+		}
+	}
 	_ = killUserSessions(username)
 	if err := runSystem("userdel", "--remove", username); err != nil {
 		return err
 	}
 	return nil
+}
+
+// ErrNoUser — unix-пользователя на этом сервере нет (удалили руками, не
+// успел завестись, старая запись): удалять нечего, это уже сделано.
+var ErrNoUser = errors.New("такого пользователя на сервере нет")
+
+// userMissing — ошибка значит «пользователя нет» (ErrNoUser, ответ
+// user.Lookup или userdel/usermod/gpasswd «does not exist»).
+func userMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	var unknown user.UnknownUserError
+	if errors.Is(err, ErrNoUser) || errors.As(err, &unknown) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "unknown user") ||
+		strings.Contains(msg, "no such user")
 }
 
 func (systemProvisioner) KillSessions(username string) error {

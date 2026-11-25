@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -283,6 +284,10 @@ func (a *App) SetConfig(cfg config.Config) (string, error) {
 	if err := cfg.Save(); err != nil {
 		return "", err
 	}
+	// Окно перечитывает настройки по этому событию: правка могла прийти не
+	// от него (сверка профиля устройства, новый сервер сети) — а пока туннель
+	// поднят, само оно настройки не опрашивает (ТЗ 49).
+	a.Bus.Publish(events.Event{Kind: events.KindConfig})
 	if ab := a.adBlocker(); ab != nil {
 		ab.SetAdBlock(cfg)
 	}
@@ -394,21 +399,23 @@ func (a *App) UpdateProfile(p config.Profile) error {
 // возможно, подключённый прямо сейчас) — туннель останавливается: он остался
 // бы работать по адресу, которого в настройках больше нет.
 func (a *App) RemoveProfile(id string) (string, error) {
-	if p, ok := a.Config().ProfileByID(id); ok && p.IsPanel() {
+	if p, ok := a.Config().ProfileByID(id); ok && p.IsPanel() && !a.DeviceGone() {
 		return "", errors.New("этот сервер выдан панелью — его можно только скрыть у себя")
 	}
 	a.mu.Lock()
 	wasActive := a.cfg.ActiveProfile == id
+	a.cfg.Profiles = slices.Clone(a.cfg.Profiles)
 	ok := a.cfg.RemoveProfile(id)
 	cfg := a.cfg
 	wasRunning := a.running
 	a.mu.Unlock()
 	if !ok {
-		return "", errors.New("этот сервер удалить нельзя — он либо не найден, либо последний из оставшихся")
+		return "", errors.New("такого сервера нет")
 	}
 	if err := cfg.Save(); err != nil {
 		return "", err
 	}
+	a.Bus.Publish(events.Event{Kind: events.KindConfig})
 	if wasActive && wasRunning {
 		a.machine.Restore(core.Want{})
 		a.settle(nil, nil)

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -138,8 +139,52 @@ func TestAddRemoveProfile(t *testing.T) {
 		t.Errorf("после удаления активного профиля активным должен стать оставшийся: %q != %q",
 			cfg.ActiveProfile, first.ID)
 	}
-	if cfg.RemoveProfile(first.ID) {
-		t.Error("последний профиль удалять нельзя — подключаться будет не к чему")
+	// Последний тоже удаляется (ТЗ 49): серверов ноль, активного нет.
+	if !cfg.RemoveProfile(first.ID) {
+		t.Fatal("последний профиль не удалился")
+	}
+	if len(cfg.Profiles) != 0 || cfg.ActiveProfile != "" {
+		t.Fatalf("%+v %q", cfg.Profiles, cfg.ActiveProfile)
+	}
+	// Ноль переживает сохранение, чтение и Active().
+	cfg.normalize()
+	data, _ := json.Marshal(cfg)
+	back, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(back.Profiles) != 0 || back.Active().Host != "" || back.Active().ID != "" || back.Active().ID != back.Active().ID {
+		t.Fatalf("после чтения: %+v", back.Profiles)
+	}
+	if ms := back.MeshServers(back.Active()); len(ms) != 0 {
+		t.Fatal(ms)
+	}
+}
+
+// Сервер из панели удаляется, только когда зовущий это разрешил (устройство
+// удалено в панели, App.RemoveProfile): уходит и из устройства, последний —
+// устройство забывается.
+func TestRemoveProfileИзПанели(t *testing.T) {
+	c := Default()
+	c.Profiles = nil
+	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true, MeshKey: "ключ-сети-панели-0123456789",
+		Servers: []DeviceServer{{Name: "А", Host: "203.0.113.1", Port: 22}, {Name: "Б", Host: "203.0.113.2", Port: 22}}})
+	c.normalize()
+	if len(c.Profiles) != 2 {
+		t.Fatalf("%+v", c.Profiles)
+	}
+	a, b := c.Profiles[0], c.Profiles[1]
+	if !c.RemoveProfile(a.ID) {
+		t.Fatal("не удалился")
+	}
+	c.normalize()
+	if len(c.Profiles) != 1 || len(c.Device.Servers) != 1 {
+		t.Fatalf("сервер завёлся снова: %+v", c.Profiles)
+	}
+	c.RemoveProfile(b.ID)
+	c.normalize()
+	if len(c.Profiles) != 0 || c.Device != nil {
+		t.Fatalf("%+v %+v", c.Profiles, c.Device)
 	}
 }
 

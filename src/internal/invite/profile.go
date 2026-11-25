@@ -42,8 +42,8 @@ type Profile struct {
 	// Mesh — nil у профиля без поля: старая учётная запись (часть D) — сеть есть.
 	Mesh   *bool `json:"mesh"`
 	Frozen bool  `json:"frozen"`
-	// MeshKey — ключ сети устройств, если панель его когда-нибудь станет
-	// выдавать (в контракте v1 его нет; см. отчёт ТЗ 48).
+	// MeshKey — ключ сети панели (ТЗ 49): устройство из панели — только в
+	// ней. Нет (панель старше) — сети устройств у устройства нет.
 	MeshKey string `json:"meshKey,omitempty"`
 }
 
@@ -129,6 +129,8 @@ func FetchVia(ctx context.Context, dial func(network, addr string) (net.Conn, er
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return Profile{}, ErrNoProfile
+	case resp.StatusCode == http.StatusForbidden:
+		return Profile{}, fmt.Errorf("профиль устройства: %w", ErrUnknownDevice)
 	case resp.StatusCode != http.StatusOK:
 		var e struct {
 			Error string `json:"error"`

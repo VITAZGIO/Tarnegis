@@ -14,6 +14,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -505,7 +506,11 @@ func (c Config) rawActive() Profile {
 	if len(c.Profiles) > 0 {
 		return c.Profiles[0]
 	}
-	return defaultProfile(1)
+	// Серверов нет совсем (ТЗ 49): пустой профиль без адреса и без id —
+	// подключаться некуда, и id не меняется от вызова к вызову.
+	p := defaultProfile(1)
+	p.ID = ""
+	return p
 }
 
 // MeshServers — другие серверы сети устройств профиля p (ТЗ 12): профили
@@ -564,25 +569,39 @@ func (c *Config) AddProfile(name, flag string) Profile {
 	return p
 }
 
-// RemoveProfile удаляет сервер. Последний удалить нельзя — программе всегда
-// нужен хотя бы один, иначе подключаться попросту не к чему. Если удаляли
-// активный, активным становится первый из оставшихся.
+// RemoveProfile удаляет сервер — любой, и последний тоже (ТЗ 49): без
+// серверов главный экран говорит «Нет серверов». Если удаляли активный,
+// активным становится первый из оставшихся (нет их — никакой). Сервер из
+// панели уходит и из устройства (иначе syncDevice завёл бы его снова);
+// последний сервер устройства — устройство забывается целиком.
 func (c *Config) RemoveProfile(id string) bool {
-	if len(c.Profiles) <= 1 {
-		return false
-	}
-	out := c.Profiles[:0]
+	var gone Profile
+	out := c.Profiles[:0:0]
 	for _, p := range c.Profiles {
 		if p.ID != id {
 			out = append(out, p)
+		} else {
+			gone = p
 		}
 	}
 	if len(out) == len(c.Profiles) {
 		return false // такого id и не было
 	}
 	c.Profiles = out
+	if d := c.Device; d != nil && gone.FromPanel == d.ID {
+		k := panelKey(gone)
+		d.Servers = slices.DeleteFunc(slices.Clone(d.Servers), func(s DeviceServer) bool { return s.Key() == k })
+		d.Hidden = slices.DeleteFunc(slices.Clone(d.Hidden), func(s string) bool { return s == k })
+		if len(d.Servers) == 0 {
+			c.Device = nil
+			c.dropPanelProfiles(d.ID)
+		}
+	}
 	if c.ActiveProfile == id {
-		c.ActiveProfile = c.Profiles[0].ID
+		c.ActiveProfile = ""
+		if len(c.Profiles) > 0 {
+			c.ActiveProfile = c.Profiles[0].ID
+		}
 	}
 	return true
 }
@@ -858,14 +877,15 @@ func (c *Config) Save() error {
 // normalize чинит заведомо нерабочие значения, которые могли прийти из
 // руками правленного JSON или из формы настроек.
 func (c *Config) normalize() {
-	if len(c.Profiles) == 0 {
-		c.Profiles = []Profile{defaultProfile(1)}
-	}
+	// Ноль серверов — законное состояние (ТЗ 49): человек удалил все.
 	for i := range c.Profiles {
 		c.Profiles[i].normalize(i + 1)
 	}
 	if _, ok := c.ProfileByID(c.ActiveProfile); !ok {
-		c.ActiveProfile = c.Profiles[0].ID
+		c.ActiveProfile = ""
+		if len(c.Profiles) > 0 {
+			c.ActiveProfile = c.Profiles[0].ID
+		}
 	}
 	c.syncDevice()
 	for i := range c.Profiles {

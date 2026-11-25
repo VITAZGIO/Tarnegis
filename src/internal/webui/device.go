@@ -18,6 +18,7 @@ import (
 func (s *Server) deviceView() map[string]any {
 	cfg := s.app.Config()
 	out := map[string]any{"device": nil, "net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed(),
+		"netMissing": cfg.DeviceNetMissing(), "gone": s.app.DeviceGone(),
 		"sync": s.app.DeviceSyncState()}
 	if d := cfg.Device; d != nil {
 		out["device"] = map[string]any{"id": d.ID, "name": d.Name, "join": d.Join, "rev": d.Rev,

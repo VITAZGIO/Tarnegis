@@ -510,6 +510,23 @@ class TunnelService : VpnService(), Callbacks {
         }.start()
     }
 
+    /** Сверить профиль устройства сейчас (не чаще раза в 20 секунд). */
+    private fun deviceSyncKick() {
+        if (deviceSyncBusy) return
+        val s = Settings(this)
+        if (s.deviceJson.isBlank()) return
+        val t = android.os.SystemClock.elapsedRealtime()
+        if (deviceSyncAt != 0L && t - deviceSyncAt < 20_000L) return
+        deviceSyncAt = t
+        deviceSyncBusy = true
+        Thread {
+            try {
+                AndroidApi.init(applicationContext)
+                AndroidApi.deviceSyncNow(Settings(this))
+            } finally { deviceSyncBusy = false }
+        }.start()
+    }
+
     /**
      * Сервер вернулся, а обход погас из-за его потери и человек его не
      * трогал — включить обход обратно (как круглая кнопка на ПК, ТЗ 20).
@@ -615,6 +632,9 @@ class TunnelService : VpnService(), Callbacks {
      * ядра и показать одно уведомление.
      */
     private fun applyNetServers() {
+        // Устройство из панели: его серверы решает профиль устройства — список
+        // сети серверов пришёл, значит, мог поменяться и он (ТЗ 49).
+        deviceSyncKick()
         val change = synchronized(netServersLock) {
             val s = Settings(this)
             val out = try {
@@ -643,6 +663,7 @@ class TunnelService : VpnService(), Callbacks {
             change.off.map { getString(R.string.net_off, it) }
         if (lines.isEmpty()) return
         lines.forEach { onLog(it) }
+        AndroidApi.configChanged()
         onApiUpdate?.invoke()
         netServersNotice(lines.joinToString("\n"))
     }

@@ -66,8 +66,9 @@ func DeviceFetch(deviceJSON, profilesJSON, knownHosts string) (string, error) {
 		return "", fmt.Errorf("нет ключа устройства: %v", err)
 	}
 	var last error = errors.New("нет серверов из панели")
+	tried, gone := 0, 0
 	for _, p := range list {
-		if p.FromPanel != d.ID || p.Hidden || p.Host == "" {
+		if p.FromPanel != d.ID || p.Host == "" {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -78,10 +79,24 @@ func DeviceFetch(deviceJSON, profilesJSON, knownHosts string) (string, error) {
 			out, err := json.Marshal(prof.Config())
 			return string(out), err
 		}
+		tried++
+		if invite.Gone(err) {
+			gone++
+		}
 		last = err
+	}
+	if tried > 0 && gone == tried {
+		// Ни один сервер устройство не знает — удалено в панели: его
+		// серверы можно удалить у себя (ТЗ 49). Приложение узнаёт по тексту.
+		return "", errors.New(deviceGoneText)
 	}
 	return "", last
 }
+
+const deviceGoneText = "устройство удалено в панели сервера — его серверы можно удалить у себя"
+
+// DeviceGoneText — текст ошибки DeviceFetch «устройство удалено в панели».
+func DeviceGoneText() string { return deviceGoneText }
 
 // deviceState — то, что приложение отдаёт в DeviceApply и получает назад.
 type deviceState struct {
@@ -89,7 +104,8 @@ type deviceState struct {
 	Active   string           `json:"active"`
 	Device   *config.Device   `json:"device"`
 	// Op: "set" (после DeviceJoin: Join — его ответ), "apply" (Profile —
-	// ответ DeviceFetch), "hide" (ID, Hidden), "net" (Net), "view".
+	// ответ DeviceFetch), "hide" (ID, Hidden), "net" (Net), "view",
+	// "remove" (ID: сервер из панели удалённого в панели устройства, ТЗ 49).
 	Op      string               `json:"op"`
 	Join    json.RawMessage      `json:"join,omitempty"`
 	Profile config.DeviceProfile `json:"profile"`
@@ -160,6 +176,12 @@ func DeviceApply(stateJSON string) (string, error) {
 		res.Changed = true
 	case "view":
 		cfg.SyncDevice()
+	case "remove":
+		if !cfg.RemoveProfile(st.ID) {
+			return "", errors.New("такого сервера нет")
+		}
+		cfg.SyncDevice()
+		res.Changed = true
 	default:
 		return "", fmt.Errorf("неизвестное действие %q", st.Op)
 	}
@@ -190,9 +212,12 @@ func DeviceApply(stateJSON string) (string, error) {
 	if note == "" {
 		note = strings.Join(notes, "; ")
 	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = []config.Profile{} // ноль серверов — «[]», не null
+	}
 	out, err := json.Marshal(map[string]any{"profiles": cfg.Profiles, "active": cfg.ActiveProfile, "device": cfg.Device,
 		"changed": res.Changed, "added": added, "removed": removed, "switched": res.Switched, "note": note,
-		"net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed()})
+		"net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed(), "netMissing": cfg.DeviceNetMissing()})
 	return string(out), err
 }
 

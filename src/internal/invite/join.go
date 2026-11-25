@@ -156,6 +156,16 @@ type authError struct{ err error }
 func (e *authError) Error() string { return e.err.Error() }
 func (e *authError) Unwrap() error { return e.err }
 
+// Gone — сервер не знает это устройство: не пустил по его ключу или ответил,
+// что такого клиента нет (устройство удалили в панели, ТЗ 49).
+func Gone(err error) bool {
+	var ae *authError
+	return errors.As(err, &ae) || errors.Is(err, ErrUnknownDevice)
+}
+
+// ErrUnknownDevice — /api/me/profile: «этот сервер тебя не знает».
+var ErrUnknownDevice = errors.New("сервер не знает это устройство")
+
 // connect — SSH до addr. Время — из ctx (по умолчанию 20 с).
 func connect(ctx context.Context, dial Dialer, addr, user string, signer ssh.Signer,
 	hk ssh.HostKeyCallback, algos []string) (*ssh.Client, error) {

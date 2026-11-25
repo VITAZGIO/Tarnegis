@@ -11,7 +11,10 @@ package panel
 //     которым вошли, доходит до панели из $SSH_USER_AUTH (ExposeAuthInfo), а
 //     не со слов программы;
 //   - /v1/join узнаёт tun_join по uid сокета (/proc/net/tcp);
-//   - проброс портов и терминал tun_join не даются.
+//   - проброс портов и терминал tun_join не даются;
+//   - (ТЗ 49) два устройства по двум приглашениям получают в профиле один
+//     и тот же ключ сети панели — одна сеть (один id сети), ключа нет ни в
+//     приглашении, ни в ответе join.
 //
 //	sudo env JOIN_LAB=1 ./panel.test -test.run TestJoinLab -test.v
 //
@@ -20,6 +23,7 @@ package panel
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
@@ -57,6 +61,15 @@ func TestJoinLab(t *testing.T) {
 	cs, _ := OpenClientStore(filepath.Join(dir, "clients.json"))
 	s := NewServer(users, NewClientManager(cs, newFakeProvisioner())).WithDataDir(dir)
 	s.WithClientDefaults("203.0.113.5", 22, "")
+	// Сеть устройств на сервере — с поддельным meshd (ТЗ 49: сеть панели).
+	sets, err := OpenSettings(filepath.Join(dir, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sets.Update(func(st *Settings) error { st.Mesh.Role, st.Mesh.Name = MeshRoleMain, "Стенд"; return nil })
+	msys := newFakeMeshSystem()
+	msys.units[meshdUnit] = UnitState{Installed: true, Active: true, Enabled: true}
+	s.WithSettings(sets).WithMesh(NewMeshManager(sets, msys, newMemAdmin(randomHex(8)), dir, "9.9.9").WithSSH("203.0.113.5", 22))
 	s.hostKeysFn = func() []string { return []string{"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILab"} }
 	var seen joinReq
 	inner := s.SelfServiceHandler()
@@ -82,18 +95,23 @@ func TestJoinLab(t *testing.T) {
 	}
 	tok := tokOf(t, res.Text)
 
-	_, priv, _ := ed25519.GenerateKey(rand.Reader)
-	signer, _ := ssh.NewSignerFromKey(priv)
+	newSigner := func() ssh.Signer {
+		_, priv, _ := ed25519.GenerateKey(rand.Reader)
+		sg, _ := ssh.NewSignerFromKey(priv)
+		return sg
+	}
+	signer := newSigner()
 	myKey := pubLine(signer.PublicKey())
-	dial := func() *ssh.Client {
+	dialAs := func(sg ssh.Signer) *ssh.Client {
 		c, err := ssh.Dial("tcp", "127.0.0.1:22", &ssh.ClientConfig{User: JoinUser,
-			Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Auth: []ssh.AuthMethod{ssh.PublicKeys(sg)}, HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout: 10 * time.Second})
 		if err != nil {
 			t.Fatalf("sshd не пустил tun_join с новым ключом: %v", err)
 		}
 		return c
 	}
+	dial := func() *ssh.Client { return dialAs(signer) }
 	run := func(c *ssh.Client, cmd, in string) string {
 		sess, err := c.NewSession()
 		if err != nil {
@@ -160,6 +178,46 @@ func TestJoinLab(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("не tun_join, а /v1/join ответил %d", resp.StatusCode)
+	}
+
+	// ТЗ 49: сеть панели. Первое устройство — ключ сети в профиле, но не в
+	// приглашении и не в ответе join.
+	pn, _ := s.mesh.net.PanelNet(false)
+	if !pn.valid() {
+		t.Fatal("приглашение с сетью устройств не завело сеть панели")
+	}
+	if strings.Contains(res.Text, pn.Key) || strings.Contains(out, pn.Key) {
+		t.Fatal("ключ сети в приглашении или в ответе join")
+	}
+	p1 := s.profileOf(got)
+	if p1.MeshKey != pn.Key {
+		t.Fatalf("профиль первого устройства без ключа сети панели: %+v", p1)
+	}
+	// Второе устройство по другому приглашению, своим ключом — та же сеть.
+	res2, err := s.createInvite(inviteReq{Name: "Стенд 2", DeviceType: "android"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sg2 := newSigner()
+	c2 := dialAs(sg2)
+	defer c2.Close()
+	req2, _ := json.Marshal(map[string]string{"tok": tokOf(t, res2.Text), "name": "Стенд 2", "type": "phone"})
+	out2 := run(c2, "join", string(req2)+"\n")
+	var r2 joinResp
+	if json.Unmarshal([]byte(strings.TrimSpace(out2)), &r2) != nil || !r2.OK || r2.ID == r.ID {
+		t.Fatalf("второй join: %q", out2)
+	}
+	got2, _ := s.clients.Get(r2.ID)
+	p2 := s.profileOf(got2)
+	if p2.MeshKey != p1.MeshKey || meshNetID(p2.MeshKey) != meshNetID(p1.MeshKey) {
+		t.Fatalf("второе устройство в другой сети: %q / %q", p2.MeshKey, p1.MeshKey)
+	}
+	if st := s.mesh.State(context.Background()); st.PanelNet != meshNetID(pn.Key) {
+		t.Fatalf("panelNet %q, ждал %q", st.PanelNet, meshNetID(pn.Key))
+	}
+	// Файл ключа — только root.
+	if fi, err := os.Stat(filepath.Join(dir, "panel-net.json")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("panel-net.json: %v %v", fi, err)
 	}
 }
 

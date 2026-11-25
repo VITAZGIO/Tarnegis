@@ -274,6 +274,7 @@ $('selfSaveBtn').addEventListener('click', async () => {
 /* ---------- раздел «Сети»: имя, удаление ---------- */
 const NET_TTL = 7 * 86400; // пустая сеть удаляется сама через 7 дней (meshd)
 let NET_EDIT = null;       // id сети, которую сейчас переименовывают
+let PANEL_NET = '';        // id сети панели (ТЗ 49): сюда попадают устройства по приглашению
 
 function renderNets(){
   const box = $('meshNets');
@@ -283,6 +284,7 @@ function renderNets(){
   box.innerHTML = '';
   const nets = mainNets();
   if (nets.length) meshDevices();
+  renderPanelNetCard(box, nets);
   nets.forEach((n, i) => {
     const devs = n.devices || [];
     const card = el('div', 'card net-card');
@@ -299,6 +301,7 @@ function renderNets(){
     pencil.addEventListener('click', () => startNetRename(n, i, h));
     h.appendChild(pencil);
     top.appendChild(h);
+    if (n.id === PANEL_NET) top.appendChild(el('span', 'badge ok', t('pnet_badge')));
     if (n.id === MESH_NET && nets.length > 1) top.appendChild(el('span', 'badge ok', t('net_shown')));
     if (!devs.length) top.appendChild(el('span', 'badge warn', t('net_empty')));
     card.appendChild(top);
@@ -313,6 +316,7 @@ function renderNets(){
     if (n.created) kv(t('net_created'), fmtDay(n.created));
     if (!devs.length && n.emptySince) kv(t('net_autoremove'), fmtDay(n.emptySince + NET_TTL));
     kv(t('net_id'), n.id.length > 16 ? n.id.slice(0, 16) + '…' : n.id);
+    if (n.id === PANEL_NET) card.appendChild(el('p', 'note net-note', t('pnet_note')));
     if (!devs.length) card.appendChild(el('p', 'note net-note', t(n.emptySince ? 'net_empty_note' : 'net_empty_note_old')));
     renderNetMembers(card, n);
     renderNetApproval(card, n);
@@ -329,6 +333,34 @@ function renderNets(){
     card.appendChild(acts);
     box.appendChild(card);
   });
+}
+
+// renderPanelNetCard — сети панели ещё нет или в ней ещё никого: одна
+// карточка с объяснением (и кнопкой, если сеть не заведена).
+function renderPanelNetCard(box, nets){
+  if (PANEL_NET && nets.some(n => n.id === PANEL_NET)) return;
+  const card = el('div', 'card net-card');
+  const top = el('div', 'net-top');
+  top.appendChild(el('h1', 'net-title', t('pnet_title')));
+  top.appendChild(el('span', 'badge ok', t('pnet_badge')));
+  card.appendChild(top);
+  card.appendChild(el('p', 'note net-note', t(PANEL_NET ? 'pnet_waiting' : 'pnet_none')));
+  if (!PANEL_NET){
+    const acts = el('div', 'dacts');
+    const b = el('button', 'btn small', t('pnet_create'));
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      const {ok, data} = await api('/api/mesh/panelnet/create', {});
+      b.disabled = false;
+      if (!ok){ toast(meshErr(data), 'err'); return; }
+      PANEL_NET = data.net || '';
+      toast(t('pnet_created'));
+      loadMesh();
+    });
+    acts.appendChild(b);
+    card.appendChild(acts);
+  }
+  box.appendChild(card);
 }
 
 // renderNetMembers — устройства сети, серверы, через которые она работает,
@@ -452,6 +484,7 @@ function renderNetApproval(card, n){
 
 onPanel('mesh', (m, role) => {
   const isMain = role === 'main';
+  PANEL_NET = (m && m.panelNet) || '';
   $('meshForecastCard').hidden = !isMain;
   $('netsNone').hidden = isMain;
   $('netsNoneText').textContent = isMain ? '' : t(role === 'secondary' ? 'nets_secondary' : 'nets_off');

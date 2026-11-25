@@ -186,6 +186,8 @@ type ServerNet struct {
 	// перезапустился (обновили) — у него пусто, отдать всё заново сразу.
 	meshdStart int64
 	applying   bool
+	// pnet — ключ сети панели, прочитанный из panel-net.json (panelnet.go).
+	pnet panelNetRec
 
 	// upd — своё «обновить на всех» (srvnet_update.go). Остальное — подмены
 	// для тестов (nil — настоящие: кнопка «Обновить», meshd из релиза).
@@ -352,7 +354,15 @@ func (n *ServerNet) mergeLocked(items map[string]srvItem) []string {
 		if !validItemKey(k) || len(it.D) > 64<<10 {
 			continue
 		}
-		if old, ok := n.f.Items[k]; ok && !it.newer(old) {
+		if old, ok := n.f.Items[k]; ok {
+			if k == kMeshKey {
+				if !mergePanelNet(old, it) {
+					continue
+				}
+			} else if !it.newer(old) {
+				continue
+			}
+		} else if k == kMeshKey && !mergePanelNet(srvItem{}, it) {
 			continue
 		}
 		n.f.Items[k] = it
@@ -368,7 +378,7 @@ func validItemKey(k string) bool {
 	if len(k) > 200 || k == "" {
 		return false
 	}
-	if k == kAccess || k == kNewDev {
+	if k == kAccess || k == kNewDev || k == kMeshKey {
 		return true
 	}
 	if strings.HasPrefix(k, kUpd) {

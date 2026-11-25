@@ -6,6 +6,9 @@ import (
 	"testing"
 )
 
+// testNetKey — ключ сети панели в профиле (ТЗ 49).
+const testNetKey = "ключ-сети-панели-0123456789"
+
 func devSrv(name, host string) DeviceServer {
 	return DeviceServer{Name: name, Host: host, Port: 22, HostKey: "ssh-ed25519 AAAA"}
 }
@@ -16,7 +19,7 @@ func joined(t *testing.T) Config {
 	c := Default()
 	c.Profiles[0].Name, c.Profiles[0].Host = "Свой", "192.0.2.10"
 	res := c.SetDevice(Device{ID: "tun_1", Name: "Ноутбук", KeyPath: "/k/device_tun_1"},
-		DeviceProfile{ID: "tun_1", Rev: 5, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1"), devSrv("Б", "203.0.113.2")}})
+		DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 5, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1"), devSrv("Б", "203.0.113.2")}})
 	if !res.Changed || len(res.Added) != 2 || len(res.Pins) != 2 {
 		t.Fatalf("%+v", res)
 	}
@@ -58,7 +61,7 @@ func TestDeviceСерверыИзПанели(t *testing.T) {
 func TestDeviceRevНеВыросНичегоНеМеняет(t *testing.T) {
 	c := joined(t)
 	before, _ := json.Marshal(c)
-	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 5, Mesh: false, Servers: nil})
+	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 5, Mesh: false, Servers: nil})
 	after, _ := json.Marshal(c)
 	if res.Changed || string(before) != string(after) {
 		t.Fatal("применил старый rev")
@@ -70,7 +73,7 @@ func TestDeviceRevНеВыросНичегоНеМеняет(t *testing.T) {
 
 func TestDeviceПанельУбралаИДобавила(t *testing.T) {
 	c := joined(t)
-	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 6, Mesh: true,
+	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 6, Mesh: true,
 		Servers: []DeviceServer{devSrv("А", "203.0.113.1"), devSrv("В", "203.0.113.3")}})
 	if !res.Changed || len(res.Added) != 1 || res.Added[0].Name != "В" || len(res.Removed) != 1 || res.Removed[0] != "Б" {
 		t.Fatalf("%+v", res)
@@ -87,13 +90,13 @@ func TestDeviceАктивныйУбранПереход(t *testing.T) {
 	c := joined(t)
 	b, _ := c.ProfileByKey("203.0.113.2:22")
 	c.ActiveProfile = b.ID
-	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
 	a, _ := c.ProfileByKey("203.0.113.1:22")
 	if c.ActiveProfile != a.ID || res.Switched != "А" {
 		t.Fatalf("active=%s res=%+v", c.ActiveProfile, res)
 	}
 	// Панель убрала все — активным становится ручной.
-	res = c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 7, Mesh: true})
+	res = c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 7, Mesh: true})
 	if c.ActiveProfile != c.Profiles[0].ID || res.Switched != "Свой" || len(c.Profiles) != 1 {
 		t.Fatalf("active=%s res=%+v %+v", c.ActiveProfile, res, c.Profiles)
 	}
@@ -116,7 +119,7 @@ func TestDeviceСкрытьУСебя(t *testing.T) {
 		t.Fatal("скрытый сервер в сети устройств")
 	}
 	// Новый профиль панели (rev вырос) скрытость не сбрасывает.
-	c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1"), devSrv("Б", "203.0.113.2")}})
+	c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1"), devSrv("Б", "203.0.113.2")}})
 	if p, _ := c.ProfileByKey("203.0.113.2:22"); !p.Hidden {
 		t.Fatal("скрытость пропала")
 	}
@@ -132,7 +135,7 @@ func TestDeviceСкрытьУСебя(t *testing.T) {
 
 func TestDeviceMeshFalseХранитСвойВыбор(t *testing.T) {
 	c := joined(t)
-	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 6, Mesh: false, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 6, Mesh: false, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
 	if !res.MeshOff {
 		t.Fatalf("%+v", res)
 	}
@@ -141,7 +144,7 @@ func TestDeviceMeshFalseХранитСвойВыбор(t *testing.T) {
 		t.Fatal("mesh:false не выключил сеть или стёр выбор устройства")
 	}
 	// Панель вернула доступ — сеть снова включена сама.
-	res = c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 7, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	res = c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 7, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
 	p, _ = c.ProfileByKey("203.0.113.1:22")
 	if !p.MeshEnabled || !res.MeshBack {
 		t.Fatalf("не вернулась: %+v", res)
@@ -157,7 +160,7 @@ func TestDeviceMeshFalseХранитСвойВыбор(t *testing.T) {
 	// Заморожено — как mesh:false.
 	n.On = true
 	c.SetDeviceNet(n)
-	c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 8, Mesh: true, Frozen: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 8, Mesh: true, Frozen: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
 	if p, _ = c.ProfileByKey("203.0.113.1:22"); p.MeshEnabled {
 		t.Fatal("замороженное устройство в сети")
 	}
@@ -209,19 +212,67 @@ func TestDeviceNetOfСтарыеЗначения(t *testing.T) {
 	}
 }
 
-func TestDeviceКлючСетиБерётсяСвой(t *testing.T) {
+// ТЗ 49: устройство из панели — только в сети панели: ключ из профиля, свой
+// (даже уже бывший на устройстве) не берётся и не заводится.
+func TestDeviceКлючСетиТолькоОтПанели(t *testing.T) {
 	c := Default()
 	c.Profiles[0].Host, c.Profiles[0].MeshEnabled, c.Profiles[0].MeshKey = "192.0.2.1", true, "моя-сеть"
-	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
-	if c.Device.Net.Key != "моя-сеть" {
+	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true, MeshKey: testNetKey,
+		Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	c.normalize()
+	if c.Device.Net.Key != testNetKey {
 		t.Fatalf("%+v", c.Device.Net)
+	}
+	if p, _ := c.ProfileByKey("203.0.113.1:22"); !p.MeshEnabled || p.MeshKey != testNetKey {
+		t.Fatalf("%+v", p)
+	}
+	// Ручной профиль остаётся в своей сети.
+	if c.Profiles[0].MeshKey != "моя-сеть" {
+		t.Fatal("ручной профиль сменил сеть")
+	}
+
+	// Панель старше ТЗ 49: ключа в профиле нет — сети нет, своей не заводится.
+	old := Default()
+	old.SetDevice(Device{ID: "tun_2", KeyPath: "/k"}, DeviceProfile{ID: "tun_2", Rev: 1, Mesh: true,
+		Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	old.normalize()
+	if p, _ := old.ProfileByKey("203.0.113.1:22"); p.MeshEnabled || p.MeshKey != "" {
+		t.Fatalf("своя сеть у устройства из панели: %+v", p)
+	}
+	if !old.DeviceNetMissing() || old.Device.Net.Key != "" {
+		t.Fatalf("нет отметки «панель не выдала сеть»: %+v", old.Device.Net)
+	}
+	// Сохранение и чтение — ключ не появляется.
+	data, _ := json.Marshal(old)
+	back, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := back.ProfileByKey("203.0.113.1:22"); p.MeshEnabled || p.MeshKey != "" {
+		t.Fatalf("после чтения: %+v", p)
+	}
+	// Сервер обновили: ключ пришёл с тем же rev — применяется, сеть есть.
+	res := old.ApplyDevice(DeviceProfile{ID: "tun_2", Rev: 1, Mesh: true, MeshKey: testNetKey,
+		Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	if !res.Changed || !res.NetJoined {
+		t.Fatalf("%+v", res)
+	}
+	if p, _ := old.ProfileByKey("203.0.113.1:22"); !p.MeshEnabled || p.MeshKey != testNetKey || old.DeviceNetMissing() {
+		t.Fatalf("%+v", p)
+	}
+	// Экран ключ не меняет.
+	n := old.DeviceNetOf()
+	n.Key = "подмена"
+	old.SetDeviceNet(n)
+	if old.Device.Net.Key != testNetKey {
+		t.Fatal("ключ сети сменён экраном")
 	}
 }
 
 func TestDeviceПрофильРукамиПодЭтойУчёткой(t *testing.T) {
 	c := Default()
 	c.Profiles[0].Host, c.Profiles[0].User, c.Profiles[0].Name = "203.0.113.1", "tun_1", "Мой А"
-	res := c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	res := c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 1, Mesh: true, Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
 	if len(c.Profiles) != 1 || c.Profiles[0].FromPanel != "tun_1" || len(res.Added) != 0 {
 		t.Fatalf("%+v %+v", c.Profiles, res)
 	}
@@ -232,7 +283,7 @@ func TestDeviceИмяИзПанелиЕслиНеПравили(t *testing.T) {
 	b, _ := c.ProfileByKey("203.0.113.2:22")
 	b.Name = "Мой Б"
 	c.SetProfile(b)
-	c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("Альфа", "203.0.113.1"), devSrv("Бета", "203.0.113.2")}})
+	c.ApplyDevice(DeviceProfile{ID: "tun_1", MeshKey: testNetKey, Rev: 6, Mesh: true, Servers: []DeviceServer{devSrv("Альфа", "203.0.113.1"), devSrv("Бета", "203.0.113.2")}})
 	a, _ := c.ProfileByKey("203.0.113.1:22")
 	b, _ = c.ProfileByKey("203.0.113.2:22")
 	if a.Name != "Альфа" || b.Name != "Мой Б" {

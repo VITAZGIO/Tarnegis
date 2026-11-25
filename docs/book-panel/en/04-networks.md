@@ -14,6 +14,29 @@ by export from the first. The program describes this in its own Book, in the cha
 While two devices have the same key, they are in the same network. A different
 key means a different network, even if the addresses match.
 
+## Panel network
+
+Devices added **by invite** (chapter "Devices") do not create a network key:
+the panel hands it out. The panel — all servers of the network together — has
+one network of its own, the **panel network**. In the list of networks it is
+marked **panel network**: every device added by invite lands there, whichever
+server invited it.
+
+The panel network is created by itself with the first invite that has the
+device network on. It can also be created in advance with **Create panel
+network** in **Networks**. While it has no devices yet, a note stands in place
+of its network card.
+
+The panel network key is kept on the servers and never shown: not in the panel,
+not in the invite, not in the journal. A device gets it through its own login,
+and only if the device network is allowed for it and it is not frozen.
+
+Older networks stay as they are. To move an older device into the panel
+network, use **New invite** on its page in **Devices**. If a server is old and
+does not hand out the key, the program on the device says "the panel did not
+hand out the device network — update the server" and keeps its device network
+off.
+
 ## Network name
 
 A network can be named. The name is shown on the network map and in the server

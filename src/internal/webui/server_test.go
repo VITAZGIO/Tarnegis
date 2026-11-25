@@ -202,7 +202,8 @@ func TestProfileEndpoints(t *testing.T) {
 		t.Errorf("ожидался один оставшийся сервер, получилось %d", len(s.app.Config().Profiles))
 	}
 
-	// Последний сервер не удаляется.
+	// Последний сервер тоже удаляется (ТЗ 49): дальше главный экран
+	// показывает «Нет серверов».
 	rec = httptest.NewRecorder()
 	body = fmt.Sprintf(`{"id":%q}`, firstID)
 	s.handleProfileRemove(rec, httptest.NewRequest(http.MethodPost, "/api/profile/remove", strings.NewReader(body)))
@@ -210,8 +211,8 @@ func TestProfileEndpoints(t *testing.T) {
 		Error string `json:"error"`
 	}
 	json.Unmarshal(rec.Body.Bytes(), &rmResp)
-	if rmResp.Error == "" {
-		t.Error("последний сервер не должен удаляться")
+	if rmResp.Error != "" || len(s.app.Config().Profiles) != 0 {
+		t.Errorf("последний сервер должен удаляться: %s, осталось %d", rec.Body.String(), len(s.app.Config().Profiles))
 	}
 }
 

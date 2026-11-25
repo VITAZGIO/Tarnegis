@@ -19,6 +19,9 @@ const (
 	KindSpeed    Kind = "speed"    // ход и результат теста скорости
 	KindVpsSetup Kind = "vpssetup" // строка вывода мастера настройки сервера
 	KindCore     Kind = "core"     // состояние ядра: кнопки, режим, модули (core.State)
+	// KindConfig — настройки поменялись (в том числе сами, в фоне: профиль
+	// устройства из панели, новый сервер сети): экран перечитывает /api/config.
+	KindConfig Kind = "config"
 )
 
 // Состояния туннеля.
@@ -157,7 +160,8 @@ func (b *Bus) Publish(e Event) {
 	// сервера идут часто и в истории не нужны: иначе они вытеснят из неё
 	// осмысленные сообщения. Окно, открытое посреди настройки сервера, всё
 	// равно должно оставаться открытым — поток событий и так не прервётся.
-	if e.Kind != KindStats && e.Kind != KindSpeed && e.Kind != KindVpsSetup && e.Kind != KindCore {
+	if e.Kind != KindStats && e.Kind != KindSpeed && e.Kind != KindVpsSetup && e.Kind != KindCore &&
+		e.Kind != KindConfig {
 		b.history = append(b.history, e)
 		if len(b.history) > b.maxHist {
 			b.history = b.history[len(b.history)-b.maxHist:]

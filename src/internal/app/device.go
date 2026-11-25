@@ -35,7 +35,33 @@ type deviceState struct {
 	gen    int64 // подключение, на котором сверялись в последний раз
 	at     time.Time
 	busy   bool
+	// gone — последняя сверка: ни один сервер из панели устройство не знает
+	// (удалено в панели) — его серверы можно удалить у себя (ТЗ 49).
+	gone   bool
 	loopOn sync.Once
+	// kick — сверить сейчас (сервер прислал новый список сети серверов).
+	kick chan struct{}
+	// tried — когда пробовали прочитать первый профиль без подключения.
+	tried time.Time
+}
+
+// deviceFirstEvery — как часто пробовать прочитать первый профиль, пока его
+// нет (вход по приглашению прошёл, а профиль не прочитался): своим SSH, не
+// дожидаясь подключения.
+const deviceFirstEvery = 30 * time.Second
+
+// kickDevice — сверить профиль при первой возможности.
+func (a *App) kickDevice() {
+	a.dev.mu.Lock()
+	ch := a.dev.kick
+	a.dev.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
 }
 
 // ErrNoDevice — устройство не выдано панелью.
@@ -117,12 +143,16 @@ func (a *App) SyncDevice(ctx context.Context) (config.DeviceResult, error) {
 		a.dev.mu.Unlock()
 	}()
 
-	prof, err := a.fetchDevice(ctx, cfg)
+	prof, gone, err := a.fetchDevice(ctx, cfg)
 	a.dev.mu.Lock()
 	a.dev.last.T = time.Now().Unix()
 	a.dev.last.Err = ""
+	a.dev.gone = err != nil && gone
 	if err != nil {
 		a.dev.last.Err = err.Error()
+		if a.dev.gone {
+			a.dev.last.Err = "устройство удалено в панели сервера — его серверы можно удалить у себя"
+		}
 	}
 	a.dev.mu.Unlock()
 	if err != nil {
@@ -132,23 +162,25 @@ func (a *App) SyncDevice(ctx context.Context) (config.DeviceResult, error) {
 }
 
 // fetchDevice — профиль через подключённый туннель, если он к серверу из
-// панели, иначе своим коротким SSH к первому видимому серверу из панели.
-func (a *App) fetchDevice(ctx context.Context, cfg config.Config) (invite.Profile, error) {
+// панели, иначе своим коротким SSH к видимым серверам из панели по очереди.
+// gone — ни один сервер устройство не знает (удалено в панели).
+func (a *App) fetchDevice(ctx context.Context, cfg config.Config) (invite.Profile, bool, error) {
 	if id := a.EffectiveProfileID(); id != "" {
 		if p, ok := cfg.ProfileByID(id); ok && p.FromPanel == cfg.Device.ID {
 			prof, err := invite.FetchVia(ctx, a.DialServer)
 			if err == nil {
-				return prof, nil
+				return prof, false, nil
 			}
 		}
 	}
 	signer, err := invite.LoadKey(cfg.Device.KeyPath)
 	if err != nil {
-		return invite.Profile{}, errors.New("нет ключа устройства: " + err.Error())
+		return invite.Profile{}, false, errors.New("нет ключа устройства: " + err.Error())
 	}
 	var last error = errors.New("нет серверов из панели")
+	tried, gone := 0, 0
 	for _, p := range cfg.Profiles {
-		if p.FromPanel != cfg.Device.ID || p.Hidden || p.Host == "" {
+		if p.FromPanel != cfg.Device.ID || p.Host == "" {
 			continue
 		}
 		cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -156,11 +188,23 @@ func (a *App) fetchDevice(ctx context.Context, cfg config.Config) (invite.Profil
 			HostKey: hostkey.Callback(config.KnownHostsPath(), nil)})
 		cancel()
 		if err == nil {
-			return prof, nil
+			return prof, false, nil
+		}
+		tried++
+		if invite.Gone(err) {
+			gone++
 		}
 		last = err
 	}
-	return invite.Profile{}, last
+	return invite.Profile{}, tried > 0 && gone == tried, last
+}
+
+// DeviceGone — устройство удалено в панели (последняя сверка): его
+// серверы можно удалить у себя.
+func (a *App) DeviceGone() bool {
+	a.dev.mu.Lock()
+	defer a.dev.mu.Unlock()
+	return a.dev.gone
 }
 
 // applyDevice применяет профиль: новые серверы — с записанным ключом,
@@ -192,6 +236,12 @@ func (a *App) applyDevice(dp config.DeviceProfile) (config.DeviceResult, error) 
 	}
 	if res.MeshBack {
 		notes = append(notes, "сеть устройств снова доступна")
+	}
+	if res.NetJoined {
+		notes = append(notes, "устройство в сети панели")
+	}
+	if cfg.DeviceNetMissing() {
+		notes = append(notes, config.DeviceNetMissingText)
 	}
 	if len(notes) > 0 {
 		line := "Панель: " + strings.Join(notes, ", ")
@@ -256,41 +306,88 @@ func (a *App) SetDeviceNet(n config.DeviceNet) (string, error) {
 
 // startDeviceLoop — один фоновый сверщик на программу.
 func (a *App) startDeviceLoop() {
-	a.dev.loopOn.Do(func() { go a.deviceLoop() })
+	a.dev.loopOn.Do(func() {
+		a.dev.mu.Lock()
+		a.dev.kick = make(chan struct{}, 1)
+		ch := a.dev.kick
+		a.dev.mu.Unlock()
+		go a.deviceLoop(ch)
+	})
 }
 
 // deviceLoop: на каждом новом подключении к серверу из панели — сверка
-// сразу (после подъёма связи), дальше раз в deviceEvery.
-func (a *App) deviceLoop() {
+// сразу (после подъёма связи), дальше раз в deviceEvery. Профиля ещё нет
+// (вход прошёл, профиль не прочитался) — пробует раз в deviceFirstEvery и
+// без подключения. По kick (новый список сети серверов) — сразу.
+func (a *App) deviceLoop(kick <-chan struct{}) {
 	t := time.NewTicker(15 * time.Second)
 	defer t.Stop()
-	for range t.C {
-		cfg := a.Config()
-		if cfg.Device == nil || !a.machine.LinkUp() {
-			continue
+	for {
+		kicked := false
+		select {
+		case <-t.C:
+		case <-kick:
+			kicked = true
 		}
-		id := a.EffectiveProfileID()
-		p, ok := cfg.ProfileByID(id)
-		if !ok || !p.IsPanel() {
-			continue
-		}
-		a.mu.Lock()
-		gen := a.gen
-		a.mu.Unlock()
+		a.deviceTick(kicked)
+	}
+}
+
+func (a *App) deviceTick(kicked bool) {
+	cfg := a.Config()
+	if cfg.Device == nil {
+		return
+	}
+	if kicked {
+		// Список сети серверов приходит при каждом подключении — сверка
+		// не чаще раза в 20 секунд.
 		a.dev.mu.Lock()
-		due := gen != a.dev.gen || time.Since(a.dev.at) >= deviceEvery
+		recent := time.Since(time.Unix(a.dev.last.T, 0)) < 20*time.Second
+		a.dev.mu.Unlock()
+		if !recent {
+			a.syncDeviceNow()
+		}
+		return
+	}
+	if cfg.Device.Rev <= 0 {
+		// Первого профиля нет — пробовать и без подключения.
+		a.dev.mu.Lock()
+		due := time.Since(a.dev.tried) >= deviceFirstEvery
 		if due {
-			a.dev.gen, a.dev.at = gen, time.Now()
+			a.dev.tried = time.Now()
 		}
 		a.dev.mu.Unlock()
-		if !due {
-			continue
+		if due {
+			a.syncDeviceNow()
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-		if _, err := a.SyncDevice(ctx); err != nil && !errors.Is(err, invite.ErrNoProfile) {
-			a.Bus.Infof("Профиль устройства не сверен: %v", err)
-		}
-		cancel()
+		return
+	}
+	if !a.machine.LinkUp() {
+		return
+	}
+	p, ok := cfg.ProfileByID(a.EffectiveProfileID())
+	if !ok || !p.IsPanel() {
+		return
+	}
+	a.mu.Lock()
+	gen := a.gen
+	a.mu.Unlock()
+	a.dev.mu.Lock()
+	due := gen != a.dev.gen || time.Since(a.dev.at) >= deviceEvery
+	if due {
+		a.dev.gen, a.dev.at = gen, time.Now()
+	}
+	a.dev.mu.Unlock()
+	if due {
+		a.syncDeviceNow()
+	}
+}
+
+func (a *App) syncDeviceNow() {
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+	if _, err := a.SyncDevice(ctx); err != nil && !errors.Is(err, invite.ErrNoProfile) {
+		a.Bus.Infof("Профиль устройства не сверен: %v", err)
 	}
 }
 
