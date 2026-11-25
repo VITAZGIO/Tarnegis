@@ -48,7 +48,7 @@ func classifyDialCode(err error) string {
 		return "dropped"
 	case strings.Contains(msg, "timeout"), strings.Contains(msg, "timed out"):
 		return "timeout"
-	case strings.Contains(msg, "connection refused"):
+	case strings.Contains(msg, "connection refused"), strings.Contains(msg, "actively refused"):
 		return "refused"
 	case strings.Contains(msg, "no route to host"), strings.Contains(msg, "network is unreachable"):
 		return "unreachable"

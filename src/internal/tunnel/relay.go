@@ -208,7 +208,7 @@ func displayProc(p string) string {
 func shortErr(err error) string {
 	s := err.Error()
 	switch {
-	case containsAny(s, "connection refused"):
+	case containsAny(s, "connection refused", "actively refused"):
 		return "сервер отказал в соединении"
 	case containsAny(s, "no such host", "Name or service not known"):
 		return "имя не разрешилось"

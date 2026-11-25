@@ -153,3 +153,11 @@ func TestConnErrorUnwrap(t *testing.T) {
 		t.Fatal("ConnError должен разворачиваться до исходной ошибки через errors.Is")
 	}
 }
+
+// Windows сообщает об отказе своими словами — это тоже «порт закрыт».
+func TestIsRefusedWindows(t *testing.T) {
+	err := errors.New("dial tcp 203.0.113.10:22: connectex: No connection could be made because the target machine actively refused it.")
+	if !isRefused(err) {
+		t.Fatal("отказ Windows не распознан")
+	}
+}

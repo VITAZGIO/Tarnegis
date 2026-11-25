@@ -218,15 +218,21 @@ sshd -t || die "конфиг SSH не прошёл проверку, ничег�
 # уже открыл бы только новый порт. Это и есть типовой способ потерять сервер.
 if systemctl is-enabled ssh.socket >/dev/null 2>&1; then
   mkdir -p /etc/systemd/system/ssh.socket.d
-  printf '[Socket]\nListenStream=\nListenStream=%s\n' "$SSH_PORT" \
-    > /etc/systemd/system/ssh.socket.d/port.conf
+  # Обе строки — IPv4 и IPv6. У ssh.socket в Ubuntu стоит BindIPv6Only=ipv6-only,
+  # и одна строка «ListenStream=порт» слушала бы только IPv6: по IPv4 сервер
+  # отвечал бы «соединение отклонено», а уже открытая сессия жила бы дальше —
+  # сервер терялся бы ровно после того, как скрипт сказал «готово».
+  printf '[Socket]\nListenStream=\nListenStream=0.0.0.0:%s\nListenStream=[::]:%s\n' \
+    "$SSH_PORT" "$SSH_PORT" > /etc/systemd/system/ssh.socket.d/port.conf
   systemctl daemon-reload
   systemctl restart ssh.socket
 fi
 systemctl restart ssh 2>/dev/null || systemctl restart sshd
 
 sleep 1
-ss -tln | grep -q ":$SSH_PORT " || die \
+# Именно IPv4 (0.0.0.0 или общий для IPv4 и IPv6 «*»): «[::]:порт» один —
+# это и есть ловушка выше, по IPv4 никто не зайдёт.
+ss -tln | grep -qE "(0\.0\.0\.0|\*):$SSH_PORT " || die \
 "SSH не слушает порт $SSH_PORT. Firewall НЕ включён, вход по паролю мог уже
    отключиться — чини прямо в этой сессии, не закрывая её:
      rm -f /etc/ssh/sshd_config.d/00-hardening.conf && systemctl restart ssh"
@@ -247,6 +253,10 @@ cat > /etc/fail2ban/jail.d/sshd.local <<EOF
 enabled = true
 port    = $SSH_PORT
 backend = systemd
+# Служба SSH в Debian и Ubuntu называется ssh.service, а фильтр fail2ban по
+# умолчанию ищет в журнале sshd.service — и не видит ни одной попытки входа.
+# Ищем по имени процесса (sshd; в новых OpenSSH — sshd-session).
+journalmatch = _COMM=sshd + _COMM=sshd-session
 maxretry = 3
 findtime = 10m
 bantime  = 1h

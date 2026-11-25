@@ -774,7 +774,7 @@ func classifySSHErr(err error) error {
 	switch {
 	case tunnel.IsAuthError(err):
 		return errors.New("неверный пароль (или пользователь)")
-	case strings.Contains(msg, "connection refused"):
+	case strings.Contains(msg, "connection refused"), strings.Contains(msg, "actively refused"):
 		return errors.New("порт закрыт: сервер отказал в соединении — проверь адрес и SSH-порт")
 	case strings.Contains(msg, "no such host"):
 		return errors.New("такого адреса нет — проверь, как написан адрес сервера")
