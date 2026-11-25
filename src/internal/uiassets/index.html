@@ -487,6 +487,11 @@
               cursor:pointer;flex:none}
   #homePicker:hover{border-color:var(--accent)}
   #homePicker .flag{font-size:16px;line-height:1}
+  /* Выбранный сервер не отвечает — связь идёт через запасной: плашка
+     показывает настоящий сервер и пометку. */
+  #homePicker .bk{font-size:11px;font-weight:600;color:var(--warn);padding:1px 6px;
+    border:1px solid color-mix(in srgb, var(--warn) 55%, transparent);border-radius:999px}
+  #homePicker.backup{border-color:color-mix(in srgb, var(--warn) 55%, var(--line))}
   #homePicker .vg{font-size:9px;font-weight:800;color:#2de2ff;border:1px solid currentColor;
                   border-radius:4px;padding:1px 3px}
   #homePicker .nm{font-size:12px;font-weight:600}
@@ -798,6 +803,7 @@
       <div id="homePicker" style="display:none">
         <span class="flag flagicon" id="homePickerFlag"></span>
         <span class="nm" id="homePickerName"></span>
+        <span class="bk" id="homePickerBackup" hidden></span>
         <span class="chev">▾</span>
       </div>
 
@@ -2166,6 +2172,7 @@ const I18N = {
       'подключении.',
     latency_measuring:'…', latency_unreachable:'нет ответа',
     backup_server_note:'запасной',
+    backup_server_hint:'{a} не отвечает — подключено через {b}. Вернуться на {a}: когда он заработает, выбери его снова или переподключись.',
     boot_start:'Запускать при старте системы',
     boot_note_linux:'Программа сама поставит службу systemd и разрешит ей работать без входа в систему — служба будет подниматься при загрузке машины.',
     boot_note_windows:'Программа пропишет себя в автозагрузке Windows (для текущего пользователя, без прав администратора) — запустится сама при следующем входе в систему.',
@@ -2506,6 +2513,7 @@ const I18N = {
       'log. Returning to the manually chosen server: the "Select this server" button, or the next connect.',
     latency_measuring:'…', latency_unreachable:"no answer",
     backup_server_note:'backup',
+    backup_server_hint:'{a} is not responding — connected via {b}. To go back to {a} once it works: pick it again or reconnect.',
     boot_start:'Start at system boot',
     boot_note_linux:'The program will install a systemd service itself and allow it to run without logging in — the service will come up at boot.',
     boot_note_windows:'The program will add itself to Windows startup (for the current user, no administrator rights needed) — it will launch on the next login.',
@@ -5038,10 +5046,22 @@ function renderHomePicker(){
   // всегда весомее атрибута [hidden], поэтому прячем через style напрямую.
   $('homePicker').style.display = show ? 'flex' : 'none';
   if(!show) return;
-  const active = (cfg.profiles || []).find(p => p.id === cfg.activeProfile) || {};
-  $('homePickerFlag').innerHTML = tabFlagHTML(resolveFlagCode(active.flag));
-  $('homePickerName').textContent = active.name || '';
+  const profs = cfg.profiles || [];
+  const chosen = profs.find(p => p.id === cfg.activeProfile) || {};
+  // Выбранный не отвечает и связь идёт через запасной — показываем тот,
+  // через который реально подключены, с пометкой; в подсказке — какой не ответил.
+  const eff = backupProfileId && profs.find(p => p.id === backupProfileId);
+  const shown = eff || chosen;
+  $('homePickerFlag').innerHTML = tabFlagHTML(resolveFlagCode(shown.flag));
+  $('homePickerName').textContent = shown.name || '';
+  $('homePickerBackup').hidden = !eff;
+  $('homePickerBackup').textContent = tr('backup_server_note');
+  $('homePicker').classList.toggle('backup', !!eff);
+  $('homePicker').title = eff ? tr('backup_server_hint').replace('{a}', chosen.name || '').replace('{b}', eff.name || '') : '';
 }
+// backupProfileId — сервер, через который подключены вместо выбранного
+// (переход на запасной или автовыбор); пусто — подключены к выбранному.
+let backupProfileId = '';
 $('homePicker').onclick = ev => {
   ev.stopPropagation();
   if(menuEl){ closeMenu(); return; }
@@ -5533,6 +5553,8 @@ async function refresh(){
   // деле, — после автовыбора самого быстрого или перехода на запасной он
   // может отличаться от выбранного вручную (st.config.activeProfile).
   const usingBackup = st.effectiveProfile && st.effectiveProfile !== st.config.activeProfile;
+  const bk = st.state === 'connected' && usingBackup ? st.effectiveProfile : '';
+  if(bk !== backupProfileId){ backupProfileId = bk; if(typeof renderHomePicker === 'function') renderHomePicker(); }
   const shownId = st.state === 'connected' && st.effectiveProfile ? st.effectiveProfile : st.config.activeProfile;
   const active = (st.config.profiles || []).find(p => p.id === shownId) || {};
   let detail = st.state === 'connected' ? active.host : '';
