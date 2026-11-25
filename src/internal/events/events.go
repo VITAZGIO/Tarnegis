@@ -78,6 +78,16 @@ type Event struct {
 	Direct bool   `json:"direct,omitempty"`
 	Failed bool   `json:"failed,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Why — почему ядро выбрало этот путь (core.Why: "list", "default",
+	// "local", "app", "tunneled", "off", "mesh", "forced").
+	Why string `json:"why,omitempty"`
+	// DNSMs — сколько разрешалось имя перед прямым соединением, ConnMs —
+	// сколько открывалось само соединение (прямое — до ответа сайта, через
+	// сервер — канал SSH), в миллисекундах. 0 — не замерялось или меньше
+	// миллисекунды. Pinned — прямому соединению понадобился маршрут к адресу.
+	DNSMs  int  `json:"dnsMs,omitempty"`
+	ConnMs int  `json:"connMs,omitempty"`
+	Pinned bool `json:"pinned,omitempty"`
 
 	// KindLog
 	Level string `json:"level,omitempty"` // info / warn / error

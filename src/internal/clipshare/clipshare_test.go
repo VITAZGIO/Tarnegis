@@ -282,3 +282,29 @@ func TestNoLoopFileImage(t *testing.T) {
 		t.Fatalf("полученное фото ушло обратно: %d", len(l.pushed))
 	}
 }
+
+// ТЗ 52: галочка «Скриншоты сразу в общий буфер» — выключена по умолчанию,
+// живёт рядом с историей, время включения запоминается (старые скриншоты не
+// уходят), повторное включение время не сдвигает.
+func TestНастройкаСкриншотов(t *testing.T) {
+	h := openHistory(t.TempDir())
+	if s := h.settings(); s.Screenshots || s.ScreenshotsSince != 0 {
+		t.Fatalf("по умолчанию: %+v", s)
+	}
+	t1 := time.Unix(1_800_000_000, 0)
+	if s := h.setScreenshots(true, t1); !s.Screenshots || s.ScreenshotsSince != t1.Unix() {
+		t.Fatalf("включили: %+v", s)
+	}
+	if s := h.setScreenshots(true, t1.Add(time.Hour)); s.ScreenshotsSince != t1.Unix() {
+		t.Fatalf("повторное включение сдвинуло время: %+v", s)
+	}
+	if s := h.settings(); !s.Screenshots {
+		t.Fatalf("не сохранилось: %+v", s)
+	}
+	if s := h.setScreenshots(false, t1); s.Screenshots {
+		t.Fatalf("выключили: %+v", s)
+	}
+	if s := h.setScreenshots(true, t1.Add(2*time.Hour)); s.ScreenshotsSince != t1.Add(2*time.Hour).Unix() {
+		t.Fatalf("новое включение — новое время: %+v", s)
+	}
+}

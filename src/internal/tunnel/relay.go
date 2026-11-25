@@ -70,11 +70,11 @@ func (t *Tunnel) serve(r request) {
 
 	proc, pid := lookupProcess(r.conn)
 
-	route, c := t.decide(proc, r.target)
+	route, c, why := t.decideWhy(proc, r.target, "", false)
 	direct := route == core.RouteDirect
-	remote, err := t.dialRoute(route, r.target)
+	remote, st, err := t.dialRouteTimed(route, r.target)
 	if err != nil {
-		t.bus.Publish(eventConn(proc, pid, r.target, r.proto, r.byIP, direct, err))
+		t.bus.Publish(timed(eventConn(proc, pid, r.target, r.proto, r.byIP, direct, err), why, st))
 		if r.writeErr != nil {
 			r.writeErr(err)
 		}
@@ -91,7 +91,7 @@ func (t *Tunnel) serve(r request) {
 	untrack := t.track(c, route, entryProxy, func() { r.conn.Close(); remote.Close() })
 	defer untrack()
 
-	t.bus.Publish(eventConn(proc, pid, r.target, r.proto, r.byIP, direct, nil))
+	t.bus.Publish(timed(eventConn(proc, pid, r.target, r.proto, r.byIP, direct, nil), why, st))
 
 	t.stats.active.Add(1)
 	t.stats.total.Add(1)
@@ -174,6 +174,15 @@ func (t *Tunnel) listedDirect(target string) bool {
 	}
 	name, ok := t.learnedName(target)
 	return ok && d.Match(name)
+}
+
+// timed — событие соединения с причиной решения и замерами (ТЗ 52).
+func timed(e events.Event, why core.Why, st dialStats) events.Event {
+	e.Why = string(why)
+	e.DNSMs = int(st.dns.Milliseconds())
+	e.ConnMs = int(st.connect.Milliseconds())
+	e.Pinned = st.pinned
+	return e
 }
 
 func eventConn(proc string, pid int, target, proto string, byIP, direct bool, err error) events.Event {

@@ -330,6 +330,14 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
         @JavascriptInterface
         fun openAppInfo() = runOnUiThread { ClipAccess.openAppInfo(this@MainActivity) }
 
+        /** «Скриншоты сразу в общий буфер» (ТЗ 52): есть ли доступ к новым
+         * картинкам и спросить его. */
+        @JavascriptInterface
+        fun screenshotsPermitted(): Boolean = Screenshots.permitted(this@MainActivity)
+
+        @JavascriptInterface
+        fun askScreenshots() = runOnUiThread { Screenshots.ask(this@MainActivity) }
+
         /** «Найти телефон»: выбрать свой трек, его имя, вернуть будильник. */
         @JavascriptInterface
         fun pickRingTrack() = runOnUiThread {

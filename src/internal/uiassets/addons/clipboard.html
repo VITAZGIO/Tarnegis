@@ -46,6 +46,11 @@
       <button class="btn" id="accInfo"></button>
     </div>
   </div>
+  <div class="card" id="shots" hidden>
+    <label class="f" style="gap:8px;align-items:center"><input type="checkbox" id="shotsOn"><b id="shotsT"></b></label>
+    <div class="hint" id="shotsS"></div>
+    <div class="f"><button class="btn primary" id="shotsAsk" hidden></button></div>
+  </div>
   <div class="card" id="list"></div>
   <div class="f"><button class="btn" id="clear"></button></div>
   <div class="hint" id="note"></div>
@@ -175,9 +180,37 @@ function accRender(){
   $('accOpen').onclick = () => A.openClipAccess();
   $('accInfo').onclick = () => A.openAppInfo();
 }
-accRender();
-document.addEventListener('visibilitychange', accRender);
-window.addEventListener('focus', accRender);
+// ТЗ 52: «Скриншоты сразу в общий буфер» — галочка в ядре
+// (/api/clipboard/settings), доступ к новым картинкам — у Android.
+async function shotsRender(){
+  const A = window.SSHTunnelAndroid;
+  if(!ANDROID || !A || !A.screenshotsPermitted) return;
+  const r = await api('/api/clipboard/settings');
+  if(!r || r.error) return;
+  $('shots').hidden = false;
+  const perm = A.screenshotsPermitted();
+  $('shotsT').textContent = L('Скриншоты сразу в общий буфер', 'Screenshots straight to the shared clipboard');
+  $('shotsOn').checked = !!r.screenshots;
+  $('shotsS').textContent = !r.screenshots
+    ? L('Выключено. Включи — и новый скриншот на телефоне сразу уйдёт картинкой на остальные устройства: на ПК — Ctrl+V в чат.', 'Off. Turn it on and a new screenshot on the phone goes to the other devices as an image right away: on the PC, Ctrl+V into a chat.')
+    : perm ? L('✓ Включено. Работает и в фоне, пока запущен ssh_tunnel. Старые скриншоты не отправляются.', '✓ On. Works in the background while ssh_tunnel runs. Older screenshots are not sent.')
+    : L('Нужен доступ к фото: без него новые скриншоты не видны. Выбери «Разрешить все» — с «Только выбранные» новые скриншоты не видны.', 'Photo access is needed to see new screenshots. Choose “Allow all” — with “Selected photos only” new screenshots are not visible.');
+  $('shotsAsk').hidden = !r.screenshots || perm;
+  $('shotsAsk').textContent = L('Разрешить доступ к фото', 'Allow photo access');
+  $('shotsAsk').onclick = () => A.askScreenshots();
+}
+$('shotsOn').onchange = async () => {
+  const on = $('shotsOn').checked;
+  const r = await api('/api/clipboard/settings', {screenshots: on});
+  if(r && r.error){ msg(r.error); }
+  const A = window.SSHTunnelAndroid;
+  if(on && A && A.askScreenshots && !A.screenshotsPermitted()) A.askScreenshots();
+  shotsRender();
+};
+function pageRender(){ accRender(); shotsRender(); }
+pageRender();
+document.addEventListener('visibilitychange', pageRender);
+window.addEventListener('focus', pageRender);
 
 refresh().then(watch);
 </script>

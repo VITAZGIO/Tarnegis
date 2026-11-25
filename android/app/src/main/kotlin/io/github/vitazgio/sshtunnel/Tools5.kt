@@ -60,6 +60,7 @@ object Tools5 : mobile.Phone {
         mobile.Mobile.setPhone(this)
         watchNetwork(c)
         watchBattery(c)
+        Screenshots.watch(c) // ТЗ 52: скриншот — сразу в общий буфер (если включено)
     }
 
     /** Заряд — другим устройствам («Связь с телефоном»), при каждом изменении процента. */

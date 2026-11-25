@@ -31,6 +31,9 @@ func init() {
 		addons.Route{Path: "/api/clipboard/delete", Methods: "POST",
 			Desc: "Удалить из истории {\"id\"} или всё {\"all\":true}.",
 			H:    handleDelete},
+		addons.Route{Path: "/api/clipboard/settings", Methods: "GET, POST",
+			Desc: "Настройки буфера этого устройства: GET — {screenshots, screenshotsSince}; POST {\"screenshots\":true|false} — новый скриншот на телефоне сразу уходит картинкой остальным (по умолчанию выключено).",
+			H:    handleSettings},
 	)
 }
 

@@ -357,14 +357,16 @@ func (l *Layer) startStack(dev core.Device) error {
 		Local: func(name string) ([]net.IP, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+			t0 := time.Now()
 			addrs, err := resolver.LookupIP(ctx, "ip4", name)
 			if err != nil {
 				return nil, err
 			}
 			// Приложение придёт уже с адресом, а не с именем, — ядро должно
-			// узнать его и не повести через сервер (см. tunnel.LearnDirect).
+			// узнать его и не повести через сервер (см. tunnel.LearnDirect);
+			// время разрешения покажется в журнале у этого соединения.
 			if t := l.current.Load(); t != nil {
-				t.LearnDirect(name, addrs)
+				t.LearnDirectTimed(name, addrs, time.Since(t0))
 			}
 			return addrs, nil
 		},

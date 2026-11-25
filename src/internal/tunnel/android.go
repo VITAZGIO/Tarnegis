@@ -62,7 +62,7 @@ func (t *Tunnel) ServeConn(conn net.Conn, target string, byIP bool) {
 		sniffed, head = sniffConn(conn, sniffTime(target))
 		src = io.MultiReader(bytes.NewReader(head), conn)
 	}
-	route, c := t.decideNamed(proc, target, sniffed, forced)
+	route, c, why := t.decideWhy(proc, target, sniffed, forced)
 	direct := route == core.RouteDirect
 
 	// Адрес с известным именем в журнал пишем именем: адрес человеку ничего
@@ -77,9 +77,12 @@ func (t *Tunnel) ServeConn(conn net.Conn, target string, byIP bool) {
 		}
 	}
 
-	remote, err := t.dialRoute(route, target)
+	remote, st, err := t.dialRouteTimed(route, target)
+	if st.dns == 0 && direct {
+		st.dns = t.learnedDNS(target) // имя разрешал наш DNS, до соединения
+	}
 	if err != nil {
-		t.bus.Publish(eventConn(proc, pid, shown, "tun", byIP, direct, err))
+		t.bus.Publish(timed(eventConn(proc, pid, shown, "tun", byIP, direct, err), why, st))
 		return
 	}
 	remote = metered(remote, t.owner(proc, conn), route)
@@ -87,7 +90,7 @@ func (t *Tunnel) ServeConn(conn net.Conn, target string, byIP bool) {
 	untrack := t.track(c, route, entryStack, func() { conn.Close(); remote.Close() })
 	defer untrack()
 
-	t.bus.Publish(eventConn(proc, pid, shown, "tun", byIP, direct, nil))
+	t.bus.Publish(timed(eventConn(proc, pid, shown, "tun", byIP, direct, nil), why, st))
 
 	t.stats.active.Add(1)
 	t.stats.total.Add(1)
@@ -121,6 +124,7 @@ const learnedMax = 16384
 type learnedEntry struct {
 	name  string
 	until time.Time
+	dns   time.Duration // сколько наш DNS разрешал имя (для журнала)
 }
 
 // learnedDirect — адреса, которые телефон сам разрешил для имён из списка
@@ -143,14 +147,22 @@ type learnedDirect struct {
 
 // LearnDirect запоминает адреса, выданные телефоном для имени из списка
 // «всегда напрямую»: соединения на них пойдут мимо сервера.
-func (t *Tunnel) LearnDirect(name string, ips []net.IP) { t.LearnName(name, ips) }
+func (t *Tunnel) LearnDirect(name string, ips []net.IP) { t.learn(name, ips, 0) }
+
+// LearnDirectTimed — то же, и сколько DNS настоящей сети разрешал имя: это
+// время показывается в журнале у соединения, пришедшего потом с адресом.
+func (t *Tunnel) LearnDirectTimed(name string, ips []net.IP, took time.Duration) {
+	t.learn(name, ips, took)
+}
 
 // LearnName запоминает, под какое имя наш DNS выдал эти адреса: соединение
 // придёт с адресом, а правила («всегда напрямую», «всегда через сервер»)
 // записаны именами. Без подставных адресов так запоминается каждый ответ
 // (см. LookupViaServer); последний ответ на общий адрес CDN побеждает, но
 // имя из самого соединения (SNI) всё равно точнее (см. decideNamed).
-func (t *Tunnel) LearnName(name string, ips []net.IP) {
+func (t *Tunnel) LearnName(name string, ips []net.IP) { t.learn(name, ips, 0) }
+
+func (t *Tunnel) learn(name string, ips []net.IP, took time.Duration) {
 	l := &t.learned
 	now := time.Now()
 	l.mu.Lock()
@@ -172,26 +184,37 @@ func (t *Tunnel) LearnName(name string, ips []net.IP) {
 		if ip == nil {
 			continue
 		}
-		l.m[ip.String()] = learnedEntry{name: name, until: now.Add(learnedTTL)}
+		l.m[ip.String()] = learnedEntry{name: name, until: now.Add(learnedTTL), dns: took}
 	}
 }
 
 // learnedName — имя, под которое телефон выдал этот адрес, если выдавал.
 func (t *Tunnel) learnedName(target string) (string, bool) {
+	e, ok := t.learnedEntry(target)
+	return e.name, ok
+}
+
+// learnedDNS — сколько наш DNS разрешал имя этого адреса (0 — не знаем).
+func (t *Tunnel) learnedDNS(target string) time.Duration {
+	e, _ := t.learnedEntry(target)
+	return e.dns
+}
+
+func (t *Tunnel) learnedEntry(target string) (learnedEntry, bool) {
 	host, _, err := net.SplitHostPort(target)
 	if err != nil {
 		host = target
 	}
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return "", false
+		return learnedEntry{}, false
 	}
 	l := &t.learned
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	e, ok := l.m[ip.String()]
 	if !ok || time.Now().After(e.until) {
-		return "", false
+		return learnedEntry{}, false
 	}
-	return e.name, true
+	return e, true
 }

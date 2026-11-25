@@ -461,6 +461,7 @@
   .l.fail .a,.l.fail .h{color:var(--err)}
   .l .flag{flex:none;color:var(--warn)}
   .l .flag.via{color:var(--dim)}
+  .l .why{flex:none;color:var(--dim);font-size:.92em}
   .l .adddir{flex:none;font:inherit;font-size:11px;padding:0 7px;margin-left:6px;border-radius:6px;
              border:1px solid var(--line);background:var(--card2);color:var(--text);cursor:pointer}
   .l.msg{color:var(--dim);white-space:normal}
@@ -3056,6 +3057,10 @@ Object.assign(I18N.ru, {
   logo_home:'На главный экран',
   log_app:'приложение',
   log_bypass:'напрямую', log_via_server:'через сервер',
+  why_list:'в списке «напрямую»', why_default:'по умолчанию', why_local:'локальная сеть', why_app:'программа мимо VPN',
+  why_tunneled:'в списке «через сервер»', why_off:'обход выключен', why_mesh:'сеть устройств', why_forced:'только через сервер', why_mesh_off:'сеть устройств выключена',
+  log_ms:'мс', log_dns:'DNS', log_conn:'соединение', log_pinned:'с маршрутом к адресу',
+  log_why_tip:'Почему так и сколько ушло времени: DNS — разрешение имени, соединение — до ответа сайта (через сервер — открыть канал SSH).',
   log_bypass_tip:'по твоим правилам эта программа идёт напрямую, минуя туннель',
   log_dns_tip:'DNS-запрос ушёл мимо туннеля',
   checking:'проверяю…',
@@ -3105,6 +3110,10 @@ Object.assign(I18N.en, {
   logo_home:'Back to the main screen',
   log_app:'app',
   log_bypass:'direct', log_via_server:'via server',
+  why_list:'in the «direct» list', why_default:'default', why_local:'local network', why_app:'app bypasses VPN',
+  why_tunneled:'in the «via server» list', why_off:'bypass is off', why_mesh:'device network', why_forced:'server only', why_mesh_off:'device network is off',
+  log_ms:'ms', log_dns:'DNS', log_conn:'connect', log_pinned:'with a route to the address',
+  log_why_tip:'Why this path and how long it took: DNS — name lookup, connect — until the site answered (via server — opening the SSH channel).',
   log_bypass_tip:'by your rules this app goes direct, bypassing the tunnel',
   log_dns_tip:'the DNS query went around the tunnel',
   checking:'checking…',
@@ -3946,7 +3955,7 @@ function addConn(e){
   const d = document.createElement('div');
   d.className = 'l' + (e.failed ? ' fail' : '');
   d.innerHTML = '<span class="t"></span><span class="p"></span><span class="a"></span>'
-              + '<span class="h"></span><span class="flag"></span><span class="n"></span>';
+              + '<span class="h"></span><span class="flag"></span><span class="why"></span><span class="n"></span>';
   d.querySelector('.t').textContent = new Date(e.time).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU');
   d.querySelector('.p').textContent = e.process || tr('log_app');
   d.querySelector('.a').textContent = e.failed ? '✗' : '→';
@@ -3964,6 +3973,10 @@ function addConn(e){
     flag.textContent = ' ' + tr('log_via_server');
     flag.classList.add('via');
   }
+  // ТЗ 52: почему этот путь и сколько ушло на DNS и соединение.
+  const why = d.querySelector('.why');
+  why.textContent = connWhy(e);
+  why.title = tr('log_why_tip');
   const host = connHost(e.target);
   if(!e.direct && !e.failed && host){
     const b = document.createElement('button');
@@ -3972,6 +3985,15 @@ function addConn(e){
     d.insertBefore(b, d.querySelector('.n'));
   }
   push(d);
+}
+// connWhy — « · в списке · DNS 12 мс · соединение 30 мс».
+function connWhy(e){
+  const parts = [];
+  if(e.why && I18N[LANG] && I18N[LANG]['why_' + e.why.replace('-', '_')]) parts.push(tr('why_' + e.why.replace('-', '_')));
+  if(e.dnsMs) parts.push(tr('log_dns') + ' ' + e.dnsMs + ' ' + tr('log_ms'));
+  if(e.connMs) parts.push(tr('log_conn') + ' ' + e.connMs + ' ' + tr('log_ms'));
+  if(e.pinned) parts.push(tr('log_pinned'));
+  return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 // connHost — имя из цели «имя:порт» или «имя (адрес):порт»; голый адрес и
 // устройства сети — нет (их в «напрямую» по имени не добавить).
@@ -4817,11 +4839,12 @@ async function renderDirectGroups(){
       x.onclick = e => { e.preventDefault(); setDirectGroup(g.id, false); };
       sm.appendChild(t); sm.appendChild(x);
       const dl = document.createElement('div');
-      dl.className = 'dl'; dl.textContent = g.domains.join(', ');
+      dl.className = 'dl'; dl.textContent = g.domains.map(x => x.replace(/^full:/, '')).join(', ');
       d.appendChild(sm); d.appendChild(dl);
       box.appendChild(d);
       return;
     }
+    if(g.hidden) return; // старый id той же группы: работает, но не предлагается
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn'; b.textContent = '+ ' + gname(g);
     b.onclick = () => setDirectGroup(g.id, true);

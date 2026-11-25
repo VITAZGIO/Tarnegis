@@ -50,7 +50,8 @@ func (t *Tunnel) Rules() core.Rules { return t.rules() }
 // Адрес, выданный нашим DNS «настоящим» под имя из «всегда напрямую»,
 // сверяется со списками по этому имени (см. LearnDirect).
 func (t *Tunnel) decide(process, target string) (core.Route, core.Conn) {
-	return t.decideNamed(process, target, "", false)
+	route, c, _ := t.decideWhy(process, target, "", false)
+	return route, c
 }
 
 // forced — источник из стека обязан идти только через сервер
@@ -63,30 +64,48 @@ func (t *Tunnel) forced(src netip.Addr) bool {
 // decideNamed — то же, но имя соединения уже известно (из его первых байтов,
 // см. sniff.go): оно точнее таблицы, где на один адрес CDN бывает много имён.
 func (t *Tunnel) decideNamed(process, target, name string, forced bool) (core.Route, core.Conn) {
+	route, c, _ := t.decideWhy(process, target, name, forced)
+	return route, c
+}
+
+// decideWhy — то же вместе с причиной решения (для строки журнала).
+func (t *Tunnel) decideWhy(process, target, name string, forced bool) (core.Route, core.Conn, core.Why) {
 	c := core.Conn{Process: process, Target: target, Name: name, Forced: forced}
 	if c.Name == "" {
 		if learned, ok := t.learnedName(target); ok {
 			c.Name = learned
 		}
 	}
-	return core.Decide(t.rules(), c), c
+	route, why := core.DecideWhy(t.rules(), c)
+	return route, c, why
 }
 
 // dialRoute открывает TCP-соединение тем путём, который выбрало ядро.
 func (t *Tunnel) dialRoute(route core.Route, target string) (net.Conn, error) {
+	c, _, err := t.dialRouteTimed(route, target)
+	return c, err
+}
+
+// dialRouteTimed — то же с замером: сколько ушло на DNS и на само
+// соединение (строка журнала, ТЗ 52: человек видит, что тормозит).
+func (t *Tunnel) dialRouteTimed(route core.Route, target string) (net.Conn, dialStats, error) {
 	switch route {
 	case core.RouteServer:
-		return t.Dial("tcp", target)
+		t0 := time.Now()
+		c, err := t.Dial("tcp", target)
+		return c, dialStats{connect: time.Since(t0)}, err
 	case core.RouteDirect:
-		return t.dialDirect("tcp", target, 15*time.Second)
+		return t.dialDirectTimed("tcp", target, 15*time.Second)
 	case core.RouteMesh:
 		m := t.Mesh()
 		if m == nil {
-			return nil, errMeshNotReady
+			return nil, dialStats{}, errMeshNotReady
 		}
-		return m.DialPeer(target)
+		t0 := time.Now()
+		c, err := m.DialPeer(target)
+		return c, dialStats{connect: time.Since(t0)}, err
 	}
-	return nil, errBlocked
+	return nil, dialStats{}, errBlocked
 }
 
 // DialApp — соединение от имени самой программы (плагины:
@@ -187,56 +206,132 @@ func (t *Tunnel) LiveConns() map[core.Route]int {
 
 // dialDirect — соединение мимо сервера. Сокет привязан к настоящей сети
 // (ProtectSocket: IP_UNICAST_IF на Windows, SO_BINDTODEVICE на Linux,
-// VpnService.protect на Android). Если платформа умеет (PinDirect), к адресу
-// на время соединения ставится маршрут через настоящую сеть: на Windows одной
-// привязки сокета бывает мало — с включённой точкой доступа система сверяет
-// ответы с таблицей маршрутов и выкидывает их, соединение висит в SYN_SENT.
+// VpnService.protect на Android) — так прямой трафик обходят свой адаптер
+// sing-box (auto_detect_interface), Xray (sockopt.interface) и mihomo
+// (auto-detect-interface). Таблица маршрутов при этом не трогается.
+//
+// Раньше (до ТЗ 52) на Windows к адресу каждого прямого соединения ставился
+// маршрут через настоящую сеть (PinDirect). Пока он стоял, к этому адресу
+// мимо адаптера шли все программы, а не только наше соединение: их не видел
+// ни журнал, ни правила; брандмауэр, который выпускает программы только
+// через VPN, их отбивал, и страница грузилась кусками. Теперь маршрут —
+// только запасной ход: если привязанный сокет не получил ответа за
+// directPinTry (Windows с точкой доступа сверяет ответы с таблицей маршрутов
+// и выкидывает их — ноутбук, 02.11), ставится маршрут и соединение
+// повторяется; получилось — маршруты включаются для всех прямых соединений
+// до смены сети (Kick).
 func (t *Tunnel) dialDirect(network, target string, timeout time.Duration) (net.Conn, error) {
+	c, _, err := t.dialDirectTimed(network, target, timeout)
+	return c, err
+}
+
+// directPinTry — сколько ждать ответа привязанному сокету, прежде чем
+// поставить маршрут к адресу (см. dialDirect). Обычное соединение в своей
+// стране — десятки миллисекунд, Windows повторяет SYN через 1 и 2 с.
+const directPinTry = 3 * time.Second
+
+// directAttempt — сколько ждать один адрес, когда за ним есть другие: один
+// мёртвый адрес не съедает всё время соединения (как Happy Eyeballs,
+// RFC 8305).
+const directAttempt = 3 * time.Second
+
+// dialStats — замеры соединения для журнала.
+type dialStats struct {
+	dns, connect time.Duration
+	pinned       bool // понадобился маршрут к адресу (запасной ход)
+}
+
+func (t *Tunnel) dialDirectTimed(network, target string, timeout time.Duration) (_ net.Conn, st dialStats, _ error) {
 	d := t.directDialer(timeout)
-	pin := t.cfg.PinDirect
-	if pin == nil {
-		return d.Dial(network, target)
-	}
 	host, portStr, err := net.SplitHostPort(target)
 	if err != nil {
-		return nil, err
+		return nil, st, err
 	}
 	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
-		return nil, err
+		return nil, st, err
 	}
 	deadline := time.Now().Add(timeout)
 	var addrs []netip.Addr
 	if a, err := netip.ParseAddr(host); err == nil {
 		addrs = []netip.Addr{a.Unmap()}
 	} else {
+		t0 := time.Now()
 		ctx, cancel := context.WithDeadline(context.Background(), deadline)
 		ips, err := t.resolver().LookupNetIP(ctx, "ip", host)
 		cancel()
+		st.dns = time.Since(t0)
 		if err != nil {
-			return nil, err
+			return nil, st, err
 		}
 		addrs = preferIPv4(ips)
 	}
+	pin := t.cfg.PinDirect
+	t0 := time.Now()
+	defer func() { st.connect = time.Since(t0) }()
 	var lastErr error
 	for i, a := range addrs {
 		if i == 4 || time.Now().After(deadline) {
 			break
 		}
+		to := netip.AddrPortFrom(a, uint16(port)).String()
+		// Маршрут сразу — только если на этой сети без него уже не вышло.
+		if pin != nil && t.pinsNeeded.Load() {
+			release := pin(a)
+			d.Deadline = deadline
+			c, err := d.Dial(network, to)
+			if err == nil {
+				st.pinned = true
+				return &pinnedConn{Conn: c, release: release}, st, nil
+			}
+			release()
+			lastErr = err
+			continue
+		}
+		// Привязанный сокет без маршрута — путь sing-box/Xray/mihomo.
+		try := deadline
+		if pin != nil && network == "tcp" {
+			try = minTime(try, time.Now().Add(directPinTry))
+		}
+		if i+1 < len(addrs) && i+1 < 4 {
+			try = minTime(try, time.Now().Add(directAttempt))
+		}
+		d.Deadline = try
+		c, err := d.Dial(network, to)
+		if err == nil {
+			return c, st, nil
+		}
+		lastErr = err
+		if pin == nil || network != "tcp" || !isTimeout(err) || time.Now().After(deadline) {
+			continue
+		}
+		// Ответа нет — пробуем с маршрутом к адресу (запасной ход).
 		release := pin(a)
 		d.Deadline = deadline
-		c, err := d.Dial(network, netip.AddrPortFrom(a, uint16(port)).String())
+		c, err = d.Dial(network, to)
 		if err != nil {
 			release()
 			lastErr = err
 			continue
 		}
-		return &pinnedConn{Conn: c, release: release}, nil
+		st.pinned = true
+		if !t.pinsNeeded.Swap(true) && t.bus != nil {
+			t.bus.Warnf("Прямые соединения на этой сети отвечают только с маршрутом к адресу " +
+				"(так бывает с включённой точкой доступа) — ставлю маршруты до смены сети")
+		}
+		return &pinnedConn{Conn: c, release: release}, st, nil
 	}
 	if lastErr == nil {
 		lastErr = errors.New("нет адресов для " + host)
 	}
-	return nil, lastErr
+	return nil, st, lastErr
+}
+
+func minTime(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
 }
 
 func (t *Tunnel) resolver() *net.Resolver {
@@ -305,10 +400,10 @@ func (t *Tunnel) RouteUDP(src netip.AddrPort, target string, byIP bool, first []
 	if byIP && t.sniffWanted(target) {
 		name = core.SniffQUIC(first)
 	}
-	route, c := t.decideNamed(proc, target, name, forced)
+	route, c, why := t.decideWhy(proc, target, name, forced)
 	switch route {
 	case core.RouteDirect:
-		return func(app net.Conn) { t.serveUDPDirect(app, c, proc, pid, byIP, t.udpOwner(proc, src)) }
+		return func(app net.Conn) { t.serveUDPDirect(app, c, why, proc, pid, byIP, t.udpOwner(proc, src)) }
 	case core.RouteServer:
 		relay := t.UDPRelay()
 		if relay == nil {
@@ -323,18 +418,18 @@ func (t *Tunnel) RouteUDP(src netip.AddrPort, target string, byIP bool, first []
 const udpIdle = 60 * time.Second
 
 // serveUDPDirect ведёт UDP-поток приложения напрямую мимо сервера.
-func (t *Tunnel) serveUDPDirect(app net.Conn, c core.Conn, proc string, pid int, byIP bool, owner string) {
+func (t *Tunnel) serveUDPDirect(app net.Conn, c core.Conn, why core.Why, proc string, pid int, byIP bool, owner string) {
 	defer app.Close()
-	remote, err := t.dialDirect("udp", c.Target, 10*time.Second)
+	remote, st, err := t.dialDirectTimed("udp", c.Target, 10*time.Second)
 	if err != nil {
-		t.bus.Publish(eventConn(proc, pid, c.Target, "udp", byIP, true, err))
+		t.bus.Publish(timed(eventConn(proc, pid, c.Target, "udp", byIP, true, err), why, st))
 		return
 	}
 	remote = metered(remote, owner, core.RouteDirect)
 	defer remote.Close()
 	untrack := t.track(c, core.RouteDirect, entryStack, func() { app.Close(); remote.Close() })
 	defer untrack()
-	t.bus.Publish(eventConn(proc, pid, c.Target, "udp", byIP, true, nil))
+	t.bus.Publish(timed(eventConn(proc, pid, c.Target, "udp", byIP, true, nil), why, st))
 	pumpDatagrams(app, remote)
 }
 
