@@ -109,6 +109,8 @@ type App struct {
 	exitMu sync.Mutex
 	// upd — обновление по версии сети устройств (ТЗ 40, netupdate.go).
 	upd *updater.Auto
+	// dev — сверка профиля устройства из панели (ТЗ 48, device.go).
+	dev deviceState
 }
 
 // NetLayer заворачивает в туннель весь трафик системы — вместо системного
@@ -174,6 +176,9 @@ func New(cfg config.Config) *App {
 		ErrorKind: errorKind,
 	})
 	go a.collectSeenApps()
+	if cfg.Device != nil {
+		a.startDeviceLoop()
+	}
 	return a
 }
 
@@ -257,6 +262,9 @@ func (a *App) SetConfig(cfg config.Config) (string, error) {
 		// могла сделать панель, ТЗ 40), — правка новее остаётся.
 		cfg.AutoUpdateOff, cfg.AutoUpdateT = old.AutoUpdateOff, old.AutoUpdateT
 	}
+	// Профили из панели: адрес, вход и сеть устройств — из устройства
+	// (ТЗ 48), что бы ни прислала форма.
+	cfg.SyncDevice()
 	a.cfg = cfg
 	tun := a.tun
 	a.mu.Unlock()
@@ -386,6 +394,9 @@ func (a *App) UpdateProfile(p config.Profile) error {
 // возможно, подключённый прямо сейчас) — туннель останавливается: он остался
 // бы работать по адресу, которого в настройках больше нет.
 func (a *App) RemoveProfile(id string) (string, error) {
+	if p, ok := a.Config().ProfileByID(id); ok && p.IsPanel() {
+		return "", errors.New("этот сервер выдан панелью — его можно только скрыть у себя")
+	}
 	a.mu.Lock()
 	wasActive := a.cfg.ActiveProfile == id
 	ok := a.cfg.RemoveProfile(id)

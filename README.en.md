@@ -296,6 +296,37 @@ need UDP have to be added to the exceptions and will go direct. The web and
 messaging apps work fine: the app rejects UDP immediately, and they fall back
 to TCP within a fraction of a second.
 
+### Add by invite
+
+If your server runs the panel (`ssh_tunnel_panel`), you no longer hand out
+keys yourself. In the panel: **Devices → “Add device”** — it issues a one-time
+invite, a single line like `sshtun1:…` (plus a QR code), valid for 24 hours.
+
+In the app (PC or phone): **Servers → “By invite”** (or just “Paste”, or “QR
+code” on the phone), paste the line, check the device name — **“Add”**. The
+app does the rest:
+
+- it creates **its own** device key — the private half never leaves the
+  device, only the public half reaches the server;
+- it signs in to the server, records the server's key right away (no “trust
+  this key?” prompt — the key came with the invite) and gets an account;
+- it adds **every server the panel allows**, marked “from panel”.
+
+Panel servers follow the panel: their address, port and sign-in cannot be
+edited, and they cannot be removed — only **“Hide here”**. When the panel
+removes a server it disappears from the device too (if it was the connected
+one, the app switches to another and says so in one line); when the panel
+adds one it shows up with its key already recorded. The app syncs with the
+panel on every connect and every 10 minutes while connected to such a server,
+and remembers the last answer for starting offline.
+
+The **device network** for these servers is set once per device, not per
+server: **Settings → Device network**, “Device from the panel” block (on/off,
+“only through the connected server”, go to the internet through). If the
+panel turns the device network off for this device, the block is greyed out;
+your choice is kept and works again once the panel allows it. Servers you
+added by hand work as before.
+
 ---
 
 ## Configuration

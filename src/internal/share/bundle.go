@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"sshtunnel/internal/config"
 )
 
 // BundleFormat — версия формата полной выгрузки настроек (все серверы плюс
@@ -58,6 +60,12 @@ type Bundle struct {
 	// выбранные приложения). Компьютер его не понимает, но и не теряет:
 	// сырой JSON, который просто перекладывается дальше.
 	Mobile json.RawMessage `json:"mobile,omitempty"`
+
+	// Device — устройство из панели (ТЗ 48): учётная запись, последний
+	// профиль, скрытые серверы и сеть устройств. Без закрытого ключа: он
+	// едет как у любого сервера — в KeyContents его профилей (FromPanel).
+	// KeyPath пуст, цепочка Net.ExitVia — ключами «адрес:порт», а не id.
+	Device *config.Device `json:"device,omitempty"`
 }
 
 // BuildBundle собирает выгрузку. Format проставляется сам — как и в Build.

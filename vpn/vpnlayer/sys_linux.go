@@ -181,10 +181,21 @@ func (s *sys) open() (core.Device, error) {
 	if os.Geteuid() != 0 {
 		return nil, errors.New("режиму VPN нужны права root: запусти через sudo")
 	}
-	tun, err := core.OpenTun(linuxIfName, net.IP(adapterPrefix4.Addr().AsSlice()),
-		net.CIDRMask(adapterPrefix4.Bits(), 32), adapterMTU)
+	// EBUSY сразу после переподключения — прежнее устройство ядро ещё
+	// разбирает: ждём до ~3 с (tunbusy.go).
+	tun, tries, err := openRetryBusy(func() (*core.Tun, error) {
+		return core.OpenTun(linuxIfName, net.IP(adapterPrefix4.Addr().AsSlice()),
+			net.CIDRMask(adapterPrefix4.Bits(), 32), adapterMTU)
+	}, busyWait, busyStep, time.Sleep)
 	if err != nil {
+		if errors.Is(err, syscall.EBUSY) {
+			pid, comm := tunHolder("/proc", linuxIfName)
+			return nil, fmt.Errorf("создать устройство TUN: %w", busyError(linuxIfName, pid, comm, err))
+		}
 		return nil, fmt.Errorf("создать устройство TUN: %w", err)
+	}
+	if tries > 1 {
+		s.bus.Infof("Интерфейс %s освободился не сразу — создан с %d-й попытки", linuxIfName, tries)
 	}
 	dev, err := fdbased.Open(strconv.Itoa(tun.FD), adapterMTU, 0)
 	if err != nil {

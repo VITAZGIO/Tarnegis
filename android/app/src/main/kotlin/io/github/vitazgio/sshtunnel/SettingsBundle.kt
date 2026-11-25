@@ -47,6 +47,9 @@ object SettingsBundle {
                 o.put("tunnelHosts", JSONArray(p.tunnelHosts.split(Regex("[\\s,;]+")).filter { it.isNotBlank() }))
             }
             if (settings.udpRelayEnabled) o.put("udpRelayEnabled", true)
+            // Сервер из панели (ТЗ 48): ключ едет как у всех, учётная запись —
+            // в разделе device.
+            if (p.fromPanel.isNotBlank()) o.put("fromPanel", p.fromPanel)
             servers.put(o)
             if (p.id == settings.activeProfileId) active = i
         }
@@ -57,7 +60,9 @@ object SettingsBundle {
             .put("adBlockAllowlist", settings.adBlockAllowlist)
             .put("udpRelayEnabled", settings.udpRelayEnabled)
 
+        val device = mobile.Mobile.deviceExport(settings.deviceJson, settings.coreProfilesJson())
         return JSONObject()
+            .put("device", if (device.isBlank()) JSONObject.NULL else JSONObject(device))
             .put("sshTunnelBackup", FORMAT)
             .put("servers", servers)
             .put("active", active)
@@ -123,12 +128,18 @@ object SettingsBundle {
                 panel = doc.getPanel(), deviceName = doc.getDeviceName(),
                 meshEnabled = doc.getMeshKey().isNotBlank(), meshKey = doc.getMeshKey(),
                 tunnelHosts = tunnelHosts,
+                fromPanel = raw.optString("fromPanel", ""),
             )
             val key = if (doc.getKeyIncluded()) doc.getKeyContents() else ""
             parsed.add(p to key)
         }
 
         settings.replaceProfiles(parsed, root.optInt("active", 0))
+        // Устройство из панели (ТЗ 48): учётная запись, скрытые серверы, сеть
+        // устройств; ключ — тот, что приехал с его серверами.
+        settings.deviceJson = root.optJSONObject("device")?.let {
+            mobile.Mobile.deviceImport(it.toString(), settings.coreProfilesJson())
+        }.orEmpty()
 
         root.optString("language").takeIf { it.isNotBlank() }?.let { settings.language = it }
         settings.showServerPicker = root.optBoolean("showServerPicker", settings.showServerPicker)

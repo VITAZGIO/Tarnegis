@@ -52,8 +52,9 @@ func (s *Server) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 			FilterMode: p.FilterMode, FilterApps: p.FilterApps, DirectHosts: p.DirectHosts,
 			LocalViaTunnel: p.LocalViaTunnel,
 			Panel:          p.Panel, ClientID: p.ClientID, DeviceName: p.DeviceName,
-			MeshKey: exportMeshKey(p),
-			ExitVia: exportExitRefs(cfg, p),
+			MeshKey:   exportMeshKey(p),
+			ExitVia:   exportExitRefs(cfg, p),
+			FromPanel: p.FromPanel,
 		}
 		// Нечитаемый ключ не повод оборвать всю выгрузку: остальные серверы
 		// перенести всё равно полезно, а про этот интерфейс скажет отдельно.
@@ -67,6 +68,7 @@ func (s *Server) handleSettingsExport(w http.ResponseWriter, r *http.Request) {
 		b.Servers = append(b.Servers, doc)
 	}
 
+	b.Device = cfg.DeviceForExport()
 	data, err := share.BuildBundle(b)
 	if err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})
@@ -136,6 +138,9 @@ func (s *Server) handleSettingsImport(w http.ResponseWriter, r *http.Request) {
 		p.TunnelHosts, p.UDPRelayEnabled = doc.TunnelHosts, doc.UDPRelayEnabled
 		p.Panel, p.ClientID, p.DeviceName = doc.Panel, doc.ClientID, doc.DeviceName
 		importMeshKey(&p, doc.MeshKey)
+		if b.Device != nil && doc.FromPanel == b.Device.ID {
+			p.FromPanel, p.PanelKey = doc.FromPanel, config.ServerKey(p)
+		}
 		if doc.KeyIncluded && strings.TrimSpace(doc.KeyContents) != "" {
 			path, err := saveImportedKey(p.ID, doc.KeyContents)
 			if err != nil {
@@ -162,6 +167,8 @@ func (s *Server) handleSettingsImport(w http.ResponseWriter, r *http.Request) {
 		cfg.Profiles[i].ExitVia = ids
 		exitMissing = append(exitMissing, missing...)
 	}
+
+	cfg.Device = config.DeviceFromExport(b.Device, cfg.Profiles)
 
 	// Общие настройки программы (ТЗ 32) — из серверов выгрузки, как при
 	// переезде старого конфига: списки объединяются, остальное — у

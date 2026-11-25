@@ -629,6 +629,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	cfg.LastRunning, cfg.LastMesh = last, lastMesh
 	// Пароль входа меняется только через /api/uipass.
 	cfg.UIPassHash = s.app.Config().UIPassHash
+	// Устройство из панели (ТЗ 48) меняют только /api/device и сверка с
+	// панелью: копия страницы могла устареть.
+	cfg.Device = s.app.Config().Device
 	// Правка цепочки выхода — с временем, чтобы панели серверов знали, что
 	// она новее их цепочки (ТЗ 16).
 	note, err := s.app.SetConfigEdited(cfg)
@@ -981,7 +984,7 @@ func (s *Server) addVpsProfile(res *events.VpsResult, p vpsSetupParams) {
 	for _, q := range cfg.Profiles {
 		// Сервер, выданный панелью, — чужая учётка (tun_…): его не трогаем,
 		// заводим рядом свой.
-		if strings.EqualFold(strings.TrimSpace(q.Host), p.Host) && q.Panel == "" {
+		if strings.EqualFold(strings.TrimSpace(q.Host), p.Host) && q.Panel == "" && q.FromPanel == "" {
 			prof, found, byHost = q, true, true
 			break
 		}

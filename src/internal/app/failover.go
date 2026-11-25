@@ -67,8 +67,15 @@ func (a *App) connectCandidates(cfg config.Config) []config.Profile {
 
 	ctx, cancel := context.WithTimeout(context.Background(), candidateLatencyBudget)
 	defer cancel()
-	results := measureAllLatencies(ctx, cfg.Profiles)
-	ranked := rankByLatency(cfg.Profiles, results)
+	// Скрытые у себя серверы из панели (ТЗ 48) в автовыбор не идут.
+	pool := make([]config.Profile, 0, len(cfg.Profiles))
+	for _, p := range cfg.Profiles {
+		if !p.Hidden || p.ID == active.ID {
+			pool = append(pool, p)
+		}
+	}
+	results := measureAllLatencies(ctx, pool)
+	ranked := rankByLatency(pool, results)
 
 	out := make([]config.Profile, 0, len(ranked))
 	for _, p := range ranked {
