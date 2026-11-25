@@ -35,6 +35,10 @@ type Device struct {
 	Mesh    bool           `json:"mesh"`
 	Frozen  bool           `json:"frozen,omitempty"`
 	Servers []DeviceServer `json:"servers"`
+	// ProfileFrom, ProfileVer — откуда и от какой версии панели последний
+	// профиль (ТЗ 50).
+	ProfileFrom string `json:"profileFrom,omitempty"`
+	ProfileVer  string `json:"profileVer,omitempty"`
 
 	// Hidden — серверы из панели, скрытые у себя (ServerKey).
 	Hidden []string `json:"hidden,omitempty"`
@@ -86,6 +90,9 @@ type DeviceProfile struct {
 	Mesh    bool
 	Frozen  bool
 	MeshKey string
+	// From — сервер, с которого прочитан профиль; Ver — версия его панели
+	// (пусто — панель старше ТЗ 50). Для строки «обнови сервер …».
+	From, Ver string
 }
 
 // DeviceResult — что поменялось.
@@ -160,6 +167,7 @@ func (c *Config) applyDevice(dp DeviceProfile) DeviceResult {
 		oldNames[s.Key()] = s.Name
 	}
 	d.Rev, d.Mesh, d.Frozen = dp.Rev, dp.Mesh, dp.Frozen
+	d.ProfileFrom, d.ProfileVer = dp.From, dp.Ver
 	if dp.Name != "" {
 		d.Name = dp.Name
 	}
@@ -368,8 +376,18 @@ func (c Config) DeviceNetMissing() bool {
 	return n.On && n.Key == ""
 }
 
-// DeviceNetMissingText — что сказать человеку при DeviceNetMissing.
-const DeviceNetMissingText = "панель не выдала сеть устройств — обнови сервер"
+// DeviceNetMissingText — что сказать человеку при DeviceNetMissing: какой
+// сервер отдал профиль без сети и какая на нём версия панели (ТЗ 50).
+func (c Config) DeviceNetMissingText() string {
+	if c.Device == nil || c.Device.ProfileFrom == "" {
+		return "панель не выдала сеть устройств — обнови сервер"
+	}
+	ver := c.Device.ProfileVer
+	if ver == "" {
+		ver = "старше v1.10.24"
+	}
+	return "панель сервера " + c.Device.ProfileFrom + " не выдала сеть устройств — обнови этот сервер (панель " + ver + ")"
+}
 
 // dropPanelProfiles — убрать профили прежнего устройства.
 func (c *Config) dropPanelProfiles(id string) {

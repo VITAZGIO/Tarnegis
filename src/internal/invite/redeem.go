@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -108,7 +110,7 @@ func Redeem(ctx context.Context, text string, o Options) (Redeemed, error) {
 			}
 		}
 		prof, err = Fetch(ctx, Target{Host: inv.Host, Port: inv.Port, User: resp.ID, Signer: signer,
-			HostKey: FixedHostKey(hk), Dial: o.Dial})
+			HostKey: FixedHostKey(hk), Dial: o.Dial, Algos: algosFor(hk.Type())})
 		if err == nil || errors.Is(err, ErrNoProfile) {
 			break
 		}
@@ -116,7 +118,7 @@ func Redeem(ctx context.Context, text string, o Options) (Redeemed, error) {
 	out := Redeemed{Device: dev}
 	if err == nil && prof.ID == resp.ID {
 		out.Profile = prof.Config()
-		PinServers(o.KnownHosts, out.Profile.Servers)
+		PinProfile(o.KnownHosts, out.Profile.Servers, inv.Addr())
 		return out, nil
 	}
 	if err == nil {
@@ -134,6 +136,24 @@ func Redeem(ctx context.Context, text string, o Options) (Redeemed, error) {
 func PinServers(knownHosts string, list []config.DeviceServer) {
 	for _, s := range list {
 		hostkey.Pin(knownHosts, s.Host, s.Port, s.HostKey)
+	}
+}
+
+// PinProfile — ключи серверов из профиля, прочитанного по проверенному SSH
+// с live (ТЗ 50): профиль — доверенный источник, устаревший ключ под тем же
+// адресом заменяется (hostkey.Trust). Сам live не трогается: его ключ только
+// что подтвердило живое соединение, запись чужими словами его не перебьёт.
+func PinProfile(knownHosts string, list []config.DeviceServer, liveAddr string) {
+	live := ""
+	if h, p, err := net.SplitHostPort(liveAddr); err == nil {
+		n, _ := strconv.Atoi(p)
+		live = hostkey.HostName(h, n)
+	}
+	for _, s := range list {
+		if live != "" && strings.EqualFold(hostkey.HostName(s.Host, s.Port), live) {
+			continue
+		}
+		hostkey.Trust(knownHosts, s.Host, s.Port, s.HostKey)
 	}
 }
 

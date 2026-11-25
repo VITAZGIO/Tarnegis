@@ -140,8 +140,26 @@ class Settings(context: Context) {
     /** Удаляет сервер — и последний тоже (ТЗ 49): тогда серверов ноль. */
     fun removeProfile(id: String): Boolean {
         val list = profiles
-        if (!list.removeAll { it.id == id }) return false
+        val gone = list.find { it.id == id } ?: return false
+        list.removeAll { it.id == id }
         keyFile(id).delete()
+        // Сеть серверов удалённый человеком сервер больше не возвращает
+        // (ТЗ 50): отметки решает общий код Go.
+        try {
+            val marks = JSONArray(mobile.Mobile.removedMarks(JSONObject()
+                .put("host", gone.host).put("sshPort", gone.sshPort)
+                .put("meshAuto", gone.meshAuto).put("fromPanel", gone.fromPanel).toString()))
+            if (marks.length() > 0) {
+                val seen = try { JSONArray(meshAutoSeenJson) } catch (_: Exception) { JSONArray() }
+                val have = (0 until seen.length()).map { seen.optString(it) }.toMutableSet()
+                for (i in 0 until marks.length()) {
+                    val m = marks.optString(i)
+                    if (have.add(m)) seen.put(m)
+                }
+                meshAutoSeenJson = seen.toString()
+            }
+        } catch (_: Exception) {
+        }
         val active = if (activeProfileId == id) list.firstOrNull()?.id.orEmpty() else activeProfileId
         saveAll(list, active)
         return true

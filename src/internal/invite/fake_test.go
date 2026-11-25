@@ -23,6 +23,9 @@ type fakeServer struct {
 	t       *testing.T
 	ln      net.Listener
 	hostKey ssh.Signer
+	// extra — ещё ключи хоста (настоящий sshd показывает ECDSA, ed25519 и
+	// RSA — какой, решает клиент своим списком алгоритмов).
+	extra []ssh.Signer
 
 	mu       sync.Mutex
 	tokens   map[string]string // токен → "" (свободен) | "used" | "expired" | "frozen"
@@ -84,6 +87,9 @@ func (f *fakeServer) handle(c net.Conn) {
 		},
 	}
 	cfg.AddHostKey(f.hostKey)
+	for _, k := range f.extra {
+		cfg.AddHostKey(k)
+	}
 	sc, chans, reqs, err := ssh.NewServerConn(c, cfg)
 	if err != nil {
 		return

@@ -50,6 +50,64 @@ func (c *Config) seen(a NetServerAd, key string) bool {
 	return false
 }
 
+// removedPrefix — отметка в MeshAutoSeen «сервер удалён человеком» (ТЗ 50):
+// «del@адрес:порт». Такой сервер сеть серверов больше не добавляет, пока
+// человек не заведёт его снова сам (тогда отметка снимается). Живёт в том же
+// списке, что и отметки «уже добавляли», — телефон хранит и передаёт его
+// как есть.
+const removedPrefix = "del@"
+
+// RemovedMark — отметка «удалён человеком» для сервера key (ServerKey).
+func RemovedMark(key string) string { return removedPrefix + strings.ToLower(key) }
+
+func (c *Config) removedByUser(key string) bool {
+	return key != "" && slices.Contains(c.MeshAutoSeen, RemovedMark(key))
+}
+
+// markRemoved — человек удалил профиль p: сеть серверов его не вернёт.
+func (c *Config) markRemoved(p Profile) {
+	k := ServerKey(p)
+	if k == "" {
+		return
+	}
+	if p.MeshAuto != "" {
+		// Отметка «уже добавляли» нового вида: старая (без адреса) без
+		// профиля не действует, и сервер вернулся бы.
+		if s := p.MeshAuto + "@" + k; !slices.Contains(c.MeshAutoSeen, s) {
+			c.MeshAutoSeen = append(c.MeshAutoSeen, s)
+		}
+	}
+	if !c.removedByUser(k) {
+		c.MeshAutoSeen = append(c.MeshAutoSeen, RemovedMark(k))
+	}
+}
+
+// RemovedMarks — отметки, которые ставит удаление профиля p (для телефона:
+// он удаляет профили сам и дописывает их в свой список отметок).
+func RemovedMarks(p Profile) []string {
+	if p.IsPanel() {
+		return nil
+	}
+	var c Config
+	c.markRemoved(p)
+	return c.MeshAutoSeen
+}
+
+// clearRemoved — профиль этого сервера снова есть (человек завёл сам):
+// отметка «удалён» снимается.
+func (c *Config) clearRemoved() {
+	if !slices.ContainsFunc(c.MeshAutoSeen, func(s string) bool { return strings.HasPrefix(s, removedPrefix) }) {
+		return
+	}
+	have := map[string]bool{}
+	for _, p := range c.Profiles {
+		if k := ServerKey(p); k != "" {
+			have[RemovedMark(k)] = true
+		}
+	}
+	c.MeshAutoSeen = slices.DeleteFunc(slices.Clone(c.MeshAutoSeen), func(s string) bool { return have[s] })
+}
+
 // NetServersResult — что поменялось: добавленные профили и выключенные
 // (имена).
 type NetServersResult struct {
@@ -65,6 +123,7 @@ type NetServersResult struct {
 // в своей сети больше нет. nets — сети, чей список известен целиком.
 func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersResult {
 	var res NetServersResult
+	c.clearRemoved()
 	present := map[string]bool{}
 	for _, a := range list {
 		present[a.AutoKey()] = true
@@ -96,8 +155,8 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		}
 		probe := Profile{Host: a.Host, SSHPort: port}
 		key := ServerKey(probe)
-		if c.seen(a, key) {
-			continue // уже добавляли: удалён или выключен человеком — его решение
+		if c.seen(a, key) || c.removedByUser(key) {
+			continue // уже добавляли или человек удалил — его решение
 		}
 		base, ok := c.profileByKey(a.Via)
 		if !ok || !base.MeshEnabled || base.MeshKey == "" {

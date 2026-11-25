@@ -576,19 +576,16 @@ object AndroidApi : mobile.API {
     private fun removeProfile(s: Settings, id: String): String {
         val p = s.profiles.find { it.id == id } ?: return err(str(R.string.err_server_not_found))
         val wasActive = id == s.activeProfileId
+        if (p.fromPanel.isNotBlank() && !deviceGone) return err(str(R.string.err_panel_server))
+        // Подключены к нему — сначала отключиться, потом удалять (ТЗ 50),
+        // как на ПК: туннель не остаётся на сервере, которого уже нет.
+        if (wasActive && TunnelService.state != "stopped") service(TunnelService.ACTION_STOP)
         if (p.fromPanel.isNotBlank()) {
-            // Сервер из панели — только если устройство удалено в панели
-            // (ТЗ 49); убирает его и из устройства общий код Go.
-            if (!deviceGone) return err(str(R.string.err_panel_server))
+            // Сервер из панели удалённого в панели устройства (ТЗ 49):
+            // убирает его и из устройства общий код Go.
             deviceApply(s, deviceState(s, "remove").put("id", id))
         } else {
             s.removeProfile(id)
-        }
-        if (wasActive) {
-            // Серверов не осталось — подключаться некуда: туннель остановить.
-            if (s.profiles.isEmpty()) {
-                if (TunnelService.state != "stopped") service(TunnelService.ACTION_STOP)
-            } else restartIfRunning(s)
         }
         TunnelService.profilesChanged(s)
         configChanged()
@@ -874,6 +871,7 @@ object AndroidApi : mobile.API {
             .put("id", d.optString("id")).put("name", d.optString("name")).put("join", d.optString("join"))
             .put("rev", d.optLong("rev")).put("mesh", d.optBoolean("mesh")).put("frozen", d.optBoolean("frozen"))
             .put("servers", d.optJSONArray("servers") ?: JSONArray()).put("hidden", d.optJSONArray("hidden") ?: JSONArray())
+            .put("profileFrom", d.optString("profileFrom")).put("profileVer", d.optString("profileVer"))
         return JSONObject().put("device", dev)
             .put("net", v.optJSONObject("net") ?: JSONObject())
             .put("meshAllowed", v.optBoolean("meshAllowed", true))

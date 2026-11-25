@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestСерверСетиДобавляетсяСам(t *testing.T) {
 	c := Config{Profiles: []Profile{{ID: "a", Name: "Германия", Host: "de.example", SSHPort: 22, User: "tun_x",
@@ -152,5 +155,56 @@ func TestViaIDПрофиля(t *testing.T) {
 	res := c.ApplyNetServers(ads, []string{"N"})
 	if len(res.Added) != 1 || res.Added[0].Host != "vitazgio.ru" {
 		t.Fatalf("через второй сервер не добавлен: %+v", res)
+	}
+}
+
+// ТЗ 50: удалённый человеком сервер сеть серверов не возвращает — ни
+// добавленный ею со старой отметкой (v1.10.1, без адреса), ни заведённый
+// руками. Завёл снова сам — отметка снимается.
+func TestУдалённыйСерверСетиНеВозвращается(t *testing.T) {
+	base := Profile{ID: "a", Host: "de.example", User: "tun_x", MeshEnabled: true, MeshKey: "K"}
+	ad := []NetServerAd{{ID: "lon", Name: "London", Host: "uk.example", Net: "N", Acct: true, Via: "de.example:22"}}
+
+	// Добавлен сетью, отметка старого вида.
+	c := Config{Profiles: []Profile{base, {ID: "b", Host: "uk.example", SSHPort: 22, MeshAuto: "N/lon", MeshEnabled: true, MeshKey: "K"}},
+		MeshAutoSeen: []string{"N/lon"}}
+	if !c.RemoveProfile("b") {
+		t.Fatal("не удалился")
+	}
+	c.normalize()
+	if res := c.ApplyNetServers(ad, []string{"N"}); len(res.Added) != 0 || len(c.Profiles) != 1 {
+		t.Fatalf("удалённый сервер сети вернулся: %+v", res)
+	}
+
+	// Заведён руками (сеть устройств включила программа).
+	c = Config{Profiles: []Profile{base, {ID: "m", Name: "Мой Лондон", Host: "uk.example", SSHPort: 22, MeshEnabled: true, MeshKey: "K"}}}
+	c.RemoveProfile("m")
+	c.normalize()
+	if res := c.ApplyNetServers(ad, []string{"N"}); len(res.Added) != 0 {
+		t.Fatalf("удалённый руками сервер добавлен сетью снова: %+v", res)
+	}
+	// Отметка переживает сохранение и чтение.
+	data, _ := json.Marshal(c)
+	back, _ := Parse(data)
+	if res := back.ApplyNetServers(ad, []string{"N"}); len(res.Added) != 0 {
+		t.Fatal("после чтения вернулся")
+	}
+	// Человек снова завёл этот сервер сам — отметка снята.
+	p := c.AddProfile("Лондон", "")
+	p.Host = "uk.example"
+	c.SetProfile(p)
+	c.normalize()
+	for _, s := range c.MeshAutoSeen {
+		if s == RemovedMark("uk.example:22") {
+			t.Fatal("отметка «удалён» осталась при заведённом снова сервере")
+		}
+	}
+
+	// Телефон: те же отметки через RemovedMarks.
+	if m := RemovedMarks(Profile{Host: "UK.example", SSHPort: 22, MeshAuto: "N/lon"}); len(m) != 2 || m[1] != "del@uk.example:22" {
+		t.Fatalf("отметки: %v", m)
+	}
+	if m := RemovedMarks(Profile{Host: "x", FromPanel: "tun_1"}); m != nil {
+		t.Fatalf("сервер из панели: %v", m)
 	}
 }

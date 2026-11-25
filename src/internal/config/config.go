@@ -588,6 +588,9 @@ func (c *Config) RemoveProfile(id string) bool {
 		return false // такого id и не было
 	}
 	c.Profiles = out
+	if !gone.IsPanel() {
+		c.markRemoved(gone) // сеть серверов его не вернёт (ТЗ 50)
+	}
 	if d := c.Device; d != nil && gone.FromPanel == d.ID {
 		k := panelKey(gone)
 		d.Servers = slices.DeleteFunc(slices.Clone(d.Servers), func(s DeviceServer) bool { return s.Key() == k })
@@ -888,6 +891,7 @@ func (c *Config) normalize() {
 		}
 	}
 	c.syncDevice()
+	c.clearRemoved()
 	for i := range c.Profiles {
 		c.Profiles[i].ExitVia = c.cleanExitVia(c.Profiles[i])
 	}

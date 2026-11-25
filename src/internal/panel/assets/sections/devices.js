@@ -432,6 +432,8 @@ $('addClientBtn').addEventListener('click', async () => {
   closeInvite();
   await loadDevServers();
   renderServerChecks($('newDevServers'), null, true);
+  // Сервер один (не в сети серверов) — профиль честно назовёт только его.
+  $('newDevAlone').hidden = DEV_SERVERS.length > 1;
   $('addClientForm').hidden = false;
   openDevPane(false);
   $('addClientForm').scrollIntoView({behavior: 'smooth', block: 'start'});

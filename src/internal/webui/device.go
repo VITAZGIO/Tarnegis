@@ -22,7 +22,8 @@ func (s *Server) deviceView() map[string]any {
 		"sync": s.app.DeviceSyncState()}
 	if d := cfg.Device; d != nil {
 		out["device"] = map[string]any{"id": d.ID, "name": d.Name, "join": d.Join, "rev": d.Rev,
-			"mesh": d.Mesh, "frozen": d.Frozen, "servers": d.Servers, "hidden": d.Hidden}
+			"mesh": d.Mesh, "frozen": d.Frozen, "servers": d.Servers, "hidden": d.Hidden,
+			"profileFrom": d.ProfileFrom, "profileVer": d.ProfileVer}
 	}
 	return out
 }

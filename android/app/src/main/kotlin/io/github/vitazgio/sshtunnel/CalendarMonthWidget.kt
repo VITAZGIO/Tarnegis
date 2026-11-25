@@ -256,11 +256,9 @@ class CalendarMonthWidget : AppWidgetProvider() {
             rv.setOnClickPendingIntent(R.id.mNext, broadcast(ctx, id, ACT_NEXT))
             rv.setOnClickPendingIntent(R.id.mWeeks, broadcast(ctx, id, ACT_WEEKS))
             rv.setOnClickPendingIntent(R.id.mSync, broadcast(ctx, id, ACT_SYNC))
-            rv.setOnClickPendingIntent(R.id.mAdd, open(ctx, "new/$today", today, null, true))
             rv.setContentDescription(R.id.mTitle, t.getString(R.string.cal_cd_today))
             rv.setContentDescription(R.id.mPrev, t.getString(R.string.cal_cd_prev))
             rv.setContentDescription(R.id.mNext, t.getString(R.string.cal_cd_next))
-            rv.setContentDescription(R.id.mAdd, t.getString(R.string.cal_cd_add))
             rv.setContentDescription(R.id.mSync, t.getString(R.string.cal_cd_sync))
             rv.setContentDescription(R.id.mWeeks, t.getString(R.string.cal_cd_weeks))
 

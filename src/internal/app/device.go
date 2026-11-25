@@ -8,7 +8,9 @@ package app
 import (
 	"context"
 	"errors"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -169,6 +171,7 @@ func (a *App) fetchDevice(ctx context.Context, cfg config.Config) (invite.Profil
 		if p, ok := cfg.ProfileByID(id); ok && p.FromPanel == cfg.Device.ID {
 			prof, err := invite.FetchVia(ctx, a.DialServer)
 			if err == nil {
+				prof.From = net.JoinHostPort(p.Host, strconv.Itoa(p.SSHPort))
 				return prof, false, nil
 			}
 		}
@@ -185,7 +188,7 @@ func (a *App) fetchDevice(ctx context.Context, cfg config.Config) (invite.Profil
 		}
 		cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		prof, err := invite.Fetch(cctx, invite.Target{Host: p.Host, Port: p.SSHPort, User: cfg.Device.ID, Signer: signer,
-			HostKey: hostkey.Callback(config.KnownHostsPath(), nil)})
+			HostKey: hostkey.Callback(config.KnownHostsPath(), nil), KnownHosts: config.KnownHostsPath()})
 		cancel()
 		if err == nil {
 			return prof, false, nil
@@ -218,7 +221,7 @@ func (a *App) applyDevice(dp config.DeviceProfile) (config.DeviceResult, error) 
 		a.exitMu.Unlock()
 		return res, nil
 	}
-	invite.PinServers(config.KnownHostsPath(), res.Pins)
+	invite.PinProfile(config.KnownHostsPath(), res.Pins, dp.From)
 	_, err := a.SetConfig(cfg)
 	a.exitMu.Unlock()
 	if err != nil {
@@ -241,7 +244,7 @@ func (a *App) applyDevice(dp config.DeviceProfile) (config.DeviceResult, error) 
 		notes = append(notes, "устройство в сети панели")
 	}
 	if cfg.DeviceNetMissing() {
-		notes = append(notes, config.DeviceNetMissingText)
+		notes = append(notes, cfg.DeviceNetMissingText())
 	}
 	if len(notes) > 0 {
 		line := "Панель: " + strings.Join(notes, ", ")
@@ -394,6 +397,7 @@ func (a *App) syncDeviceNow() {
 // cloneConfig — копия, которую можно править, не задевая a.cfg.
 func cloneConfig(c config.Config) config.Config {
 	c.Profiles = slices.Clone(c.Profiles)
+	c.MeshAutoSeen = slices.Clone(c.MeshAutoSeen)
 	for i := range c.Profiles {
 		c.Profiles[i].ExitVia = slices.Clone(c.Profiles[i].ExitVia)
 	}

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"sshtunnel/internal/config"
+	"sshtunnel/internal/hostkey"
 )
 
 // SelfAddr — вход «для себя» на сервере (internal/panel/selfservice.go):
@@ -45,6 +46,10 @@ type Profile struct {
 	// MeshKey — ключ сети панели (ТЗ 49): устройство из панели — только в
 	// ней. Нет (панель старше) — сети устройств у устройства нет.
 	MeshKey string `json:"meshKey,omitempty"`
+	// Ver — версия панели, отдавшей профиль (ТЗ 50); нет — панель старше.
+	Ver string `json:"ver,omitempty"`
+	// From — «адрес:порт» сервера, с которого прочитан профиль (не из JSON).
+	From string `json:"-"`
 }
 
 // ErrNoProfile — сервер не знает /api/me/profile (панель старше ТЗ 47).
@@ -83,7 +88,7 @@ func (p Profile) MeshAllowed() bool { return p.Mesh == nil || *p.Mesh }
 // Config — профиль в том виде, в каком его применяет config.ApplyDevice.
 func (p Profile) Config() config.DeviceProfile {
 	dp := config.DeviceProfile{ID: p.ID, Name: p.Name, Rev: p.Rev, Mesh: p.MeshAllowed(), Frozen: p.Frozen,
-		MeshKey: p.MeshKey}
+		MeshKey: p.MeshKey, From: p.From, Ver: p.Ver}
 	for _, s := range p.Servers {
 		dp.Servers = append(dp.Servers, config.DeviceServer{Name: s.Name, Host: s.Host, Port: s.Port,
 			HostKey: s.HK, Flag: FlagEmoji(s.Flag)})
@@ -151,15 +156,30 @@ type Target struct {
 	Signer  ssh.Signer
 	HostKey ssh.HostKeyCallback
 	Dial    Dialer
+	// Algos — какие типы ключа сервера просить. Пусто — по KnownHosts:
+	// типы, что там записаны (hostkey.Algorithms). Без этого Go-клиент
+	// просит сначала ECDSA, сервер его и показывает, а записан ed25519 из
+	// приглашения — и вход срывается «ключ изменился» (ТЗ 50).
+	Algos      []string
+	KnownHosts string
 }
 
 // Fetch — профиль через своё короткое SSH-соединение (туннеля ещё нет:
 // сразу после входа по приглашению или вне подключения).
 func Fetch(ctx context.Context, t Target) (Profile, error) {
-	cl, err := connect(ctx, t.Dial, joinHostPort(t.Host, t.Port), t.User, t.Signer, t.HostKey, nil)
+	addr := joinHostPort(t.Host, t.Port)
+	algos := t.Algos
+	if algos == nil && t.KnownHosts != "" {
+		algos = hostkey.Algorithms(t.KnownHosts, addr)
+	}
+	cl, err := connect(ctx, t.Dial, addr, t.User, t.Signer, t.HostKey, algos)
 	if err != nil {
 		return Profile{}, err
 	}
 	defer cl.Close()
-	return FetchVia(ctx, cl.Dial)
+	p, err := FetchVia(ctx, cl.Dial)
+	if err == nil {
+		p.From = addr
+	}
+	return p, err
 }
