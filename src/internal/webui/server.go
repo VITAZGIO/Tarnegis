@@ -90,6 +90,10 @@ type Server struct {
 		mu      sync.Mutex
 		running bool
 	}
+
+	// panelFwd — временный проброс к веб-панели сервера («Открыть панель
+	// сервера», panelfwd.go). Один на программу.
+	panelFwd panelForward
 }
 
 // App — то, что интерфейс умеет делать с программой.
@@ -526,6 +530,8 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 // handleQuit — «Выход» в трее окна службы (VPN-версия Windows): служба
 // остаётся, туннель и сеть устройств — нет. См. app.QuitWindow.
 func (s *Server) handleQuit(w http.ResponseWriter, r *http.Request) {
+	// Проброс к панели сервера живёт, только пока программа открыта.
+	s.panelFwd.close("")
 	s.app.QuitWindow()
 	writeJSON(w, map[string]bool{"ok": true})
 }
@@ -908,6 +914,9 @@ func (s *Server) handleVpsSetupStart(w http.ResponseWriter, r *http.Request) {
 		InstallPanel    bool   `json:"installPanel"`
 		InstallUDPRelay bool   `json:"installUdpRelay"`
 		InstallMesh     bool   `json:"installMesh"`
+		// PanelPublicPort — 0 (по умолчанию): панель только на 127.0.0.1
+		// сервера; иначе открыта в интернет на этом порту.
+		PanelPublicPort int `json:"panelPublicPort"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]string{"error": "не разобрал запрос: " + err.Error()})
@@ -931,15 +940,23 @@ func (s *Server) handleVpsSetupStart(w http.ResponseWriter, r *http.Request) {
 	if port <= 0 {
 		port = 22
 	}
+	user := strings.TrimSpace(req.User)
+	if user == "" {
+		user = "root"
+	}
 	params := vpsSetupParams{
 		Host:            strings.TrimSpace(req.Host),
 		Port:            port,
-		User:            strings.TrimSpace(req.User),
+		User:            user,
 		Password:        req.Password,
 		KeyPath:         keyPath,
 		InstallPanel:    req.InstallPanel,
 		InstallUDPRelay: req.InstallUDPRelay,
 		InstallMesh:     req.InstallMesh,
+		PanelPublicPort: req.PanelPublicPort,
+	}
+	params.AddProfile = func(res *events.VpsResult) {
+		s.addVpsProfile(res, params)
 	}
 	go func() {
 		defer func() {
@@ -950,6 +967,58 @@ func (s *Server) handleVpsSetupStart(w http.ResponseWriter, r *http.Request) {
 		runVpsSetup(s.app.Bus, params)
 	}()
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// addVpsProfile записывает только что настроенный сервер в список: тот же
+// адрес уже есть (не выданный панелью) — обновляет его (повторный запуск
+// мастера не плодит копии), есть пустой сервер без адреса (первый запуск программы) —
+// заполняет его, иначе заводит новый. Активным не делает: человек сам решит,
+// переключаться ли.
+func (s *Server) addVpsProfile(res *events.VpsResult, p vpsSetupParams) {
+	cfg := s.app.Config()
+	var prof config.Profile
+	found, byHost := false, false
+	for _, q := range cfg.Profiles {
+		// Сервер, выданный панелью, — чужая учётка (tun_…): его не трогаем,
+		// заводим рядом свой.
+		if strings.EqualFold(strings.TrimSpace(q.Host), p.Host) && q.Panel == "" {
+			prof, found, byHost = q, true, true
+			break
+		}
+	}
+	if !found {
+		for _, q := range cfg.Profiles {
+			if strings.TrimSpace(q.Host) == "" {
+				prof, found = q, true
+				break
+			}
+		}
+	}
+	if !found {
+		np, err := s.app.AddProfile(p.Host, "")
+		if err != nil {
+			res.ProfileNote = "сервер настроен, но в список не добавился: " + err.Error()
+			return
+		}
+		prof = np
+	}
+	if !byHost || prof.Name == "" {
+		prof.Name = p.Host
+	}
+	prof.Host, prof.SSHPort, prof.User = p.Host, p.Port, "tunnel"
+	prof.KeyPath = p.KeyPath
+	prof.AdminUser = p.User
+	if p.User == "root" {
+		prof.AdminUser = ""
+	}
+	if res.UDPRelay {
+		prof.UDPRelayEnabled = true
+	}
+	if err := s.app.UpdateProfile(prof); err != nil {
+		res.ProfileNote = "сервер настроен, но в список не записался: " + err.Error()
+		return
+	}
+	res.ProfileID, res.ProfileName = prof.ID, prof.Name
 }
 
 // handleEvents — поток событий в окно (Server-Sent Events). Проще вебсокетов

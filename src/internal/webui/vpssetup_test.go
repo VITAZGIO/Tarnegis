@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -53,6 +54,9 @@ type fakeAdminServer struct {
 	calls        []execCall
 	hardenExit   uint32
 	tunnelExit   uint32
+	// sudoMode — как ведёт себя sudo у не-root пользователя: "password"
+	// (спрашивает пароль входа), "nopass" (NOPASSWD), "none" (нет в sudoers).
+	sudoMode string
 }
 
 func newFakeAdminServer(t *testing.T, password string) *fakeAdminServer {
@@ -179,9 +183,52 @@ func drainStdin(ch ssh.Channel) <-chan struct{} {
 func (s *fakeAdminServer) runExec(ch ssh.Channel, cmd string) {
 	defer ch.Close()
 
-	if cmd == "bash -s" {
+	if cmd == "bash -s" || cmd == "sudo -n bash -s" {
 		data, _ := io.ReadAll(ch)
 		s.handleScript(ch, string(data))
+		return
+	}
+	// sudo с паролем: первая строка стандартного входа — пароль, дальше скрипт.
+	if cmd == "sudo -S -k -p '' bash -s" {
+		data, _ := io.ReadAll(ch)
+		pass, script, _ := strings.Cut(string(data), "\n")
+		if pass != s.password || s.sudoMode != "password" {
+			fmt.Fprintln(ch.Stderr(), "Sorry, try again.")
+			sendExit(ch, 1)
+			return
+		}
+		s.handleScript(ch, script)
+		return
+	}
+	switch cmd {
+	case "sudo -n true":
+		drainStdin(ch)
+		s.mu.Lock()
+		s.calls = append(s.calls, execCall{cmd: cmd})
+		s.mu.Unlock()
+		if s.sudoMode == "nopass" {
+			sendExit(ch, 0)
+			return
+		}
+		fmt.Fprintln(ch.Stderr(), "sudo: a password is required")
+		sendExit(ch, 1)
+		return
+	case "sudo -S -k -p '' true":
+		data, _ := io.ReadAll(ch)
+		s.mu.Lock()
+		s.calls = append(s.calls, execCall{cmd: cmd})
+		s.mu.Unlock()
+		if s.sudoMode == "none" {
+			fmt.Fprintln(ch.Stderr(), "user is not in the sudoers file.  This incident will be reported.")
+			sendExit(ch, 1)
+			return
+		}
+		if strings.TrimSuffix(string(data), "\n") != s.password {
+			fmt.Fprintln(ch.Stderr(), "Sorry, try again.")
+			sendExit(ch, 1)
+			return
+		}
+		sendExit(ch, 0)
 		return
 	}
 
@@ -205,7 +252,9 @@ func (s *fakeAdminServer) runExec(ch ssh.Channel, cmd string) {
 		}
 		sendExit(ch, 0)
 	case strings.Contains(cmd, "journalctl -u ssh_tunnel_panel"):
-		fmt.Fprintln(ch, `Первый запуск: создан пользователь "admin" с одноразовым паролем: TESTPASS`)
+		fmt.Fprintln(ch, `Первый запуск: создан пользователь "admin" с одноразовым паролем.`)
+		fmt.Fprintln(ch, `Логин:  admin`)
+		fmt.Fprintln(ch, `Пароль: TESTPASS`)
 		sendExit(ch, 0)
 	case strings.HasPrefix(cmd, "chpasswd"):
 		// В отличие от остальных команд здесь клиент действительно пишет в
@@ -239,6 +288,9 @@ func (s *fakeAdminServer) handleScript(ch ssh.Channel, script string) {
 	case strings.Contains(script, "TUNNEL_USER="):
 		fmt.Fprintln(ch, "tunnel-user: строка первая")
 		sendExit(ch, tunnelExit)
+	case strings.Contains(script, "ключ для root записан"):
+		fmt.Fprintln(ch, "ключ для root записан")
+		sendExit(ch, 0)
 	case strings.Contains(script, "ssh_tunnel_panel"):
 		fmt.Fprintln(ch, "панель запущена")
 		sendExit(ch, 0)
@@ -259,7 +311,7 @@ func (s *fakeAdminServer) callsSnapshot() []execCall {
 
 func (s *fakeAdminServer) hasScriptContaining(sub string) bool {
 	for _, c := range s.callsSnapshot() {
-		if c.cmd == "bash -s" && strings.Contains(c.stdin, sub) {
+		if strings.HasSuffix(c.cmd, "bash -s") && strings.Contains(c.stdin, sub) {
 			return true
 		}
 	}
@@ -457,6 +509,159 @@ func TestLineWriterSplitsAcrossWrites(t *testing.T) {
 	for i := range want {
 		if lines[i] != want[i] {
 			t.Fatalf("получилось %v, ожидалось %v", lines, want)
+		}
+	}
+}
+
+// Обычный пользователь с sudo по паролю (ТЗ 45): всё под root идёт через
+// sudo, тот же ключ кладётся и root'у (иначе harden.sh не отключит пароли),
+// панель открыта в интернет — только потому, что так выбрали, — а итог
+// приходит в событии с одноразовым паролем панели и добавленным сервером.
+func TestRunVpsSetupSudoUser(t *testing.T) {
+	srv := newFakeAdminServer(t, "user-pass")
+	srv.sudoMode = "password"
+	host, port := srv.hostPort(t)
+	bus := events.NewBus()
+
+	var added *events.VpsResult
+	params := vpsSetupParams{
+		Host: host, Port: port, User: "admin2", Password: "user-pass", KeyPath: testKeyPath(t),
+		InstallPanel: true, PanelPublicPort: 8443,
+		AddProfile: func(res *events.VpsResult) {
+			added = res
+			res.ProfileID, res.ProfileName = "p9", host
+		},
+	}
+	var runErr error
+	evs := collectEvents(t, bus, func() { runErr = runVpsSetup(bus, params) })
+	if runErr != nil {
+		t.Fatalf("runVpsSetup: %v", runErr)
+	}
+	if !srv.hasScriptContaining("ключ для root записан") {
+		t.Error("ключ не положен root'у — harden.sh откажется отключать пароли")
+	}
+	if !srv.hasScriptContaining("NEW_USER=") || !srv.hasScriptContaining(`TUNNEL_USER="tunnel"`) {
+		t.Error("harden.sh или tunnel-user.sh не запустились через sudo")
+	}
+	if !srv.hasScriptContaining("-listen 0.0.0.0:8443") || !srv.hasScriptContaining("ufw allow 8443/tcp") {
+		t.Error("панель не открыта в интернет, хотя выбран порт 8443")
+	}
+	for _, c := range srv.callsSnapshot() {
+		if strings.Contains(c.cmd, "user-pass") {
+			t.Fatalf("пароль попал в командную строку: %q", c.cmd)
+		}
+	}
+	if added == nil {
+		t.Fatal("сервер не добавлен в список")
+	}
+	var done *events.VpsResult
+	for _, e := range evs {
+		if strings.Contains(e.Text, "user-pass") || strings.Contains(e.Error, "user-pass") {
+			t.Fatalf("пароль попал в событие: %+v", e)
+		}
+		if e.Kind == events.KindVpsSetup && e.Done {
+			done = e.Vps
+		}
+	}
+	if done == nil {
+		t.Fatal("нет итога в событии Done")
+	}
+	if done.PanelPass != "TESTPASS" || done.PanelLogin != "admin" || !done.Panel {
+		t.Errorf("итог панели: %+v", done)
+	}
+	if done.AdminUser != "admin2" || done.ProfileID != "p9" || done.PanelPublic != 8443 {
+		t.Errorf("итог: %+v", done)
+	}
+}
+
+func TestRunVpsSetupSudoNopass(t *testing.T) {
+	srv := newFakeAdminServer(t, "user-pass")
+	srv.sudoMode = "nopass"
+	host, port := srv.hostPort(t)
+	bus := events.NewBus()
+	params := vpsSetupParams{Host: host, Port: port, User: "ops", Password: "user-pass", KeyPath: testKeyPath(t)}
+	var runErr error
+	collectEvents(t, bus, func() { runErr = runVpsSetup(bus, params) })
+	if runErr != nil {
+		t.Fatalf("runVpsSetup: %v", runErr)
+	}
+	if !srv.hasScriptContaining(`TUNNEL_USER="tunnel"`) {
+		t.Error("tunnel-user.sh не запустился")
+	}
+}
+
+// Пользователь без sudo — понятная ошибка, и на сервере ничего не тронуто:
+// ни ключа, ни harden.sh.
+func TestRunVpsSetupUserWithoutSudo(t *testing.T) {
+	srv := newFakeAdminServer(t, "user-pass")
+	srv.sudoMode = "none"
+	host, port := srv.hostPort(t)
+	bus := events.NewBus()
+	params := vpsSetupParams{Host: host, Port: port, User: "guest", Password: "user-pass", KeyPath: testKeyPath(t)}
+	var runErr error
+	collectEvents(t, bus, func() { runErr = runVpsSetup(bus, params) })
+	if runErr == nil || !strings.Contains(runErr.Error(), "нет права sudo") {
+		t.Fatalf("ожидалась ошибка «нет права sudo», получено: %v", runErr)
+	}
+	for _, c := range srv.callsSnapshot() {
+		if strings.Contains(c.cmd, "authorized_keys") || strings.HasSuffix(c.cmd, "bash -s") {
+			t.Fatalf("на сервере что-то менялось до проверки sudo: %q", c.cmd)
+		}
+	}
+}
+
+// Панель по умолчанию — только локально: ни -listen наружу, ни порта в firewall.
+func TestRunVpsSetupPanelLocalByDefault(t *testing.T) {
+	srv := newFakeAdminServer(t, "root-pass")
+	host, port := srv.hostPort(t)
+	bus := events.NewBus()
+	params := vpsSetupParams{Host: host, Port: port, User: "root", Password: "root-pass",
+		KeyPath: testKeyPath(t), InstallPanel: true}
+	var runErr error
+	collectEvents(t, bus, func() { runErr = runVpsSetup(bus, params) })
+	if runErr != nil {
+		t.Fatalf("runVpsSetup: %v", runErr)
+	}
+	if !srv.hasScriptContaining("ssh_tunnel_panel") {
+		t.Fatal("панель не ставилась")
+	}
+	// «ufw allow» есть и в harden.sh (порт SSH) — ищем именно порт панели.
+	if srv.hasScriptContaining("-listen 0.0.0.0") || srv.hasScriptContaining("comment 'ssh_tunnel_panel'") {
+		t.Error("панель открыта наружу, хотя выбрано «только локально»")
+	}
+	if srv.hasScriptContaining("ключ для root записан") {
+		t.Error("под root ключ кладётся второй раз отдельным шагом")
+	}
+}
+
+func TestParsePanelPassword(t *testing.T) {
+	journal := "2026/11/25 10:00:00 Первый запуск: создан пользователь \"admin\" с одноразовым паролем.\n" +
+		"2026/11/25 10:00:00 Логин:  admin\n2026/11/25 10:00:00 Пароль: aB3-xY9\n" +
+		"2026/11/25 10:00:00 Панель потребует сменить его сразу после входа. Пароль больше нигде\n"
+	if l, p, n := parsePanelPassword(journal); l != "admin" || p != "aB3-xY9" || n != "" {
+		t.Errorf("новый формат: %q %q %q", l, p, n)
+	}
+	if _, p, _ := parsePanelPassword(`создан пользователь "admin" с одноразовым паролем: OLD1`); p != "OLD1" {
+		t.Errorf("старый формат: %q", p)
+	}
+	if _, p, n := parsePanelPassword(""); p != "" || n == "" {
+		t.Errorf("пустой журнал: пароль %q, пояснение %q", p, n)
+	}
+}
+
+func TestPanelInstallScriptParse(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("нет bash")
+	}
+	for _, pub := range []int{0, 8443} {
+		script := panelInstallScript("203.0.113.10", 22, pub)
+		cmd := exec.Command("bash", "-n")
+		cmd.Stdin = strings.NewReader(script)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("порт %d: bash -n: %v\n%s", pub, err, out)
+		}
+		if (pub == 0) == strings.Contains(script, "0.0.0.0") {
+			t.Errorf("порт %d: адрес панели не тот:\n%s", pub, script)
 		}
 	}
 }
