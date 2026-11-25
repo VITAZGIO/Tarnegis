@@ -143,8 +143,17 @@ class Settings(context: Context) {
         val gone = list.find { it.id == id } ?: return false
         list.removeAll { it.id == id }
         keyFile(id).delete()
-        // Сеть серверов удалённый человеком сервер больше не возвращает
-        // (ТЗ 50): отметки решает общий код Go.
+        markRemoved(gone)
+        val active = if (activeProfileId == id) list.firstOrNull()?.id.orEmpty() else activeProfileId
+        saveAll(list, active)
+        return true
+    }
+
+    /**
+     * Сеть серверов удалённый человеком сервер больше не возвращает (ТЗ 50),
+     * и сервер из панели тоже (ТЗ 51): отметки решает общий код Go.
+     */
+    fun markRemoved(gone: Profile) {
         try {
             val marks = JSONArray(mobile.Mobile.removedMarks(JSONObject()
                 .put("host", gone.host).put("sshPort", gone.sshPort)
@@ -160,9 +169,18 @@ class Settings(context: Context) {
             }
         } catch (_: Exception) {
         }
-        val active = if (activeProfileId == id) list.firstOrNull()?.id.orEmpty() else activeProfileId
-        saveAll(list, active)
-        return true
+    }
+
+    /** «Вернуть» сервер из панели: снять отметку «удалён» (ТЗ 51). */
+    fun unmarkRemoved(key: String) {
+        try {
+            val m = "del@" + key.lowercase()
+            val seen = JSONArray(meshAutoSeenJson)
+            val out = JSONArray()
+            for (i in 0 until seen.length()) if (seen.optString(i) != m) out.put(seen.optString(i))
+            meshAutoSeenJson = out.toString()
+        } catch (_: Exception) {
+        }
     }
 
     /**

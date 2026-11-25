@@ -128,7 +128,6 @@
     <string name="exit_not_found">server \"%1$s\" not found</string>
     <string name="exit_no_host">server \"%1$s\" has no address</string>
     <string name="err_server_not_found">server not found</string>
-    <string name="err_panel_server">this server was issued by the panel — it can only be hidden here</string>
     <string name="err_unknown_op">unknown action</string>
     <string name="log_panel_profile">Panel: %1$s</string>
     <string name="err_no_answer">no answer</string>

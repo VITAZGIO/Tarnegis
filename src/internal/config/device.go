@@ -8,9 +8,11 @@ package config
 // а не на каждый сервер (раньше их приходилось повторять в каждом профиле).
 //
 // Профили серверов из панели помечены FromPanel: адрес, порт, пользователь
-// и ключ берутся из устройства и правке не поддаются; удалить такой профиль
-// нельзя — только скрыть у себя. Серверы, добавленные руками, живут как
-// раньше и этого кода не касаются.
+// и ключ берутся из устройства и правке не поддаются. Удалить такой профиль
+// можно (ТЗ 51): ключ сервера запоминается в Device.Removed, и сверка с
+// панелью его не возвращает; вернуть — «Показать скрытые» или новое
+// приглашение. Серверы, добавленные руками, живут как раньше и этого кода
+// не касаются.
 //
 // Решает только этот код: экран, API и мост телефона его не повторяют.
 
@@ -40,8 +42,13 @@ type Device struct {
 	ProfileFrom string `json:"profileFrom,omitempty"`
 	ProfileVer  string `json:"profileVer,omitempty"`
 
-	// Hidden — серверы из панели, скрытые у себя (ServerKey).
+	// Hidden — серверы из панели, скрытые у себя (ServerKey). С ТЗ 51
+	// экран не скрывает, а удаляет; старые скрытые остаются скрытыми.
 	Hidden []string `json:"hidden,omitempty"`
+	// Removed — серверы из панели, удалённые у себя (ServerKey, ТЗ 51):
+	// профиль ушёл, сверка с панелью его не заводит снова. Новое
+	// приглашение (SetDevice) список очищает.
+	Removed []string `json:"removed,omitempty"`
 	// Net — сеть устройств на этом устройстве (предпочтения). nil — ещё не
 	// задана: действуют значения из профилей, как до ТЗ 48 (DeviceNetOf).
 	Net *DeviceNet `json:"net,omitempty"`
@@ -192,6 +199,8 @@ func (c *Config) applyDevice(dp DeviceProfile) DeviceResult {
 		list = append(list, s)
 	}
 	d.Servers = list
+	// Удалённые у себя, которых в профиле больше нет, помнить незачем.
+	d.Removed = slices.DeleteFunc(slices.Clone(d.Removed), func(k string) bool { return !seen[k] })
 	nowMesh := d.Mesh && !d.Frozen
 	res.MeshOff = wasMesh && !nowMesh
 	res.MeshBack = !wasMesh && nowMesh && d.Rev >= 0 && len(oldNames) > 0
@@ -214,6 +223,9 @@ func (c *Config) applyDevice(dp DeviceProfile) DeviceResult {
 	// Новые — завести, уже заведённые — освежить.
 	for _, s := range list {
 		k := s.Key()
+		if slices.Contains(d.Removed, k) {
+			continue // удалён у себя (ТЗ 51) — не возвращать
+		}
 		i := slices.IndexFunc(c.Profiles, func(p Profile) bool { return p.FromPanel == d.ID && panelKey(p) == k })
 		if i < 0 {
 			// Профиль этого сервера под этой же учётной записью человек уже
@@ -307,6 +319,51 @@ func (c *Config) SetHidden(id string, hide bool) (switched string, ok bool) {
 		}
 	}
 	return switched, true
+}
+
+// RestoreServer возвращает сервер из панели, удалённый или скрытый у себя
+// (ключ «адрес:порт» из Device.Servers): профиль заводится снова
+// (syncDevice). Возвращает имя сервера; ok=false — такого в профиле
+// устройства нет.
+func (c *Config) RestoreServer(key string) (name string, ok bool) {
+	d := c.Device
+	if d == nil {
+		return "", false
+	}
+	i := slices.IndexFunc(d.Servers, func(s DeviceServer) bool { return s.Key() == key })
+	if i < 0 {
+		return "", false
+	}
+	drop := func(s string) bool { return s == key }
+	d.Removed = slices.DeleteFunc(slices.Clone(d.Removed), drop)
+	d.Hidden = slices.DeleteFunc(slices.Clone(d.Hidden), drop)
+	c.MeshAutoSeen = slices.DeleteFunc(slices.Clone(c.MeshAutoSeen), func(s string) bool { return s == RemovedMark(key) })
+	c.syncDevice()
+	name = d.Servers[i].Name
+	if name == "" {
+		name = d.Servers[i].Host
+	}
+	if _, has := c.ProfileByID(c.ActiveProfile); !has {
+		if p, ok := c.firstVisible(); ok {
+			c.ActiveProfile = p.ID
+		}
+	}
+	return name, true
+}
+
+// RemovedServers — серверы из профиля устройства, удалённые у себя (ТЗ 51):
+// экран показывает их в «Показать скрытые» с кнопкой «Вернуть».
+func (c Config) RemovedServers() []DeviceServer {
+	if c.Device == nil {
+		return nil
+	}
+	var out []DeviceServer
+	for _, s := range c.Device.Servers {
+		if slices.Contains(c.Device.Removed, s.Key()) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // SetDeviceNet меняет предпочтения сети устройств на устройстве.
@@ -417,10 +474,14 @@ func (c *Config) syncDevice() {
 	for _, s := range d.Servers {
 		byKey[s.Key()] = s
 	}
-	// Профиль сервера из панели удалить нельзя: пропал (настройки целиком от
-	// экрана, правка файла) — заводится снова.
+	// Профиль сервера из панели пропал не через удаление (настройки целиком
+	// от экрана, правка файла) — заводится снова. Удалённый у себя (Removed)
+	// — нет.
 	for _, s := range d.Servers {
 		k := s.Key()
+		if slices.Contains(d.Removed, k) {
+			continue
+		}
 		if !slices.ContainsFunc(c.Profiles, func(p Profile) bool { return p.FromPanel == d.ID && panelKey(p) == k }) {
 			p := defaultProfile(len(c.Profiles) + 1)
 			p.Name, p.Flag = s.Name, s.Flag
@@ -486,7 +547,7 @@ func (c Config) DeviceForExport() *Device {
 	}
 	d := *c.Device
 	d.KeyPath = ""
-	d.Servers, d.Hidden = slices.Clone(d.Servers), slices.Clone(d.Hidden)
+	d.Servers, d.Hidden, d.Removed = slices.Clone(d.Servers), slices.Clone(d.Hidden), slices.Clone(d.Removed)
 	n := c.DeviceNetOf()
 	var via []string
 	for _, id := range n.ExitVia {

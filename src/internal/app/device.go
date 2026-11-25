@@ -291,6 +291,22 @@ func (a *App) SetDeviceHidden(id string, hide bool) (string, error) {
 	return "", nil
 }
 
+// RestoreDeviceServer — «Вернуть» сервер из панели, удалённый или скрытый у
+// себя (key — «адрес:порт» из профиля устройства, ТЗ 51).
+func (a *App) RestoreDeviceServer(key string) (string, error) {
+	a.exitMu.Lock()
+	defer a.exitMu.Unlock()
+	cfg := cloneConfig(a.Config())
+	name, ok := cfg.RestoreServer(key)
+	if !ok {
+		return "", errors.New("такого сервера в профиле устройства нет")
+	}
+	if _, err := a.SetConfig(cfg); err != nil {
+		return "", err
+	}
+	return "сервер " + name + " снова в списке", nil
+}
+
 // SetDeviceNet — блок «Сеть устройств» устройства (одни настройки на все
 // серверы из панели).
 func (a *App) SetDeviceNet(n config.DeviceNet) (string, error) {
@@ -405,6 +421,7 @@ func cloneConfig(c config.Config) config.Config {
 		d := *c.Device
 		d.Servers = slices.Clone(d.Servers)
 		d.Hidden = slices.Clone(d.Hidden)
+		d.Removed = slices.Clone(d.Removed)
 		if d.Net != nil {
 			n := *d.Net
 			n.ExitVia = slices.Clone(n.ExitVia)

@@ -511,6 +511,14 @@
   .panel.collapsed .pbody{display:none}
 
   .rowbtns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 12px}
+  /* Действия сервера: две равные колонки, широкие — на всю строку. Скрытые
+     кнопки — [hidden] (у button нет своего display), бейдж — style.display. */
+  .srvActs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 12px}
+  .srvActs .btn{width:100%;margin:0;white-space:normal;line-height:1.25}
+  .srvActs .btn[hidden]{display:none}
+  .srvActs .wide{grid-column:1 / -1}
+  .srv .restore{flex:none;font-size:12.5px;padding:5px 11px}
+  .srvActs .curBadge{justify-content:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-align:center}
   .curBadge{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ok);
             font-weight:600;padding:8px 2px}
 
@@ -1009,7 +1017,7 @@
 
       <div id="issuedByPanel" hidden style="margin:-4px 0 14px;font-size:12.5px;
            color:var(--accent);cursor:pointer"></div>
-      <div class="hint" id="panelServerNote" hidden style="display:block;margin:-4px 0 14px"></div>
+      <div class="hint" id="panelServerNote" hidden style="margin:-4px 0 14px"></div>
 
     <div class="field"><label for="host" data-i18n="host_label">Адрес сервера</label>
       <input type="text" id="host" placeholder="адрес или домен сервера" spellcheck="false"
@@ -1125,12 +1133,15 @@
       <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="own_rules_hint">Обычно не нужно: списки «напрямую» и «через сервер», программы, локальная сеть и тонкая настройка соединения — одни на все серверы, как в других VPN-программах. Включи, если этому серверу нужны другие правила (например, сервер внутри страны): у него будет своя копия, остальные серверы её не видят.</span></span>
     </div>
 
-    <div class="rowbtns">
+    <!-- Действия сервера (ТЗ 51): сетка из двух равных колонок — «В буфер» |
+         «Выбрать этот сервер» или «✓ Текущий сервер»; ниже на всю ширину
+         «Вернуть в список» (старый скрытый) и «Удалить сервер». -->
+    <div class="srvActs" id="srvActs">
       <button class="btn" id="exportClipBtn" data-i18n="to_clip">В буфер</button>
       <button class="btn" id="selectServerBtn" data-i18n="select_server">Выбрать этот сервер</button>
       <span class="curBadge" id="curBadge" style="display:none">✓ <span data-i18n="current_server">Текущий сервер</span></span>
-      <button class="btn danger" id="removeServerBtn" hidden data-i18n="remove_server">Удалить сервер</button>
-      <button class="btn" id="hideServerBtn" hidden></button>
+      <button class="btn wide" id="hideServerBtn" hidden></button>
+      <button class="btn danger wide" id="removeServerBtn" hidden data-i18n="remove_server">Удалить сервер</button>
     </div>
     </div>
   </div>
@@ -1305,7 +1316,7 @@
           data-i18n-ph="ui_pass_ph" placeholder="новый пароль">
         <button class="btn" type="button" id="uiPassSet" data-i18n="ui_pass_set">Задать пароль</button>
       </div>
-      <span class="hint" id="uiPassNote" hidden style="display:block;margin:-2px 0 6px"></span>
+      <div class="hint" id="uiPassNote" hidden style="margin:-2px 0 6px"></div>
       <div class="chk-row">
         <label class="chk"><input type="checkbox" id="appProfilesOn">
           <span class="lbl" data-i18n="app_profiles_on">Профили приложения</span>
@@ -1779,7 +1790,7 @@
     <div class="devNet" id="devNetBox" hidden>
       <div class="k" style="margin:0 0 4px;font-weight:600" id="devNetTitle"></div>
       <div class="hint" id="devNetState" style="display:block;margin:0 0 8px"></div>
-      <div class="hint" id="devNetBan" hidden style="display:block;margin:0 0 8px;color:var(--warn,#d08a00)" data-i18n="devnet_banned">Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.</div>
+      <div class="hint" id="devNetBan" hidden style="margin:0 0 8px;color:var(--warn,#d08a00)" data-i18n="devnet_banned">Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.</div>
       <label class="chk"><input type="checkbox" id="devNetOn">
         <span class="lbl" data-i18n="devnet_on">Включить сеть устройств на этом устройстве</span></label>
       <label class="chk"><input type="checkbox" id="devNetOnly">
@@ -2252,8 +2263,10 @@ const I18N = {
     invite_for:'Сервер {host}, действует до {date}', invite_expired:'Приглашение истекло — попроси в панели новое',
     invite_empty:'Вставь текст приглашения', invite_joining:'Вхожу на сервер…',
     panel_badge:'из панели',
-    panel_server_note:'Сервер выдан панелью устройству «{name}»: адрес и вход задаёт панель, удалить его нельзя — только скрыть у себя. Сеть устройств — общая для устройства (Настройки → Сеть устройств).',
-    hide_server:'Скрыть у себя', show_server:'Показывать снова', hidden_show:'Показать скрытые', hidden_hide:'Спрятать скрытые',
+    panel_server_note:'Сервер выдан панелью устройству «{name}»: адрес и вход задаёт панель. Сеть устройств — общая для устройства (Настройки → Сеть устройств).',
+    confirm_remove_panel_server:'Сервер из панели: он пропадёт с этого устройства. Вернуть — «Показать скрытые» или новое приглашение.',
+    restore_server:'Вернуть', removed_badge:'удалён',
+    hide_server:'Скрыть у себя', show_server:'Вернуть в список', hidden_show:'Показать скрытые', hidden_hide:'Спрятать скрытые',
     devnet_title:'Устройство из панели: {name}', devnet_servers:'Серверов из панели', devnet_synced:'сверено',
     devnet_banned:'Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.',
     devnet_frozen:'Устройство заморожено в панели сервера: сеть устройств не работает, пока его не разморозят.',
@@ -2661,8 +2674,10 @@ const I18N = {
     invite_for:'Server {host}, valid until {date}', invite_expired:'The invite has expired — ask the panel for a new one',
     invite_empty:'Paste the invite text', invite_joining:'Signing in to the server…',
     panel_badge:'from panel',
-    panel_server_note:'This server was issued by the panel to device “{name}”: the panel sets its address and sign-in, it cannot be removed — only hidden here. The device network is shared by the whole device (Settings → Device network).',
-    hide_server:'Hide here', show_server:'Show again', hidden_show:'Show hidden', hidden_hide:'Collapse hidden',
+    panel_server_note:'This server was issued by the panel to device “{name}”: the panel sets its address and sign-in. The device network is shared by the whole device (Settings → Device network).',
+    confirm_remove_panel_server:'A server from the panel: it will disappear from this device. To get it back — “Show hidden” or a new invite.',
+    restore_server:'Restore', removed_badge:'removed',
+    hide_server:'Hide here', show_server:'Back to the list', hidden_show:'Show hidden', hidden_hide:'Collapse hidden',
     devnet_title:'Device from the panel: {name}', devnet_servers:'Servers from the panel', devnet_synced:'synced',
     devnet_banned:'The device network is turned off on the server. Your choice is kept and works again once the panel allows it.',
     devnet_frozen:'This device is frozen in the server panel: the device network stays off until it is unfrozen.',
@@ -5400,7 +5415,10 @@ function renderTabs(){
   const panel = $('serverPanel');
   $('viewServers').insertBefore(panel, box.nextSibling);
   box.innerHTML = '';
-  const hiddenN = (cfg.profiles || []).filter(p => p.hidden).length;
+  // Скрытые (до ТЗ 51) и удалённые у себя серверы из панели (ТЗ 51) —
+  // под одной кнопкой «Показать скрытые»; удалённые — с «Вернуть».
+  const removed = (devInfo && devInfo.device && devInfo.device.removed) || [];
+  const hiddenN = (cfg.profiles || []).filter(p => p.hidden).length + removed.length;
   $('showHiddenBtn').hidden = !hiddenN;
   $('showHiddenBtn').textContent = (showHidden ? tr('hidden_hide') : tr('hidden_show')) + ' (' + hiddenN + ')';
   (cfg.profiles || []).forEach(p => {
@@ -5431,6 +5449,22 @@ function renderTabs(){
     row.querySelector('.nmb').onclick = row.querySelector('.ed').onclick = () => toggleEdit(p.id);
     box.appendChild(row);
     if(open) box.appendChild(panel);
+  });
+  if(showHidden) removed.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'srv hid';
+    row.innerHTML = '<span class="rad"></span><span class="nmb"><span class="flagicon">' + tabFlagHTML(resolveFlagCode(s.flag)) + '</span>' +
+      '<span class="nmw"><span class="nm"></span><span class="hs"></span></span></span>' +
+      '<button type="button" class="btn restore"></button>';
+    row.querySelector('.nm').textContent = s.name || s.host;
+    const b = document.createElement('span');
+    b.className = 'pbadge'; b.textContent = tr('removed_badge');
+    row.querySelector('.nm').appendChild(b);
+    row.querySelector('.hs').textContent = s.host + (s.port && s.port !== 22 ? ':' + s.port : '');
+    const rb = row.querySelector('.restore');
+    rb.textContent = tr('restore_server');
+    rb.onclick = () => restoreServer(s.host + ':' + (s.port || 22));
+    box.appendChild(row);
   });
   panel.hidden = !srvOpen;
   if((cfg.profiles || []).length > 1) refreshLatencyBadges();
@@ -5472,11 +5506,9 @@ function renderGeneralVisibility(){
   // hidden тут не подействует.
   $('showPickerRow').style.display = many ? 'flex' : 'none';
   $('autoPickRow').style.display = many ? 'flex' : 'none';
-  // Удалить можно любой, и последний (ТЗ 49); сервер из панели — только
-  // когда устройство удалено в панели.
+  // Удалить можно любой: и последний (ТЗ 49), и выданный панелью (ТЗ 51).
   const cp = currentProfile();
-  $('removeServerBtn').hidden = !cp.id || (isPanelProf(cp) && !(devInfo && devInfo.gone));
-  updateServerButtonsSpan();
+  $('removeServerBtn').hidden = !cp.id;
 }
 
 function renderSelectServerBtn(){
@@ -5486,18 +5518,6 @@ function renderSelectServerBtn(){
   // приоритету источника стилей — обычным hidden тут не спрятать,
   // переключаем display в JS напрямую (как и с рядом других таких блоков).
   $('curBadge').style.display = isActive ? 'flex' : 'none';
-  updateServerButtonsSpan();
-}
-
-// Строка «Выбрать этот сервер» / «Удалить сервер» — сетка на 2 равные
-// колонки (.two), чтобы кнопки не гуляли по ширине как попало. Когда видна
-// только одна из них (текущий сервер уже выбран, или сервер всего один) —
-// растягиваем оставшуюся на всю строку, а не оставляем половину пустой.
-function updateServerButtonsSpan(){
-  const select = $('selectServerBtn'), remove = $('removeServerBtn'), hide = $('hideServerBtn');
-  const visible = [select, remove, hide].filter(b => !b.hidden);
-  select.style.gridColumn = remove.style.gridColumn = hide.style.gridColumn =
-    visible.length === 1 ? '1 / -1' : '';
 }
 
 async function selectEditingTab(id){
@@ -5534,7 +5554,8 @@ $('selectServerBtn').onclick = async () => {
 
 $('removeServerBtn').onclick = async () => {
   if(!(cfg.profiles || []).length) return;
-  if(!await appConfirm(tr('confirm_remove_server'))) return;
+  const cp = currentProfile();
+  if(!await appConfirm(tr(isPanelProf(cp) ? 'confirm_remove_panel_server' : 'confirm_remove_server'))) return;
   const r = await api('/api/profile/remove', { id: editingProfileId });
   if(r.error){ showError(r.error, 'setError'); return; }
   applyDoc(r.config, /*keepEditing*/false);
@@ -5633,7 +5654,8 @@ async function loadDevice(){
   if(!r || r.error) return;
   devInfo = r;
   renderDeviceNet();
-  renderGeneralVisibility(); // «Удалить сервер» у серверов из панели зависит от devInfo.gone
+  renderGeneralVisibility();
+  renderTabs(); // удалённые у себя серверы — в «Показать скрытые»
 }
 
 function openInvite(text){
@@ -5684,16 +5706,22 @@ $('inviteJoin').onclick = async () => {
 };
 
 // Строка формы сервера из панели: откуда он и что тут нельзя.
+// Всё считается заново из открытого профиля (ТЗ 51): подпись, запертые поля
+// и кнопки не остаются от сервера, открытого перед ним.
 function renderPanelServer(p){
   const on = isPanelProf(p);
-  $('panelServerNote').hidden = !on;
+  const note = $('panelServerNote');
+  note.hidden = !on;
+  note.textContent = '';
   ['host','user','keyPath','sshPort','keyPasteBtn','autoKeyBtn'].forEach(id => { if($(id)) $(id).disabled = on; });
+  // «Скрыть у себя» слилось с «Удалить сервер»; кнопка осталась только
+  // вернуть в список сервер, скрытый до ТЗ 51.
   const hb = $('hideServerBtn');
-  hb.hidden = !on;
+  hb.hidden = !(on && p.hidden);
+  hb.textContent = tr('show_server');
   if(on){
     const d = devInfo && devInfo.device;
-    $('panelServerNote').textContent = tr('panel_server_note').replace('{name}', (d && d.name) || p.user || '');
-    hb.textContent = tr(p.hidden ? 'show_server' : 'hide_server');
+    note.textContent = tr('panel_server_note').replace('{name}', (d && d.name) || p.user || '');
   }
   // У сервера из панели сеть устройств и её ключ — общие для устройства.
   $('meshPerServer').hidden = on;
@@ -5703,7 +5731,7 @@ function renderPanelServer(p){
 $('hideServerBtn').onclick = async () => {
   const p = currentProfile();
   if(!isPanelProf(p)) return;
-  const r = await api('/api/device', { op: 'hide', id: p.id, hidden: !p.hidden });
+  const r = await api('/api/device', { op: 'hide', id: p.id, hidden: false });
   if(r.error){ showError(r.error, 'setError'); return; }
   devInfo = r;
   const c = await api('/api/config');
@@ -5712,6 +5740,16 @@ $('hideServerBtn').onclick = async () => {
 };
 
 $('showHiddenBtn').onclick = () => { showHidden = !showHidden; renderTabs(); };
+
+// «Вернуть» удалённый у себя сервер из панели (ТЗ 51).
+async function restoreServer(key){
+  const r = await api('/api/device', { op: 'restore', key });
+  if(r.error){ showError(r.error, 'setError'); return; }
+  devInfo = r;
+  const c = await api('/api/config');
+  if(c && !c.error) applyDoc(c);
+  if(r.note){ $('savedNote').textContent = r.note; setTimeout(() => $('savedNote').textContent = '', 6000); }
+}
 
 // Блок «Сеть устройств» устройства: виден, когда устройство выдано панелью.
 function renderDeviceNet(){

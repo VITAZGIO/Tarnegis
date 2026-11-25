@@ -64,8 +64,8 @@ func TestПрофильУстройстваСразуВРаботающейПр�
 	}
 }
 
-// ТЗ 49, C.2: удалить можно и последний сервер; сервер из панели — только
-// когда устройство удалено в панели.
+// ТЗ 49, C.2: удалить можно и последний сервер; ТЗ 51: сервер из панели —
+// тоже, устройство при этом остаётся, а сверка его не возвращает.
 func TestУдалитьПоследнийСервер(t *testing.T) {
 	cfg := config.Default()
 	cfg.Profiles[0].Host = "192.0.2.1"
@@ -87,16 +87,20 @@ func TestУдалитьПоследнийСервер(t *testing.T) {
 		Servers: []config.DeviceServer{{Name: "А", Host: "203.0.113.1", Port: 22}}})
 	a.SetConfig(c)
 	pid := a.Config().Profiles[0].ID
-	if _, err := a.RemoveProfile(pid); err == nil {
-		t.Fatal("удалён сервер из панели, хотя устройство не удалено")
-	}
-	a.dev.mu.Lock()
-	a.dev.gone = true
-	a.dev.mu.Unlock()
 	if _, err := a.RemoveProfile(pid); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.Config().Profiles) != 0 || a.Config().Device != nil {
+	if len(a.Config().Profiles) != 0 || a.Config().Device == nil {
 		t.Fatalf("%+v %+v", a.Config().Profiles, a.Config().Device)
+	}
+	if _, err := a.applyDevice(config.DeviceProfile{ID: "tun_1", Rev: 2, Mesh: true,
+		Servers: []config.DeviceServer{{Name: "А", Host: "203.0.113.1", Port: 22}}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Config().Profiles) != 0 {
+		t.Fatalf("сверка вернула удалённый: %+v", a.Config().Profiles)
+	}
+	if _, err := a.RestoreDeviceServer("203.0.113.1:22"); err != nil || len(a.Config().Profiles) != 1 {
+		t.Fatalf("вернуть: %v %+v", err, a.Config().Profiles)
 	}
 }

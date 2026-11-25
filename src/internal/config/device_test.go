@@ -402,3 +402,70 @@ func TestDeviceNetMissingНазываетСервер(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+// ТЗ 51: удалённый у себя сервер из панели не возвращают ни сверка (rev
+// вырос), ни normalize; удалили активный — активным стал другой; «Вернуть»
+// и новое приглашение возвращают.
+func TestУдалённыйСерверИзПанелиНеВозвращается(t *testing.T) {
+	srv := []DeviceServer{{Name: "Франкфурт", Host: "203.0.113.1", Port: 22}, {Name: "Лондон", Host: "203.0.113.2", Port: 22},
+		{Name: "Париж", Host: "203.0.113.3", Port: 22}}
+	c := Default()
+	c.Profiles = nil
+	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true,
+		MeshKey: "ключ-сети-панели-0123456789", Servers: srv})
+	c.normalize()
+	var fra Profile
+	for _, p := range c.Profiles {
+		if p.Name == "Франкфурт" {
+			fra = p
+		}
+	}
+	c.ActiveProfile = fra.ID
+	if !c.RemoveProfile(fra.ID) {
+		t.Fatal("сервер из панели не удалился")
+	}
+	if a := c.Active(); a.ID == fra.ID || !a.IsPanel() {
+		t.Fatalf("активный после удаления: %+v", a)
+	}
+	c.normalize()
+	res := c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 2, Mesh: true, MeshKey: "ключ-сети-панели-0123456789", Servers: srv})
+	c.normalize()
+	if !res.Changed || len(res.Added) != 0 {
+		t.Fatalf("сверка: %+v", res)
+	}
+	for _, p := range c.Profiles {
+		if p.Name == "Франкфурт" {
+			t.Fatalf("удалённый вернулся: %+v", c.Profiles)
+		}
+	}
+	if rs := c.RemovedServers(); len(rs) != 1 || rs[0].Name != "Франкфурт" {
+		t.Fatalf("удалённые: %+v", rs)
+	}
+	// Сеть серверов его тоже не вернёт (отметка ТЗ 50).
+	if !c.removedByUser("203.0.113.1:22") {
+		t.Fatalf("нет отметки «удалён»: %v", c.MeshAutoSeen)
+	}
+	// «Вернуть».
+	if name, ok := c.RestoreServer("203.0.113.1:22"); !ok || name != "Франкфурт" {
+		t.Fatalf("вернуть: %q %v", name, ok)
+	}
+	c.normalize()
+	if len(c.Profiles) != 3 || len(c.Device.Removed) != 0 || c.removedByUser("203.0.113.1:22") {
+		t.Fatalf("после «Вернуть»: %+v %+v", c.Profiles, c.Device)
+	}
+	got := c.Profiles[len(c.Profiles)-1]
+	if got.Host != "203.0.113.1" || got.User != "tun_1" || got.KeyPath != "/k" {
+		t.Fatalf("вернувшийся профиль: %+v", got)
+	}
+	// Новое приглашение того же устройства очищает удалённые.
+	for _, p := range slices.Clone(c.Profiles) {
+		if p.Name == "Лондон" {
+			c.RemoveProfile(p.ID)
+		}
+	}
+	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 3, Mesh: true, Servers: srv})
+	c.normalize()
+	if len(c.Profiles) != 3 {
+		t.Fatalf("после нового приглашения: %+v", c.Profiles)
+	}
+}

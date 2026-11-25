@@ -576,14 +576,15 @@ object AndroidApi : mobile.API {
     private fun removeProfile(s: Settings, id: String): String {
         val p = s.profiles.find { it.id == id } ?: return err(str(R.string.err_server_not_found))
         val wasActive = id == s.activeProfileId
-        if (p.fromPanel.isNotBlank() && !deviceGone) return err(str(R.string.err_panel_server))
         // Подключены к нему — сначала отключиться, потом удалять (ТЗ 50),
         // как на ПК: туннель не остаётся на сервере, которого уже нет.
         if (wasActive && TunnelService.state != "stopped") service(TunnelService.ACTION_STOP)
         if (p.fromPanel.isNotBlank()) {
-            // Сервер из панели удалённого в панели устройства (ТЗ 49):
-            // убирает его и из устройства общий код Go.
+            // Сервер из панели (ТЗ 51): общий код Go запоминает его
+            // удалённым — сверка с панелью его не вернёт — и выбирает
+            // следующий активный.
             deviceApply(s, deviceState(s, "remove").put("id", id))
+            s.markRemoved(p)
         } else {
             s.removeProfile(id)
         }
@@ -871,6 +872,7 @@ object AndroidApi : mobile.API {
             .put("id", d.optString("id")).put("name", d.optString("name")).put("join", d.optString("join"))
             .put("rev", d.optLong("rev")).put("mesh", d.optBoolean("mesh")).put("frozen", d.optBoolean("frozen"))
             .put("servers", d.optJSONArray("servers") ?: JSONArray()).put("hidden", d.optJSONArray("hidden") ?: JSONArray())
+            .put("removed", v.optJSONArray("removedServers") ?: JSONArray())
             .put("profileFrom", d.optString("profileFrom")).put("profileVer", d.optString("profileVer"))
         return JSONObject().put("device", dev)
             .put("net", v.optJSONObject("net") ?: JSONObject())
@@ -901,6 +903,12 @@ object AndroidApi : mobile.API {
             "hide" -> {
                 val (out, note) = deviceApply(s, deviceState(s, "hide").put("id", o.optString("id"))
                     .put("hidden", o.optBoolean("hidden")))
+                deviceView(s, out).put("ok", true).put("note", note).toString()
+            }
+            "restore" -> {
+                val key = o.optString("key")
+                val (out, note) = deviceApply(s, deviceState(s, "restore").put("key", key))
+                s.unmarkRemoved(key)
                 deviceView(s, out).put("ok", true).put("note", note).toString()
             }
             "net" -> {

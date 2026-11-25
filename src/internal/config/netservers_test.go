@@ -204,7 +204,8 @@ func TestУдалённыйСерверСетиНеВозвращается(t *t
 	if m := RemovedMarks(Profile{Host: "UK.example", SSHPort: 22, MeshAuto: "N/lon"}); len(m) != 2 || m[1] != "del@uk.example:22" {
 		t.Fatalf("отметки: %v", m)
 	}
-	if m := RemovedMarks(Profile{Host: "x", FromPanel: "tun_1"}); m != nil {
+	// Сервер из панели тоже (ТЗ 51: его можно удалить).
+	if m := RemovedMarks(Profile{Host: "x", FromPanel: "tun_1"}); len(m) != 1 || m[0] != "del@x:22" {
 		t.Fatalf("сервер из панели: %v", m)
 	}
 }

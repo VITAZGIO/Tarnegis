@@ -114,7 +114,7 @@ type Profile struct {
 	// FromPanel — сервер выдан панелью устройству (ТЗ 48): учётная запись
 	// устройства (Config.Device.ID). Адрес, порт, пользователь и ключ — из
 	// устройства, сеть устройств — из Config.Device.Net (см. device.go).
-	// Hidden — такой сервер скрыт у себя (удалить его нельзя, решает панель).
+	// Hidden — такой сервер скрыт у себя (до ТЗ 51; теперь его удаляют).
 	// PanelKey — «адрес:порт» сервера в профиле устройства: по нему профиль
 	// узнаёт свой сервер, даже если адрес в форме поправили руками.
 	FromPanel string `json:"fromPanel,omitempty"`
@@ -570,10 +570,12 @@ func (c *Config) AddProfile(name, flag string) Profile {
 }
 
 // RemoveProfile удаляет сервер — любой, и последний тоже (ТЗ 49): без
-// серверов главный экран говорит «Нет серверов». Если удаляли активный,
-// активным становится первый из оставшихся (нет их — никакой). Сервер из
-// панели уходит и из устройства (иначе syncDevice завёл бы его снова);
-// последний сервер устройства — устройство забывается целиком.
+// серверов главный экран говорит «Нет серверов». Сервер из панели — тоже
+// (ТЗ 51): его ключ запоминается в Device.Removed, и сверка с панелью его
+// не возвращает; устройство (учётная запись, ключ сети панели) остаётся,
+// даже если серверов из панели больше нет. Отметка «удалён человеком»
+// (ТЗ 50) не даёт вернуть его и сети серверов. Если удаляли активный,
+// активным становится следующий видимый (нет их — никакой).
 func (c *Config) RemoveProfile(id string) bool {
 	var gone Profile
 	out := c.Profiles[:0:0]
@@ -588,22 +590,18 @@ func (c *Config) RemoveProfile(id string) bool {
 		return false // такого id и не было
 	}
 	c.Profiles = out
-	if !gone.IsPanel() {
-		c.markRemoved(gone) // сеть серверов его не вернёт (ТЗ 50)
-	}
+	c.markRemoved(gone) // сеть серверов его не вернёт (ТЗ 50)
 	if d := c.Device; d != nil && gone.FromPanel == d.ID {
 		k := panelKey(gone)
-		d.Servers = slices.DeleteFunc(slices.Clone(d.Servers), func(s DeviceServer) bool { return s.Key() == k })
 		d.Hidden = slices.DeleteFunc(slices.Clone(d.Hidden), func(s string) bool { return s == k })
-		if len(d.Servers) == 0 {
-			c.Device = nil
-			c.dropPanelProfiles(d.ID)
+		if !slices.Contains(d.Removed, k) {
+			d.Removed = append(slices.Clone(d.Removed), k)
 		}
 	}
 	if c.ActiveProfile == id {
 		c.ActiveProfile = ""
-		if len(c.Profiles) > 0 {
-			c.ActiveProfile = c.Profiles[0].ID
+		if p, ok := c.firstVisible(); ok {
+			c.ActiveProfile = p.ID
 		}
 	}
 	return true
