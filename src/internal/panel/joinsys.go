@@ -259,7 +259,9 @@ func RunJoin(in io.Reader, out io.Writer, getenv func(string) string, post func(
 
 // PostJoin — настоящая отправка: на вход самообслуживания панели.
 func PostJoin(body []byte) ([]byte, error) {
-	cl := &http.Client{Timeout: 30 * time.Second}
+	// С запасом: заведение пользователя (useradd, поиск uid через NSS) на
+	// медленной машине занимает десятки секунд — на стенде CI до 28 с.
+	cl := &http.Client{Timeout: 90 * time.Second}
 	resp, err := cl.Post("http://"+SelfServiceAddr+"/v1/join", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
