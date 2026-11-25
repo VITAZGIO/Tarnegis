@@ -110,6 +110,15 @@ type Profile struct {
 	// серверов/id сервера»: по нему программа узнаёт, что сервер из сети
 	// убрали, и выключает профиль.
 	MeshAuto string `json:"meshAuto,omitempty"`
+	// FromPanel — сервер выдан панелью устройству (ТЗ 48): учётная запись
+	// устройства (Config.Device.ID). Адрес, порт, пользователь и ключ — из
+	// устройства, сеть устройств — из Config.Device.Net (см. device.go).
+	// Hidden — такой сервер скрыт у себя (удалить его нельзя, решает панель).
+	// PanelKey — «адрес:порт» сервера в профиле устройства: по нему профиль
+	// узнаёт свой сервер, даже если адрес в форме поправили руками.
+	FromPanel string `json:"fromPanel,omitempty"`
+	PanelKey  string `json:"panelKey,omitempty"`
+	Hidden    bool   `json:"hidden,omitempty"`
 
 	// Тонкая настройка соединения (экран «Дополнительно»). Ноль и пустая
 	// строка — значения по умолчанию, поэтому старые конфиги не меняются.
@@ -310,6 +319,9 @@ type Config struct {
 	// добавляла сама («id сети/id сервера»): удалённый или выключенный
 	// человеком такой профиль сам не вернётся.
 	MeshAutoSeen []string `json:"meshAutoSeen,omitempty"`
+	// Device — это устройство выдано панелью сервера (вход по приглашению,
+	// ТЗ 48): серверы из панели и сеть устройств одна на устройство.
+	Device *Device `json:"device,omitempty"`
 
 	// SysProxy — прописывать ли системный прокси Windows (реестр).
 	SysProxy bool `json:"sysProxy"`
@@ -510,7 +522,7 @@ func (c Config) MeshServers(p Profile) []Profile {
 	var out []Profile
 	for _, q := range c.Profiles {
 		addr := strings.ToLower(q.Host) + ":" + strconv.Itoa(q.SSHPort)
-		if q.ID == p.ID || !q.MeshEnabled || q.MeshKey != p.MeshKey || q.Host == "" || seen[addr] {
+		if q.ID == p.ID || !q.MeshEnabled || q.MeshKey != p.MeshKey || q.Host == "" || q.Hidden || seen[addr] {
 			continue
 		}
 		seen[addr] = true
@@ -855,6 +867,7 @@ func (c *Config) normalize() {
 	if _, ok := c.ProfileByID(c.ActiveProfile); !ok {
 		c.ActiveProfile = c.Profiles[0].ID
 	}
+	c.syncDevice()
 	for i := range c.Profiles {
 		c.Profiles[i].ExitVia = c.cleanExitVia(c.Profiles[i])
 	}
@@ -879,6 +892,13 @@ func (c *Config) normalize() {
 		c.SysProxy = false
 		c.SetEnvVars = false
 	}
+}
+
+// newMeshKey — ключ новой сети устройств.
+func newMeshKey() string {
+	var raw [24]byte
+	rand.Read(raw[:])
+	return base64.RawURLEncoding.EncodeToString(raw[:])
 }
 
 func (p *Profile) normalize(n int) {
@@ -916,9 +936,7 @@ func (p *Profile) normalize(n int) {
 	if p.MeshEnabled && p.MeshKey == "" {
 		// Включили сеть устройств, а ключа нет — это первое устройство
 		// новой сети. Остальные получат ключ экспортом сервера.
-		var raw [24]byte
-		rand.Read(raw[:])
-		p.MeshKey = base64.RawURLEncoding.EncodeToString(raw[:])
+		p.MeshKey = newMeshKey()
 	}
 	switch p.FilterMode {
 	case "only", "except":

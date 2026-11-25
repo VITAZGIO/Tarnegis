@@ -714,6 +714,16 @@
            place-items:center;cursor:pointer;padding:0;flex:none}
   .srv .mi:hover{color:var(--text);background:var(--card)}
   .srv .mi.on{color:var(--accent);background:var(--card2)}
+  /* ТЗ 48: серверы из панели и вход по приглашению. */
+  .srv.hid{opacity:.55}
+  .srv .pbadge{font-family:inherit;font-size:10.5px;color:var(--accent);border:1px solid var(--accent);
+               border-radius:6px;padding:0 5px;margin-left:6px}
+  .inviteBox{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--card)}
+  .inviteBox textarea{width:100%;min-height:64px;box-sizing:border-box;font-family:var(--mono);font-size:12px;resize:vertical}
+  .devNet{border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 14px;background:var(--card)}
+  .devNet.off .chk,.devNet.off .exitRow{opacity:.5}
+  .devNet .exitRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .devNet .exitRow select{flex:1;min-width:120px}
   .srvEdit{background:var(--card);border-left:2px solid var(--accent);padding:12px 12px 2px;
            margin-bottom:6px;animation:helpIn .2s ease both}
   .srvEdit[hidden]{display:none}
@@ -940,11 +950,25 @@
     </div>
     <div class="srvTools">
       <button type="button" class="tb" id="pasteBtn" title="Вставить сервер из буфера обмена" data-i18n-title="paste_title"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4"/><path d="M8 5H5v16h14V5h-3"/></svg><span data-i18n="paste_server">Вставить</span></button>
+      <button type="button" class="tb" id="inviteBtn"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg><span data-i18n="invite_btn">По приглашению</span></button>
       <button type="button" class="tb android-only" id="scanQrBtn"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span data-i18n="scan_qr">QR-код</span></button>
       <button type="button" class="tb" id="addServerBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="new_server">Новый</span></button>
       <button type="button" class="tb" id="exportAllBtn"><svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg><span data-i18n="export_all">Экспорт всех</span></button>
     </div>
+    <div class="inviteBox" id="inviteBox" hidden>
+      <div class="field"><div class="lbl-row"><label for="inviteText" data-i18n="invite_title">Добавить по приглашению</label>
+        <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="invite_hint">Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): текст начинается с «sshtun1:». Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.</span></span></div>
+        <textarea id="inviteText" spellcheck="false" autocomplete="off" data-i18n-ph="invite_ph" placeholder="sshtun1:…"></textarea></div>
+      <div class="field"><label for="inviteName" data-i18n="invite_name">Имя устройства</label>
+        <input type="text" id="inviteName" maxlength="64"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn primary" id="inviteJoin" data-i18n="invite_join">Добавить</button>
+        <button type="button" class="btn" id="inviteCancel" data-i18n="cancel">Отмена</button>
+        <span class="hint" id="inviteNote" style="margin:0;flex:1;min-width:160px"></span>
+      </div>
+    </div>
     <div class="srvlist" id="profileTabs"></div>
+    <button type="button" class="vpsLink" id="showHiddenBtn" hidden style="margin-top:8px"></button>
 
     <div class="srvEdit" id="serverPanel" hidden>
       <div class="field">
@@ -960,6 +984,7 @@
 
       <div id="issuedByPanel" hidden style="margin:-4px 0 14px;font-size:12.5px;
            color:var(--accent);cursor:pointer"></div>
+      <div class="hint" id="panelServerNote" hidden style="display:block;margin:-4px 0 14px"></div>
 
     <div class="field"><label for="host" data-i18n="host_label">Адрес сервера</label>
       <input type="text" id="host" placeholder="адрес или домен сервера" spellcheck="false"
@@ -1078,6 +1103,7 @@
       <button class="btn" id="selectServerBtn" data-i18n="select_server">Выбрать этот сервер</button>
       <span class="curBadge" id="curBadge" style="display:none">✓ <span data-i18n="current_server">Текущий сервер</span></span>
       <button class="btn danger" id="removeServerBtn" hidden data-i18n="remove_server">Удалить сервер</button>
+      <button class="btn" id="hideServerBtn" hidden></button>
     </div>
     </div>
   </div>
@@ -1721,12 +1747,31 @@
       устройств — её ставит мастер настройки VPS.</span></span>
     </div>
     
+    <div class="devNet" id="devNetBox" hidden>
+      <div class="k" style="margin:0 0 4px;font-weight:600" id="devNetTitle"></div>
+      <div class="hint" id="devNetState" style="display:block;margin:0 0 8px"></div>
+      <div class="hint" id="devNetBan" hidden style="display:block;margin:0 0 8px;color:var(--warn,#d08a00)" data-i18n="devnet_banned">Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.</div>
+      <label class="chk"><input type="checkbox" id="devNetOn">
+        <span class="lbl" data-i18n="devnet_on">Включить сеть устройств на этом устройстве</span></label>
+      <label class="chk"><input type="checkbox" id="devNetOnly">
+        <span class="lbl" data-i18n="devnet_only">Только через подключённый сервер</span> <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="devnet_only_hint">Не держать связь сети устройств с другими серверами из панели — только с тем, к которому подключён туннель.</span></span></label>
+      <div class="lbl2" style="margin-top:6px"><span data-i18n="devnet_exit">Выход в интернет через</span> <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="devnet_exit_hint">Одна цепочка на все серверы из панели: подключаешься к любому, а в интернет выходишь через выбранный. Он недоступен — интернета через туннель нет. Сам сервер цепочки выходит напрямую.</span></span></div>
+      <div class="exitRow"><select id="devExit1"></select><select id="devExit2"></select></div>
+      <div style="display:flex;gap:9px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <button type="button" class="btn" id="devSyncBtn" data-i18n="devnet_sync">Сверить с панелью</button>
+        <span class="hint" id="devNetNote" style="margin:0"></span>
+      </div>
+    </div>
+
+    <div id="meshPerServer">
     <label class="chk"><input type="checkbox" id="meshEnabled">
       <span class="lbl" data-i18n="mesh_enable">Включить сеть устройств на этом сервере</span></label>
+    </div>
 
     <div class="field" style="margin-top:10px"><label for="meshName" data-i18n="mesh_name">Имя этого устройства</label>
       <input type="text" id="meshName" maxlength="64" data-i18n-ph="mesh_name_ph" placeholder="имя компьютера"></div>
 
+    <div id="meshKeyBox">
     <div class="field"><div class="lbl-row"><label for="meshKey" data-i18n="mesh_key">Ключ сети</label> <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="mesh_key_hint">Устройства с одинаковым ключом — одна
       сеть. Ключ переносится вместе с сервером через «Экспорт» (на телефон — QR-кодом). Никому постороннему
       его не давай.</span></span></div>
@@ -1736,6 +1781,7 @@
       </div>
     </div>
     <button class="btn" id="meshNewKey" data-i18n="mesh_new">Создать новую сеть</button>
+    </div>
 
     <label class="chk" style="margin-top:10px"><input type="checkbox" id="meshIncoming">
       <span class="lbl" data-i18n="mesh_incoming">Пускать другие устройства к моим службам</span> <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="mesh_incoming_hint">Тогда с другого устройства
@@ -2169,6 +2215,23 @@ const I18N = {
     sc_external_ip_check_failed:'не удалось узнать внешний адрес: {detail}',
     language_label:'Язык интерфейса / Language',
     add_server:'Добавить сервер',
+    invite_btn:'По приглашению', invite_title:'Добавить по приглашению',
+    invite_hint:'Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): текст начинается с «sshtun1:». '+
+      'Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.',
+    invite_ph:'sshtun1:…', invite_name:'Имя устройства', invite_join:'Добавить',
+    invite_for:'Сервер {host}, действует до {date}', invite_expired:'Приглашение истекло — попроси в панели новое',
+    invite_empty:'Вставь текст приглашения', invite_joining:'Вхожу на сервер…',
+    panel_badge:'из панели',
+    panel_server_note:'Сервер выдан панелью устройству «{name}»: адрес и вход задаёт панель, удалить его нельзя — только скрыть у себя. Сеть устройств — общая для устройства (Настройки → Сеть устройств).',
+    hide_server:'Скрыть у себя', show_server:'Показывать снова', hidden_show:'Показать скрытые', hidden_hide:'Спрятать скрытые',
+    devnet_title:'Устройство из панели: {name}', devnet_servers:'Серверов из панели', devnet_synced:'сверено',
+    devnet_banned:'Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.',
+    devnet_frozen:'Устройство заморожено в панели сервера: сеть устройств не работает, пока его не разморозят.',
+    devnet_on:'Включить сеть устройств на этом устройстве', devnet_only:'Только через подключённый сервер',
+    devnet_only_hint:'Не держать связь сети устройств с другими серверами из панели — только с тем, к которому подключён туннель.',
+    devnet_exit:'Выход в интернет через',
+    devnet_exit_hint:'Одна цепочка на все серверы из панели: подключаешься к любому, а в интернет выходишь через выбранный. Он недоступен — интернета через туннель нет. Сам сервер цепочки выходит напрямую.',
+    devnet_sync:'Сверить с панелью', devnet_syncing:'Сверяю…',
     server_settings:'Настройки сервера', general_settings:'Общие настройки приложения',
     issued_by_panel:'Этот сервер выдан панелью · {name}',
     location_label:'Расположение', custom_name_ph:'Название сервера',
@@ -2549,6 +2612,23 @@ const I18N = {
     sc_external_ip_check_failed:"couldn't check the external address: {detail}",
     language_label:'Interface language',
     add_server:'Add server',
+    invite_btn:'By invite', invite_title:'Add by invite',
+    invite_hint:'The server panel issues the invite (Devices → “Add device”): the text starts with “sshtun1:”. '+
+      'The app creates the device key itself, signs in to the server and adds every server the panel allows. An invite works once.',
+    invite_ph:'sshtun1:…', invite_name:'Device name', invite_join:'Add',
+    invite_for:'Server {host}, valid until {date}', invite_expired:'The invite has expired — ask the panel for a new one',
+    invite_empty:'Paste the invite text', invite_joining:'Signing in to the server…',
+    panel_badge:'from panel',
+    panel_server_note:'This server was issued by the panel to device “{name}”: the panel sets its address and sign-in, it cannot be removed — only hidden here. The device network is shared by the whole device (Settings → Device network).',
+    hide_server:'Hide here', show_server:'Show again', hidden_show:'Show hidden', hidden_hide:'Collapse hidden',
+    devnet_title:'Device from the panel: {name}', devnet_servers:'Servers from the panel', devnet_synced:'synced',
+    devnet_banned:'The device network is turned off on the server. Your choice is kept and works again once the panel allows it.',
+    devnet_frozen:'This device is frozen in the server panel: the device network stays off until it is unfrozen.',
+    devnet_on:'Turn on the device network on this device', devnet_only:'Only through the connected server',
+    devnet_only_hint:'Do not keep device-network links to the other panel servers — only to the one the tunnel is connected to.',
+    devnet_exit:'Go to the internet through',
+    devnet_exit_hint:'One chain for all panel servers: connect to any of them, reach the internet through the chosen one. If it is down there is no internet through the tunnel. The chain server itself goes out directly.',
+    devnet_sync:'Sync with the panel', devnet_syncing:'Syncing…',
     server_settings:'Server settings', general_settings:'General app settings',
     issued_by_panel:'This server was issued by a panel · {name}',
     location_label:'Location', custom_name_ph:'Server name',
@@ -3611,7 +3691,7 @@ $('backFromFilter').onclick = () => show('viewApp');
 $('toFilter').onclick = () => show('viewFilter');
 $('backFromSelfCheck').onclick = () => show('viewMain');
 let meshFrom = 'viewApp';
-$('toMesh').onclick = () => { meshFrom = 'viewApp'; show('viewMesh'); pollMesh(); };
+$('toMesh').onclick = () => { meshFrom = 'viewApp'; show('viewMesh'); pollMesh(); loadDevice(); };
 // Шестиугольник «Устройства» прокручивает вниз к списку, «Наверх» — обратно.
 $('toMeshMain').onclick = () => {
   $('devPage').hidden = false;
@@ -5263,10 +5343,14 @@ function renderTabs(){
   const panel = $('serverPanel');
   $('viewServers').insertBefore(panel, box.nextSibling);
   box.innerHTML = '';
+  const hiddenN = (cfg.profiles || []).filter(p => p.hidden).length;
+  $('showHiddenBtn').hidden = !hiddenN;
+  $('showHiddenBtn').textContent = (showHidden ? tr('hidden_hide') : tr('hidden_show')) + ' (' + hiddenN + ')';
   (cfg.profiles || []).forEach(p => {
+    if(p.hidden && !showHidden && p.id !== cfg.activeProfile) return;
     const open = srvOpen && p.id === editingProfileId;
     const row = document.createElement('div');
-    row.className = 'srv' + (open ? ' open' : '');
+    row.className = 'srv' + (open ? ' open' : '') + (p.hidden ? ' hid' : '');
     row.dataset.id = p.id;
     row.innerHTML =
       '<button type="button" class="rad' + (p.id === cfg.activeProfile ? ' on' : '') + '"></button>' +
@@ -5277,6 +5361,11 @@ function renderTabs(){
       '<button type="button" class="mi ed' + (open ? ' on' : '') + '">' + SVG_PEN + '</button>';
     row.querySelector('.nm').textContent = p.name;
     row.querySelector('.hs').textContent = p.host || '—';
+    if(isPanelProf(p)){
+      const b = document.createElement('span');
+      b.className = 'pbadge'; b.textContent = tr('panel_badge');
+      row.querySelector('.nm').appendChild(b);
+    }
     row.querySelector('.rad').title = tr('select_server');
     row.querySelector('.exp').title = tr('to_clip');
     row.querySelector('.ed').title = tr('edit');
@@ -5326,7 +5415,7 @@ function renderGeneralVisibility(){
   // hidden тут не подействует.
   $('showPickerRow').style.display = many ? 'flex' : 'none';
   $('autoPickRow').style.display = many ? 'flex' : 'none';
-  $('removeServerBtn').hidden = !many;
+  $('removeServerBtn').hidden = !many || isPanelProf(currentProfile());
   updateServerButtonsSpan();
 }
 
@@ -5345,9 +5434,9 @@ function renderSelectServerBtn(){
 // только одна из них (текущий сервер уже выбран, или сервер всего один) —
 // растягиваем оставшуюся на всю строку, а не оставляем половину пустой.
 function updateServerButtonsSpan(){
-  const select = $('selectServerBtn'), remove = $('removeServerBtn');
-  const visible = [select, remove].filter(b => !b.hidden);
-  select.style.gridColumn = remove.style.gridColumn =
+  const select = $('selectServerBtn'), remove = $('removeServerBtn'), hide = $('hideServerBtn');
+  const visible = [select, remove, hide].filter(b => !b.hidden);
+  select.style.gridColumn = remove.style.gridColumn = hide.style.gridColumn =
     visible.length === 1 ? '1 / -1' : '';
 }
 
@@ -5450,6 +5539,8 @@ function afterImport(r){
 $('pasteBtn').onclick = async () => {
   const text = await readClipboard();
   if(!text) return;
+  // Приглашение устройства из панели (ТЗ 48).
+  if(text.includes('sshtun1:')){ openInvite(text); return; }
   // Ссылка из панели сервера (QR при создании клиента → «Скопировать ссылку»).
   if(/^sshtunnel:\/\//i.test(text.trim())){ await importProfileDoc(text.trim(), true); return; }
   let doc;
@@ -5467,14 +5558,175 @@ $('pasteBtn').onclick = async () => {
   for(const d of docs) await importProfileDoc(d);
 };
 
+/* ---------- устройство по приглашению из панели (ТЗ 48) ----------
+   Решает программа (/api/device, config.ApplyDevice): экран только
+   показывает и шлёт «хочу». Серверы из панели нельзя править (адрес, вход)
+   и удалить — только скрыть у себя; сеть устройств у них одна на всё
+   устройство (блок в «Сеть устройств»). */
+let devInfo = null;
+let showHidden = false;
+const isPanelProf = p => !!(p && p.fromPanel);
+
+async function loadDevice(){
+  let r;
+  try { r = await api('/api/device'); } catch(e) { return; }
+  if(!r || r.error) return;
+  devInfo = r;
+  renderDeviceNet();
+}
+
+function openInvite(text){
+  show('viewServers');
+  $('inviteBox').hidden = false;
+  if(text) $('inviteText').value = text.trim();
+  $('inviteNote').textContent = '';
+  if(text) checkInvite();
+  $('inviteText').focus();
+}
+$('inviteBtn').onclick = () => {
+  if(!$('inviteBox').hidden){ $('inviteBox').hidden = true; return; }
+  openInvite('');
+};
+$('inviteCancel').onclick = () => { $('inviteBox').hidden = true; $('inviteText').value = ''; };
+
+let inviteTimer = 0;
+$('inviteText').addEventListener('input', () => { clearTimeout(inviteTimer); inviteTimer = setTimeout(checkInvite, 300); });
+
+async function checkInvite(){
+  const text = $('inviteText').value.trim();
+  if(!text){ $('inviteNote').textContent = ''; return; }
+  const r = await api('/api/device', { op: 'parse', invite: text });
+  if(r.error){ $('inviteNote').textContent = r.error; return; }
+  if(!$('inviteName').value.trim() && r.name) $('inviteName').value = r.name;
+  const until = new Date(r.exp * 1000).toLocaleString(LANG === 'en' ? 'en-GB' : 'ru-RU');
+  $('inviteNote').textContent = r.expired ? tr('invite_expired')
+    : tr('invite_for').replace('{host}', r.host + (r.port && r.port !== 22 ? ':' + r.port : '')).replace('{date}', until);
+}
+
+$('inviteJoin').onclick = async () => {
+  const text = $('inviteText').value.trim();
+  if(!text){ $('inviteNote').textContent = tr('invite_empty'); return; }
+  const btn = $('inviteJoin');
+  btn.disabled = true;
+  $('inviteNote').textContent = tr('invite_joining');
+  let r;
+  try { r = await api('/api/device', { op: 'join', invite: text, name: $('inviteName').value.trim() }); }
+  finally { btn.disabled = false; }
+  if(r.error){ $('inviteNote').textContent = r.error; return; }
+  devInfo = r;
+  $('inviteText').value = '';
+  $('inviteBox').hidden = true;
+  const c = await api('/api/config');
+  if(c && !c.error) applyDoc(c);
+  $('savedNote').textContent = r.note || '';
+  setTimeout(() => $('savedNote').textContent = '', 10000);
+};
+
+// Строка формы сервера из панели: откуда он и что тут нельзя.
+function renderPanelServer(p){
+  const on = isPanelProf(p);
+  $('panelServerNote').hidden = !on;
+  ['host','user','keyPath','sshPort','keyPasteBtn','autoKeyBtn'].forEach(id => { if($(id)) $(id).disabled = on; });
+  const hb = $('hideServerBtn');
+  hb.hidden = !on;
+  if(on){
+    const d = devInfo && devInfo.device;
+    $('panelServerNote').textContent = tr('panel_server_note').replace('{name}', (d && d.name) || p.user || '');
+    hb.textContent = tr(p.hidden ? 'show_server' : 'hide_server');
+  }
+  // У сервера из панели сеть устройств и её ключ — общие для устройства.
+  $('meshPerServer').hidden = on;
+  $('meshKeyBox').hidden = on;
+}
+
+$('hideServerBtn').onclick = async () => {
+  const p = currentProfile();
+  if(!isPanelProf(p)) return;
+  const r = await api('/api/device', { op: 'hide', id: p.id, hidden: !p.hidden });
+  if(r.error){ showError(r.error, 'setError'); return; }
+  devInfo = r;
+  const c = await api('/api/config');
+  if(c && !c.error) applyDoc(c);
+  if(r.note){ $('savedNote').textContent = r.note; setTimeout(() => $('savedNote').textContent = '', 6000); }
+};
+
+$('showHiddenBtn').onclick = () => { showHidden = !showHidden; renderTabs(); };
+
+// Блок «Сеть устройств» устройства: виден, когда устройство выдано панелью.
+function renderDeviceNet(){
+  const box = $('devNetBox');
+  const d = devInfo && devInfo.device;
+  box.hidden = !d;
+  if(!d) return;
+  const n = devInfo.net || {};
+  const allowed = !!devInfo.meshAllowed;
+  box.classList.toggle('off', !allowed);
+  $('devNetTitle').textContent = tr('devnet_title').replace('{name}', d.name || d.id);
+  $('devNetBan').hidden = allowed;
+  $('devNetBan').textContent = tr(d.frozen ? 'devnet_frozen' : 'devnet_banned');
+  $('devNetOn').checked = !!n.on;
+  $('devNetOnly').checked = !!n.onlyThis;
+  ['devNetOn','devNetOnly','devExit1','devExit2'].forEach(id => $(id).disabled = !allowed && id !== 'devNetOn');
+  const sy = devInfo.sync || {};
+  let st = tr('devnet_servers') + ': ' + (d.servers || []).length;
+  if(sy.t) st += ' · ' + tr('devnet_synced') + ' ' + new Date(sy.t * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU');
+  if(sy.err) st += ' · ' + sy.err;
+  else if(sy.note) st += ' · ' + sy.note;
+  $('devNetState').textContent = st;
+  const via = n.exitVia || [];
+  devExitOptions($('devExit1'), '', via[0] || '');
+  devExitOptions($('devExit2'), $('devExit1').value, $('devExit1').value ? (via[1] || '') : '');
+  $('devExit2').disabled = !$('devExit1').value || !allowed;
+}
+
+function devExitOptions(sel, exclude, value){
+  sel.textContent = '';
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = tr('exit_via_none');
+  sel.appendChild(none);
+  (cfg.profiles || []).forEach(o => {
+    if(!o.host || o.id === exclude) return;
+    const opt = document.createElement('option');
+    opt.value = o.id; opt.textContent = o.name;
+    sel.appendChild(opt);
+  });
+  sel.value = value;
+  if(sel.value !== value) sel.value = '';
+}
+
+async function saveDeviceNet(){
+  const via = [$('devExit1').value, $('devExit2').value].filter(Boolean);
+  const r = await api('/api/device', { op: 'net', on: $('devNetOn').checked, onlyThis: $('devNetOnly').checked, exitVia: via });
+  if(r.error){ $('devNetNote').textContent = r.error; return; }
+  devInfo = r;
+  $('devNetNote').textContent = r.note || tr('saved');
+  setTimeout(() => $('devNetNote').textContent = '', 4000);
+  const c = await api('/api/config');
+  if(c && !c.error) applyDoc(c);
+}
+['devNetOn','devNetOnly','devExit2'].forEach(id => $(id).addEventListener('change', saveDeviceNet));
+$('devExit1').addEventListener('change', () => {
+  if(!$('devExit1').value) $('devExit2').value = '';
+  saveDeviceNet();
+});
+$('devSyncBtn').onclick = async () => {
+  $('devNetNote').textContent = tr('devnet_syncing');
+  const r = await api('/api/device', { op: 'sync' });
+  if(r.error){ $('devNetNote').textContent = r.error; return; }
+  devInfo = r;
+  $('devNetNote').textContent = r.note || '';
+  const c = await api('/api/config');
+  if(c && !c.error) applyDoc(c);
+};
+
 /* ---------- виджет выбора сервера на главном экране ---------- */
 function renderHomePicker(){
-  const show = !!cfg.showServerPicker && (cfg.profiles || []).length > 1;
+  const show = !!cfg.showServerPicker && (cfg.profiles || []).filter(p => !p.hidden).length > 1;
   // Как и #curBadge, у #homePicker свой display:flex в CSS — ID-селектор
   // всегда весомее атрибута [hidden], поэтому прячем через style напрямую.
   $('homePicker').style.display = show ? 'flex' : 'none';
   if(!show) return;
-  const profs = cfg.profiles || [];
+  const profs = (cfg.profiles || []).filter(p => !p.hidden || p.id === cfg.activeProfile);
   const chosen = profs.find(p => p.id === cfg.activeProfile) || {};
   // Выбранный не отвечает и связь идёт через запасной — показываем тот,
   // через который реально подключены, с пометкой; в подсказке — какой не ответил.
@@ -5663,6 +5915,8 @@ function fillProfileForm(p){
   renderApps();
   renderCityPicker(p);
   renderIssuedByPanel(p);
+  renderPanelServer(p);
+  renderGeneralVisibility();
   delete $('meshIncoming').dataset.touched;
   renderMeshSummary();
   renderAdvSummary();
@@ -5973,6 +6227,7 @@ function applyDoc(newCfg, keepEditing){
   renderHomePicker();
   applyI18n();
   formDirty = false;
+  loadDevice();
 }
 
 
@@ -6686,6 +6941,7 @@ if(ANDROID){
   };
   // Сервер из QR или ссылки sshtunnel:// (разобрал MainActivity через API).
   window.androidImported = r => { show('viewServers'); afterImport(r); };
+  window.androidInvite = text => openInvite(text);
   // Системная «Назад»: закрыть окно поверх или вернуться на экран выше.
   // false — уже на главном, приложение уходит в фон.
   window.androidBack = backStep;

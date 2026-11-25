@@ -144,6 +144,7 @@ object AndroidApi : mobile.API {
             "/api/appprofiles/enable", "/api/appprofiles/add",
             "/api/appprofiles/switch", "/api/appprofiles/delete" -> appProfileAction(s, path, obj(body))
             // Смена ключа сервера (ТЗ 46): та же логика и JSON, что на ПК (Go).
+            "/api/device" -> if (post) deviceOp(s, obj(body)) else deviceView(s, null).toString()
             "/api/hostkey" -> mobile.Mobile.hostKeyAPI(s.knownHostsFile.absolutePath, method,
                 q.getQueryParameter("host") ?: "", q.getQueryParameter("port") ?: "", body)
             "/api/mesh" -> TunnelService.meshStatus()
@@ -423,6 +424,7 @@ object AndroidApi : mobile.API {
         .put("meshIncoming", p.meshIncoming).put("meshDirectOff", p.meshDirectOff)
         .put("meshOnlyThis", p.meshOnlyThis)
         .put("exitVia", JSONArray(p.exitVia))
+        .put("fromPanel", p.fromPanel).put("hidden", p.hidden)
 
     private fun config(s: Settings): JSONObject {
         val arr = JSONArray()
@@ -445,9 +447,12 @@ object AndroidApi : mobile.API {
     private fun applyProfile(p: Settings.Profile, o: JSONObject) {
         if (o.has("name")) p.name = o.optString("name")
         if (o.has("flag")) p.flag = o.optString("flag")
-        if (o.has("host")) p.host = o.optString("host").trim()
-        if (o.optInt("sshPort") > 0) p.sshPort = o.optInt("sshPort")
-        if (o.has("user")) p.user = o.optString("user").trim()
+        // Сервер из панели (ТЗ 48): адрес, порт, вход и сеть устройств задаёт
+        // панель и блок устройства, а не форма.
+        val panel = p.fromPanel.isNotBlank()
+        if (!panel && o.has("host")) p.host = o.optString("host").trim()
+        if (!panel && o.optInt("sshPort") > 0) p.sshPort = o.optInt("sshPort")
+        if (!panel && o.has("user")) p.user = o.optString("user").trim()
         if (o.optInt("poolSize") > 0) p.poolSize = o.optInt("poolSize")
         if (o.has("filterMode")) p.filterMode = o.optString("filterMode", "all").ifBlank { "all" }
         o.optJSONArray("filterApps")?.let { a ->
@@ -456,12 +461,12 @@ object AndroidApi : mobile.API {
         if (o.has("directHosts")) p.directHosts = joinLines(o.optJSONArray("directHosts"))
         if (o.has("tunnelHosts")) p.tunnelHosts = joinLines(o.optJSONArray("tunnelHosts"))
         if (o.has("localViaTunnel")) p.localViaTunnel = o.optBoolean("localViaTunnel")
-        if (o.has("meshEnabled")) p.meshEnabled = o.optBoolean("meshEnabled")
-        if (o.has("meshKey")) p.meshKey = o.optString("meshKey").trim()
+        if (!panel && o.has("meshEnabled")) p.meshEnabled = o.optBoolean("meshEnabled")
+        if (!panel && o.has("meshKey")) p.meshKey = o.optString("meshKey").trim()
         if (o.has("meshName")) p.meshName = o.optString("meshName").trim()
         if (o.has("meshIncoming")) p.meshIncoming = o.optBoolean("meshIncoming")
         if (o.has("meshDirectOff")) p.meshDirectOff = o.optBoolean("meshDirectOff")
-        if (o.has("meshOnlyThis")) p.meshOnlyThis = o.optBoolean("meshOnlyThis")
+        if (!panel && o.has("meshOnlyThis")) p.meshOnlyThis = o.optBoolean("meshOnlyThis")
     }
 
     /**
@@ -570,6 +575,7 @@ object AndroidApi : mobile.API {
 
     private fun removeProfile(s: Settings, id: String): String {
         if (s.profiles.size <= 1) return err(str(R.string.err_last_server))
+        if (s.profiles.find { it.id == id }?.fromPanel?.isNotBlank() == true) return err(str(R.string.err_panel_server))
         val wasActive = id == s.activeProfileId
         s.removeProfile(id)
         if (wasActive) restartIfRunning(s)
@@ -806,6 +812,97 @@ object AndroidApi : mobile.API {
     }
 
     // ---------------------------------------------------------------------
+
+    // ---------------------------------------------------------------------
+    // Устройство по приглашению из панели (ТЗ 48). Решает общий код Go
+    // (mobile.DeviceJoin / DeviceFetch / DeviceApply → config, invite) —
+    // здесь только хранение и ответы экрану, как /api/device на ПК.
+
+    @Volatile private var deviceSync = JSONObject()
+
+    private fun deviceState(s: Settings, op: String): JSONObject = JSONObject()
+        .put("op", op)
+        .put("profiles", JSONArray(s.coreProfilesJson()))
+        .put("active", s.activeProfileId)
+        .put("device", s.deviceJson.takeIf { it.isNotBlank() }?.let { JSONObject(it) } ?: JSONObject.NULL)
+        .put("knownHosts", s.knownHostsFile.absolutePath)
+
+    /** Применить решение Go и, если сменился активный сервер, переподключиться. */
+    private fun deviceApply(s: Settings, st: JSONObject, restart: Boolean = false): Pair<JSONObject, String> {
+        val out = JSONObject(mobile.Mobile.deviceApply(st.toString()))
+        val ch = s.applyDeviceState(out.toString())
+        if (ch.activeChanged || restart) restartIfRunning(s)
+        pushState()
+        return Pair(out, ch.note)
+    }
+
+    private fun deviceView(s: Settings, applied: JSONObject?): JSONObject {
+        val v = applied ?: try {
+            JSONObject(mobile.Mobile.deviceApply(deviceState(s, "view").toString()))
+        } catch (e: Exception) { JSONObject() }
+        val d = v.optJSONObject("device")
+        val dev: Any = if (d == null) JSONObject.NULL else JSONObject()
+            .put("id", d.optString("id")).put("name", d.optString("name")).put("join", d.optString("join"))
+            .put("rev", d.optLong("rev")).put("mesh", d.optBoolean("mesh")).put("frozen", d.optBoolean("frozen"))
+            .put("servers", d.optJSONArray("servers") ?: JSONArray()).put("hidden", d.optJSONArray("hidden") ?: JSONArray())
+        return JSONObject().put("device", dev)
+            .put("net", v.optJSONObject("net") ?: JSONObject())
+            .put("meshAllowed", v.optBoolean("meshAllowed", true))
+            .put("sync", deviceSync)
+    }
+
+    private fun deviceOp(s: Settings, o: JSONObject): String = try {
+        when (o.optString("op")) {
+            "parse" -> JSONObject(mobile.Mobile.inviteInfo(o.optString("invite"))).put("ok", true).toString()
+            "join" -> {
+                val keyDir = s.keyFile("x").parentFile!!.absolutePath
+                val j = mobile.Mobile.deviceJoin(o.optString("invite"), o.optString("name"), keyDir,
+                    s.knownHostsFile.absolutePath)
+                val (out, note) = deviceApply(s, deviceState(s, "set").put("join", JSONObject(j)))
+                val pe = JSONObject(j).optString("profileErr")
+                deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("err", pe)
+                deviceView(s, out).put("ok", true).put("note", note).toString()
+            }
+            "sync" -> deviceView(s, deviceSyncNow(s)).put("ok", true)
+                .put("note", deviceSync.optString("note").ifBlank { deviceSync.optString("err") }).toString()
+            "hide" -> {
+                val (out, note) = deviceApply(s, deviceState(s, "hide").put("id", o.optString("id"))
+                    .put("hidden", o.optBoolean("hidden")))
+                deviceView(s, out).put("ok", true).put("note", note).toString()
+            }
+            "net" -> {
+                val n = deviceView(s, null).optJSONObject("net") ?: JSONObject()
+                if (o.has("on")) n.put("on", o.optBoolean("on"))
+                if (o.has("onlyThis")) n.put("onlyThis", o.optBoolean("onlyThis"))
+                if (o.has("exitVia")) n.put("exitVia", o.optJSONArray("exitVia") ?: JSONArray())
+                // Сеть устройств меняется переподключением, как на ПК.
+                val (out, note) = deviceApply(s, deviceState(s, "net").put("net", n), restart = true)
+                deviceView(s, out).put("ok", true).put("note", note).toString()
+            }
+            else -> err(str(R.string.err_unknown_op))
+        }
+    } catch (e: Exception) {
+        err(e.message ?: e.toString())
+    }
+
+    /**
+     * Сверка профиля устройства с панелью (при подключении и раз в 10 минут —
+     * TunnelService). Применяется, только если rev вырос (решает Go).
+     */
+    @Synchronized
+    fun deviceSyncNow(s: Settings): JSONObject? {
+        if (s.deviceJson.isBlank()) return null
+        return try {
+            val prof = mobile.Mobile.deviceFetch(s.deviceJson, s.coreProfilesJson(), s.knownHostsFile.absolutePath)
+            val (out, note) = deviceApply(s, deviceState(s, "apply").put("profile", JSONObject(prof)))
+            deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("note", note)
+            if (note.isNotBlank()) emitLog(str(R.string.log_panel_profile, note))
+            out
+        } catch (e: Exception) {
+            deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("err", e.message ?: e.toString())
+            null
+        }
+    }
 
     private fun obj(body: String): JSONObject = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
 

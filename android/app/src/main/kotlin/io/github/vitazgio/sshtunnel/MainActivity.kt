@@ -255,6 +255,13 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
 
     /** Сервер из текста — тем же API, что «Вставить»; ответ — странице. */
     private fun importText(text: String) {
+        // Приглашение устройства из панели (ТЗ 48) — в окошко приглашения на
+        // странице: имя устройства человек подтверждает сам.
+        if (mobile.Mobile.isInvite(text)) {
+            if (::web.isInitialized) web.evaluateJavascript(
+                "window.androidInvite && androidInvite(" + org.json.JSONObject.quote(text) + ")", null)
+            return
+        }
         Thread {
             val r = AndroidApi.importText(Settings(this), text)
             runOnUiThread {

@@ -476,12 +476,38 @@ class TunnelService : VpnService(), Callbacks {
             meshSummary = try { tunnel.meshSummary() } catch (e: Exception) { """{"state":"off"}""" }
             exitJson = try { tunnel.exitJSON() } catch (e: Exception) { "" }
             serverBack(now)
+            deviceSyncTick(now)
             accumulateBlockedTotal()
             updateMulticast()
             refreshNotice()
             fireUpdate()
             ticker.postDelayed(this, 1500)
         }
+    }
+
+    // Сверка профиля устройства из панели (ТЗ 48): сразу после подключения и
+    // раз в 10 минут, пока подключены к серверу из панели.
+    private var deviceWasUp = false
+    private var deviceSyncAt = 0L
+    @Volatile private var deviceSyncBusy = false
+
+    private fun deviceSyncTick(now: String) {
+        val up = now == "connected"
+        val fresh = up && !deviceWasUp
+        deviceWasUp = up
+        if (!up || deviceSyncBusy) return
+        val s = Settings(this)
+        if (s.deviceJson.isBlank() || s.active().fromPanel.isBlank()) return
+        val t = android.os.SystemClock.elapsedRealtime()
+        if (!fresh && t - deviceSyncAt < 10 * 60 * 1000L) return
+        deviceSyncAt = t
+        deviceSyncBusy = true
+        Thread {
+            try {
+                AndroidApi.init(applicationContext)
+                AndroidApi.deviceSyncNow(Settings(this))
+            } finally { deviceSyncBusy = false }
+        }.start()
     }
 
     /**

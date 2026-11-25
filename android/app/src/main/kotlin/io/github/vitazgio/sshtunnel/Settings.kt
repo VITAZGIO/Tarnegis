@@ -61,6 +61,13 @@ class Settings(context: Context) {
         // («id сети/id сервера», как Profile.MeshAuto на ПК, ТЗ 26). По нему
         // общий код узнаёт, что сервер убрали из сети, и выключает профиль.
         var meshAuto: String = "",
+        // Сервер выдан панелью устройству (ТЗ 48, как Profile.FromPanel на
+        // ПК): учётная запись устройства. Адрес, вход и сеть устройств —
+        // из устройства (deviceJson), решает общий код Go (mobile.DeviceApply).
+        // panelKey — «адрес:порт» в профиле устройства; hidden — скрыт у себя.
+        var fromPanel: String = "",
+        var panelKey: String = "",
+        var hidden: Boolean = false,
     )
 
     private val appCtx = context.applicationContext ?: context
@@ -209,6 +216,7 @@ class Settings(context: Context) {
             o.put("meshOnlyThis", p.meshOnlyThis)
             o.put("exitVia", JSONArray(p.exitVia))
             o.put("meshAuto", p.meshAuto)
+            o.put("fromPanel", p.fromPanel); o.put("panelKey", p.panelKey); o.put("hidden", p.hidden)
             arr.put(o)
         }
         return arr.toString()
@@ -250,6 +258,9 @@ class Settings(context: Context) {
                             (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }.toMutableList()
                         } ?: mutableListOf(),
                         meshAuto = o.optString("meshAuto", ""),
+                        fromPanel = o.optString("fromPanel", ""),
+                        panelKey = o.optString("panelKey", ""),
+                        hidden = o.optBoolean("hidden", false),
                     )
                 )
             }
@@ -301,16 +312,89 @@ class Settings(context: Context) {
         for (p in profiles) {
             arr.put(
                 JSONObject()
-                    .put("id", p.id).put("name", p.name)
+                    .put("id", p.id).put("name", p.name).put("flag", p.flag)
                     .put("host", p.host).put("sshPort", p.sshPort).put("user", p.user)
                     .put("keyPath", keyFile(p.id).absolutePath)
                     .put("meshEnabled", p.meshEnabled).put("meshKey", p.meshKey)
                     .put("meshOnlyThis", p.meshOnlyThis)
                     .put("exitVia", JSONArray(p.exitVia))
                     .put("meshAuto", p.meshAuto)
+                    .put("fromPanel", p.fromPanel).put("panelKey", p.panelKey).put("hidden", p.hidden)
             )
         }
         return arr.toString()
+    }
+
+    /**
+     * Устройство из панели (ТЗ 48): JSON config.Device (учётная запись, ключ,
+     * последний профиль от панели, скрытые серверы, сеть устройств). Пусто —
+     * устройство не добавлялось по приглашению.
+     */
+    var deviceJson: String
+        get() = prefs.getString("device", "") ?: ""
+        set(v) = prefs.edit().putString("device", v).apply()
+
+    /** Что сказать человеку после DeviceApply. */
+    data class DeviceChange(val note: String, val activeChanged: Boolean)
+
+    /**
+     * Сохраняет ответ mobile.DeviceApply. Решал общий код Go (config.ApplyDevice
+     * и соседи) — здесь только перенос: знакомые профили получают поля
+     * входа и сети устройств, новые (серверы из панели) заводятся с ключом
+     * устройства, убранные панелью — удаляются вместе со своим файлом ключа.
+     */
+    fun applyDeviceState(json: String): DeviceChange {
+        val o = JSONObject(json)
+        val arr = o.optJSONArray("profiles") ?: return DeviceChange("", false)
+        val old = profiles
+        val dev = o.optJSONObject("device")
+        val devKey = dev?.optString("keyPath").orEmpty()
+        val tmpl = old.find { it.id == activeProfileId } ?: old.firstOrNull()
+        val list = mutableListOf<Profile>()
+        for (i in 0 until arr.length()) {
+            val po = arr.getJSONObject(i)
+            val id = po.optString("id")
+            if (id.isBlank()) continue
+            val p = old.find { it.id == id }
+                ?: tmpl?.let { t ->
+                    t.copy(id = id, filterApps = t.filterApps.toMutableSet(), panel = "", deviceName = "",
+                        meshAuto = "", exitVia = mutableListOf())
+                }
+                ?: newProfile(po.optString("name")).copy(id = id)
+            p.name = po.optString("name", p.name)
+            p.flag = po.optString("flag", "")
+            p.host = po.optString("host", p.host)
+            p.sshPort = po.optInt("sshPort", 22)
+            p.user = po.optString("user", p.user)
+            // Go опускает пустые и false поля (omitempty): нет поля — пусто.
+            p.meshEnabled = po.optBoolean("meshEnabled", false)
+            p.meshKey = po.optString("meshKey", "")
+            p.meshOnlyThis = po.optBoolean("meshOnlyThis", false)
+            p.exitVia = po.optJSONArray("exitVia")?.let { a ->
+                (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }.toMutableList()
+            } ?: mutableListOf()
+            p.meshAuto = po.optString("meshAuto", "")
+            p.fromPanel = po.optString("fromPanel", "")
+            p.panelKey = po.optString("panelKey", "")
+            p.hidden = po.optBoolean("hidden", false)
+            // У сервера из панели ключ — ключ устройства (у каждого профиля
+            // на телефоне свой файл, как и раньше).
+            if (p.fromPanel.isNotBlank() && devKey.isNotBlank()) {
+                val src = File(devKey)
+                val dst = keyFile(p.id)
+                if (src.exists() && (!dst.exists() || dst.readText() != src.readText())) {
+                    try { saveKeyFor(p.id, src.readText()) } catch (_: Exception) {}
+                }
+            }
+            list.add(p)
+        }
+        if (list.isEmpty()) return DeviceChange("", false)
+        for (p in old) if (list.none { it.id == p.id }) keyFile(p.id).delete()
+        val active = o.optString("active").ifBlank { activeProfileId }
+        val activeChanged = active != activeProfileId
+        saveAll(list, if (list.any { it.id == active }) active else list.first().id)
+        deviceJson = dev?.toString() ?: ""
+        return DeviceChange(o.optString("note"), activeChanged)
     }
 
     /**

@@ -103,6 +103,11 @@ func (c *Config) ApplyNetServers(list []NetServerAd, nets []string) NetServersRe
 		if !ok || !base.MeshEnabled || base.MeshKey == "" {
 			continue
 		}
+		// Серверы устройства из панели (ТЗ 48) решает панель: её профиль
+		// устройства, а не этот список.
+		if base.FromPanel != "" {
+			continue
+		}
 		if _, ok := c.profileByKey(key); ok {
 			// Профиль этого сервера уже есть (человек завёл сам). Сеть
 			// устройств в нём выключена — включаем с ключом этой сети, один

@@ -193,11 +193,19 @@ func (l *Layer) bringUp() error {
 	if err != nil {
 		return err
 	}
-	if err := l.startStack(dev); err != nil {
-		return err
-	}
-	// Адреса адаптера; маршруты и DNS режима ставит apply по плану ядра.
-	if err := l.sys.configure(false); err != nil {
+	// Устройство, открытое здесь, здесь же и закрывается, если дальше
+	// что-то не вышло: раньше оно оставалось открытым, и следующий запуск
+	// упирался в «TUNSETIFF: device or resource busy» (ТЗ 48).
+	err = upOwned(dev, l.startStack,
+		// Адреса адаптера; маршруты и DNS режима ставит apply по плану ядра.
+		func() error { return l.sys.configure(false) },
+		func() {
+			if l.engine != nil {
+				l.engine.Close()
+				l.engine = nil
+			}
+		})
+	if err != nil {
 		return err
 	}
 
@@ -265,6 +273,33 @@ func (l *Layer) bringDown() {
 	}
 	l.sys.close()
 	l.sys.flushDNS()
+}
+
+// onceDevice — устройство, которое можно закрывать сколько угодно раз:
+// закрывают и стек (Engine.Close), и сам bringUp при ошибке.
+type onceDevice struct {
+	core.Device
+	once sync.Once
+}
+
+func (d *onceDevice) Close() { d.once.Do(d.Device.Close) }
+
+// upOwned — шаги после открытия устройства: start поднимает на нём стек,
+// configure настраивает адаптер. Ошибка любого шага — stop (снять стек) и
+// закрыть устройство; закрытие повторно не вредит (onceDevice).
+func upOwned(dev core.Device, start func(core.Device) error, configure func() error, stop func()) error {
+	od := &onceDevice{Device: dev}
+	if err := start(od); err != nil {
+		stop()
+		od.Close()
+		return err
+	}
+	if err := configure(); err != nil {
+		stop()
+		od.Close()
+		return err
+	}
+	return nil
 }
 
 func (l *Layer) startStack(dev core.Device) error {
