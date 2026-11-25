@@ -224,7 +224,7 @@ func TestНетРусскогоВКодеИнтерфейса(t *testing.T) {
 			t.Errorf("%s:%d: русская строка вне словаря: %.70s", name, h.line, h.text)
 		}
 	}
-	for _, f := range []string{"index.html", "apps.html", "book.html", "pages.js"} {
+	for _, f := range []string{"index.html", "apps.html", "book.html", "panelwin.html", "pages.js"} {
 		b, err := fs.ReadFile(FS(), f)
 		if err != nil {
 			t.Fatal(err)

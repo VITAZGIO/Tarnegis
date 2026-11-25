@@ -101,7 +101,7 @@ func TestPanelForwardOpensAndCloses(t *testing.T) {
 	usePanelDial(t, srvAddr, &user)
 
 	var f panelForward
-	st, err := f.open(config.Profile{ID: "p1", Name: "Тест", Host: "server.invalid", SSHPort: 22, AdminUser: "ops"}, "")
+	st, err := f.open(config.Profile{ID: "p1", Name: "Тест", Host: "server.invalid", SSHPort: 22, AdminUser: "ops"}, "", false)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestPanelForwardOpensAndCloses(t *testing.T) {
 	}
 
 	// Повторное открытие того же сервера — тот же порт, не второй проброс.
-	st2, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "")
+	st2, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "", false)
 	if err != nil || st2.Port != st.Port {
 		t.Errorf("повторное открытие: %+v, %v", st2, err)
 	}
@@ -145,7 +145,7 @@ func TestPanelForwardDefaultsToRoot(t *testing.T) {
 	usePanelDial(t, srvAddr, &user)
 	var f panelForward
 	defer f.close("")
-	if _, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, ""); err != nil {
+	if _, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "", false); err != nil {
 		t.Fatal(err)
 	}
 	if user != "root" {
@@ -159,11 +159,43 @@ func TestPanelForwardNoPanel(t *testing.T) {
 	var user string
 	usePanelDial(t, srvAddr, &user)
 	var f panelForward
-	_, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "admin")
+	_, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "admin", false)
 	if err == nil || !strings.Contains(err.Error(), "не отвечает панель") {
 		t.Fatalf("ожидалась ошибка «не отвечает панель», получено %v", err)
 	}
 	if f.state().Open {
 		t.Error("проброс открыт, хотя панели нет")
+	}
+}
+
+// Отдельное окно перестало продлевать аренду (его закрыли) — проброс
+// закрывается сам; пока продлевает — живёт.
+func TestPanelForwardWindowLease(t *testing.T) {
+	panelSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer panelSrv.Close()
+	srvAddr := fakeForwardServer(t, strings.TrimPrefix(panelSrv.URL, "http://"))
+	var user string
+	usePanelDial(t, srvAddr, &user)
+	old := panelLease
+	panelLease = 1500 * time.Millisecond
+	defer func() { panelLease = old }()
+
+	var f panelForward
+	defer f.close("")
+	if _, err := f.open(config.Profile{ID: "p1", Host: "server.invalid"}, "", true); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		time.Sleep(700 * time.Millisecond)
+		if !f.ping() {
+			t.Fatal("проброс закрылся, хотя окно продлевало аренду")
+		}
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for f.state().Open {
+		if time.Now().After(deadline) {
+			t.Fatal("окно не продлевает аренду, а проброс всё ещё открыт")
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }

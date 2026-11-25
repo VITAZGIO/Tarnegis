@@ -329,7 +329,9 @@ func WindowHandler(open Opener, active func(id string) bool, closers ...Closer) 
 			writeJSON(w, map[string]any{"ok": false, "error": "нужен JSON {\"key\",\"title\",\"url\":\"/…\"}"})
 			return
 		}
-		if req.Key != "book" && active != nil && !active(req.Key) {
+		// «book» и «serverpanel» (окно «Панель сервера») — свои окна программы,
+		// не плагины: проверка «добавлен и включён» к ним не относится.
+		if req.Key != "book" && req.Key != "serverpanel" && active != nil && !active(req.Key) {
 			writeJSON(w, map[string]any{"ok": false, "error": "приложение не добавлено или выключено"})
 			return
 		}

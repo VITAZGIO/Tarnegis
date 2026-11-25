@@ -151,9 +151,15 @@ ufw status verbose
 
 # ─── Бан за перебор ───────────────────────────────────────────────────────
 say "Настраиваю fail2ban"
+# Адрес, с которого идёт эта настройка, в бан не попадает: иначе пара
+# неудачных попыток программы (повторный запуск мастера, старый ключ) на час
+# отрезает от сервера того, кто его настраивает.
+SETUP_IP="${SSH_CLIENT%% *}"
+[ -n "$SETUP_IP" ] && echo "fail2ban не банит адрес настройки: $SETUP_IP"
 cat > /etc/fail2ban/jail.d/sshd.local <<EOF
 [sshd]
 enabled = true
+ignoreip = 127.0.0.1/8 ::1 $SETUP_IP
 port    = $SSH_PORT
 backend = systemd
 maxretry = 3
