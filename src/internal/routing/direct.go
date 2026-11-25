@@ -57,7 +57,8 @@ func (d *DirectList) Set(entries []string) {
 		names    []string
 		suffixes []string
 	)
-	for _, raw := range entries {
+	// Готовые группы («@vk», groups.go) — их доменами.
+	for _, raw := range ExpandGroups(entries) {
 		e := CleanEntry(raw)
 		if e == "" {
 			continue
@@ -127,6 +128,7 @@ func CleanEntry(raw string) string {
 // CleanEntries — CleanEntry для всего списка, без пустых записей. Нужен там,
 // где список уходит из программы как есть: в исключения системного прокси.
 func CleanEntries(entries []string) []string {
+	entries = ExpandGroups(entries)
 	out := make([]string, 0, len(entries))
 	for _, e := range entries {
 		if e = CleanEntry(e); e != "" {

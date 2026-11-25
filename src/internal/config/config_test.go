@@ -161,9 +161,8 @@ func TestAddRemoveProfile(t *testing.T) {
 	}
 }
 
-// Сервер из панели удаляется, только когда зовущий это разрешил (устройство
-// удалено в панели, App.RemoveProfile): уходит и из устройства, последний —
-// устройство забывается.
+// Сервер из панели удаляется (ТЗ 51) и запоминается удалённым; последний —
+// устройство и ключ сети панели остаются.
 func TestRemoveProfileИзПанели(t *testing.T) {
 	c := Default()
 	c.Profiles = nil
@@ -178,12 +177,12 @@ func TestRemoveProfileИзПанели(t *testing.T) {
 		t.Fatal("не удалился")
 	}
 	c.normalize()
-	if len(c.Profiles) != 1 || len(c.Device.Servers) != 1 {
+	if len(c.Profiles) != 1 || len(c.Device.Removed) != 1 {
 		t.Fatalf("сервер завёлся снова: %+v", c.Profiles)
 	}
 	c.RemoveProfile(b.ID)
 	c.normalize()
-	if len(c.Profiles) != 0 || c.Device != nil {
+	if len(c.Profiles) != 0 || c.Device == nil || c.DeviceNetOf().Key == "" {
 		t.Fatalf("%+v %+v", c.Profiles, c.Device)
 	}
 }

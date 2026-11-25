@@ -38,6 +38,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"sshtunnel/internal/config"
 	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/invite"
 )
@@ -294,6 +295,29 @@ func TestJoinLabReinstall(t *testing.T) {
 		HostKey: hostkey.Callback(kh, nil), KnownHosts: kh})
 	if err != nil || p.ID != r.Device.ID {
 		t.Fatalf("сверка по known_hosts: %v", err)
+	}
+
+	// ТЗ 51: телефон v1.10.23 (знал только сервер приглашения, rev 0)
+	// после сверки получает все серверы профиля; удалённый у себя сервер
+	// следующая сверка с настоящего sshd не возвращает.
+	cfg := config.Default()
+	cfg.Profiles = nil
+	cfg.SetDevice(config.Device{ID: r.Device.ID, KeyPath: r.Device.KeyPath}, config.DeviceProfile{ID: r.Device.ID, Mesh: true,
+		Servers: []config.DeviceServer{{Name: "127.0.0.1", Host: "127.0.0.1", Port: 22}}})
+	if res := cfg.ApplyDevice(p.Config()); !res.Changed || len(cfg.Profiles) != len(p.Servers) {
+		t.Fatalf("после сверки: %+v / профиль %+v", cfg.Profiles, p.Servers)
+	}
+	cfg.RemoveProfile(cfg.Profiles[0].ID)
+	p2, err := invite.Fetch(context.Background(), invite.Target{Host: "127.0.0.1", Port: 22, User: r.Device.ID, Signer: signer,
+		HostKey: hostkey.Callback(kh, nil), KnownHosts: kh})
+	if err != nil {
+		t.Fatalf("вторая сверка: %v", err)
+	}
+	dp := p2.Config()
+	dp.Rev = cfg.Device.Rev + 1 // панель что-то поменяла
+	cfg.ApplyDevice(dp)
+	if len(cfg.Profiles) != len(p.Servers)-1 {
+		t.Fatalf("удалённый вернулся после сверки: %+v", cfg.Profiles)
 	}
 }
 

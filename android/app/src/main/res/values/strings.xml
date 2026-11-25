@@ -130,7 +130,6 @@
     <string name="exit_not_found">сервер «%1$s» не найден</string>
     <string name="exit_no_host">у сервера «%1$s» не указан адрес</string>
     <string name="err_server_not_found">сервер не найден</string>
-    <string name="err_panel_server">этот сервер выдан панелью — его можно только скрыть у себя</string>
     <string name="err_unknown_op">неизвестное действие</string>
     <string name="log_panel_profile">Панель: %1$s</string>
     <string name="err_no_answer">нет ответа</string>

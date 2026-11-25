@@ -16,6 +16,7 @@ import (
 	"sshtunnel/internal/config"
 	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/invite"
+	"sshtunnel/internal/routing"
 )
 
 // InviteInfo — разбор приглашения для экрана: JSON {host,port,name,exp,expired}
@@ -105,11 +106,13 @@ type deviceState struct {
 	Device   *config.Device   `json:"device"`
 	// Op: "set" (после DeviceJoin: Join — его ответ), "apply" (Profile —
 	// ответ DeviceFetch), "hide" (ID, Hidden), "net" (Net), "view",
-	// "remove" (ID: сервер из панели удалённого в панели устройства, ТЗ 49).
+	// "remove" (ID: сервер из панели, ТЗ 49/51), "restore" (Key: вернуть
+	// удалённый или скрытый у себя, ТЗ 51).
 	Op      string               `json:"op"`
 	Join    json.RawMessage      `json:"join,omitempty"`
 	Profile config.DeviceProfile `json:"profile"`
 	ID      string               `json:"id,omitempty"`
+	Key     string               `json:"key,omitempty"`
 	Hidden  bool                 `json:"hidden,omitempty"`
 	Net     *config.DeviceNet    `json:"net,omitempty"`
 	// KnownHosts — куда записать ключи новых серверов.
@@ -126,6 +129,7 @@ func DeviceApply(stateJSON string) (string, error) {
 		return "", fmt.Errorf("состояние не разобрано: %v", err)
 	}
 	cfg := config.Config{Profiles: st.Profiles, ActiveProfile: st.Active, Device: st.Device}
+	activeWas := st.Active
 	var res config.DeviceResult
 	note := ""
 	from := st.Profile.From // откуда профиль: его ключ подтвердило соединение
@@ -184,6 +188,18 @@ func DeviceApply(stateJSON string) (string, error) {
 		}
 		cfg.SyncDevice()
 		res.Changed = true
+		if cfg.ActiveProfile != activeWas {
+			if p, ok := cfg.ProfileByID(cfg.ActiveProfile); ok {
+				res.Switched = p.Name
+			}
+		}
+	case "restore":
+		name, ok := cfg.RestoreServer(st.Key)
+		if !ok {
+			return "", errors.New("такого сервера в профиле устройства нет")
+		}
+		res.Changed = true
+		note = "сервер " + name + " снова в списке"
 	default:
 		return "", fmt.Errorf("неизвестное действие %q", st.Op)
 	}
@@ -220,8 +236,15 @@ func DeviceApply(stateJSON string) (string, error) {
 	out, err := json.Marshal(map[string]any{"profiles": cfg.Profiles, "active": cfg.ActiveProfile, "device": cfg.Device,
 		"changed": res.Changed, "added": added, "removed": removed, "switched": res.Switched, "note": note,
 		"net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed(), "netMissing": cfg.DeviceNetMissing(),
-		"netMissingText": cfg.DeviceNetMissingText()})
+		"netMissingText": cfg.DeviceNetMissingText(), "removedServers": removedOrEmpty(cfg.RemovedServers())})
 	return string(out), err
+}
+
+func removedOrEmpty(v []config.DeviceServer) []config.DeviceServer {
+	if v == nil {
+		return []config.DeviceServer{}
+	}
+	return v
 }
 
 // DeviceExport — устройство для выгрузки всех настроек (config.DeviceForExport):
@@ -258,6 +281,13 @@ func DeviceImport(deviceJSON, profilesJSON string) string {
 		return ""
 	}
 	out, _ := json.Marshal(nd)
+	return string(out)
+}
+
+// DirectGroups — готовые группы «всегда напрямую» (ТЗ 51), JSON как
+// GET /api/directgroups на ПК.
+func DirectGroups() string {
+	out, _ := json.Marshal(map[string]any{"groups": routing.Groups()})
 	return string(out)
 }
 

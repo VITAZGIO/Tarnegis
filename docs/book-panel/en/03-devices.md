@@ -8,7 +8,8 @@ Each device has its own key and its own system account on the server.
 1. Press **+ Add device**.
 2. Enter the **Device name** ("Laptop", "Phone") and choose the type: Windows,
    Linux or Android.
-3. Tick the **Servers** the device may use. This server is always ticked: the
+3. Tick the **Servers** the device may use. All servers of the network start
+   ticked — untick the ones it should not get. This server is always ticked: the
    device joins through it. Later you can untick it like any other. If the
    list has only this server, it is not in a server network and the device
    gets only this server; other servers join the network in **Networks** →

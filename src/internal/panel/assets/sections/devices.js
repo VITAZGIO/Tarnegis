@@ -782,14 +782,16 @@ function scopeText(c){
   return c.servers.map(serverLabel).join(', ');
 }
 // renderServerChecks — галочки серверов; selected null — «все»; lockSelf —
-// этот сервер отмечен и не снимается (через него устройство войдёт).
+// этот сервер отмечен и не снимается (через него устройство войдёт). Новое
+// устройство — сразу все серверы (ТЗ 51): раньше отмечался только этот, и
+// устройство по приглашению получало один сервер вместо всех.
 function renderServerChecks(box, selected, lockSelf){
   box.innerHTML = '';
   DEV_SERVERS.forEach(s => {
     const l = el('label', 'g');
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.value = s.id;
-    cb.checked = lockSelf ? !!s.self : (!selected || selected.includes(s.id));
+    cb.checked = (lockSelf && s.self) || !selected || selected.includes(s.id);
     if (lockSelf && s.self) cb.disabled = true;
     l.appendChild(cb);
     l.appendChild(document.createTextNode(s.name + (s.self ? ' · ' + t('scope_this') : '')));

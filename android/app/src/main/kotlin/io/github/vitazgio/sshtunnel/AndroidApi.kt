@@ -69,7 +69,9 @@ object AndroidApi : mobile.API {
             mobile.Mobile.startUI(app.filesDir.absolutePath)
             mobile.Mobile.setAPI(this)
             TunnelService.onApiUpdate = { pushState() }
-            TunnelService.onApiLog = { line -> emitLog(line) }
+            // Соединения экран получает событием conn (как на ПК, ТЗ 51) —
+            // их строку второй раз не показываем.
+            TunnelService.onApiLog = { line -> if (!line.startsWith(mobile.Mobile.connPrefix())) emitLog(line) }
             true
         } catch (e: Exception) {
             false
@@ -145,6 +147,8 @@ object AndroidApi : mobile.API {
             "/api/appprofiles/switch", "/api/appprofiles/delete" -> appProfileAction(s, path, obj(body))
             // Смена ключа сервера (ТЗ 46): та же логика и JSON, что на ПК (Go).
             "/api/device" -> if (post) deviceOp(s, obj(body)) else deviceView(s, null).toString()
+            "/api/directgroups" -> mobile.Mobile.directGroups()
+            "/api/rules" -> if (post) rulesOp(s, obj(body)) else config(s).toString()
             "/api/hostkey" -> mobile.Mobile.hostKeyAPI(s.knownHostsFile.absolutePath, method,
                 q.getQueryParameter("host") ?: "", q.getQueryParameter("port") ?: "", body)
             "/api/mesh" -> TunnelService.meshStatus()
@@ -541,6 +545,31 @@ object AndroidApi : mobile.API {
         return r.toString()
     }
 
+    /**
+     * POST /api/rules {"op":"add|remove","list":"direct|tunnel","value"} —
+     * как на ПК (webui/rules.go), для «В напрямую» из журнала (ТЗ 51).
+     * Действует сразу, без переподключения.
+     */
+    private fun rulesOp(s: Settings, o: JSONObject): String {
+        val op = o.optString("op")
+        val list = o.optString("list")
+        if (op != "add" && op != "remove") return err("op: add | remove")
+        if (list != "direct" && list != "tunnel") return err("list: direct | tunnel")
+        val vals = o.optString("value").split(Regex("[\\s,;]+")).map { it.trim() }.filter { it.isNotEmpty() }
+        if (vals.isEmpty()) return err("value")
+        val cur = (if (list == "direct") s.directHosts else s.tunnelHosts)
+            .split(Regex("[\\s,;]+")).map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+        for (v in vals) {
+            cur.removeAll { it.equals(v, ignoreCase = true) }
+            if (op == "add") cur.add(v)
+        }
+        val text = cur.joinToString("\n")
+        if (list == "direct") s.directHosts = text else s.tunnelHosts = text
+        TunnelService.routingChanged(s)
+        configChanged()
+        return JSONObject().put("ok", true).put("config", config(s)).toString()
+    }
+
     private fun saveKey(s: Settings, o: JSONObject): String {
         val key = o.optString("key").trim()
         if (!key.startsWith("-----BEGIN")) return err(Lang.wrap(app).getString(R.string.key_bad))
@@ -576,14 +605,15 @@ object AndroidApi : mobile.API {
     private fun removeProfile(s: Settings, id: String): String {
         val p = s.profiles.find { it.id == id } ?: return err(str(R.string.err_server_not_found))
         val wasActive = id == s.activeProfileId
-        if (p.fromPanel.isNotBlank() && !deviceGone) return err(str(R.string.err_panel_server))
         // Подключены к нему — сначала отключиться, потом удалять (ТЗ 50),
         // как на ПК: туннель не остаётся на сервере, которого уже нет.
         if (wasActive && TunnelService.state != "stopped") service(TunnelService.ACTION_STOP)
         if (p.fromPanel.isNotBlank()) {
-            // Сервер из панели удалённого в панели устройства (ТЗ 49):
-            // убирает его и из устройства общий код Go.
+            // Сервер из панели (ТЗ 51): общий код Go запоминает его
+            // удалённым — сверка с панелью его не вернёт — и выбирает
+            // следующий активный.
             deviceApply(s, deviceState(s, "remove").put("id", id))
+            s.markRemoved(p)
         } else {
             s.removeProfile(id)
         }
@@ -871,6 +901,7 @@ object AndroidApi : mobile.API {
             .put("id", d.optString("id")).put("name", d.optString("name")).put("join", d.optString("join"))
             .put("rev", d.optLong("rev")).put("mesh", d.optBoolean("mesh")).put("frozen", d.optBoolean("frozen"))
             .put("servers", d.optJSONArray("servers") ?: JSONArray()).put("hidden", d.optJSONArray("hidden") ?: JSONArray())
+            .put("removed", v.optJSONArray("removedServers") ?: JSONArray())
             .put("profileFrom", d.optString("profileFrom")).put("profileVer", d.optString("profileVer"))
         return JSONObject().put("device", dev)
             .put("net", v.optJSONObject("net") ?: JSONObject())
@@ -901,6 +932,12 @@ object AndroidApi : mobile.API {
             "hide" -> {
                 val (out, note) = deviceApply(s, deviceState(s, "hide").put("id", o.optString("id"))
                     .put("hidden", o.optBoolean("hidden")))
+                deviceView(s, out).put("ok", true).put("note", note).toString()
+            }
+            "restore" -> {
+                val key = o.optString("key")
+                val (out, note) = deviceApply(s, deviceState(s, "restore").put("key", key))
+                s.unmarkRemoved(key)
                 deviceView(s, out).put("ok", true).put("note", note).toString()
             }
             "net" -> {

@@ -724,6 +724,11 @@ func (t *Tunnel) forwardEvents(ch <-chan events.Event, unsub func(), stop <-chan
 		case events.KindLog:
 			cb.OnLog(ev.Text)
 		case events.KindConn:
+			// Экрану — то же событие conn, что на ПК (ТЗ 51): журнал
+			// показывает «напрямую» / «через сервер» и «В напрямую».
+			if data, err := json.Marshal(ev); err == nil {
+				Emit(string(data))
+			}
 			cb.OnLog(describeConn(ev))
 		}
 	}
@@ -754,13 +759,23 @@ func (t *Tunnel) forwardEvents(ch <-chan events.Event, unsub func(), stop <-chan
 	}
 }
 
+// ConnLinePrefix — начало строки журнала о соединении: экран получает такое
+// соединение отдельным событием conn (Emit), и строку второй раз не
+// показывают (AndroidApi).
+const ConnLinePrefix = "→ "
+
+// ConnPrefix — ConnLinePrefix для приложения (функция: так её видит Kotlin).
+func ConnPrefix() string { return ConnLinePrefix }
+
 // describeConn превращает событие о соединении в строку для журнала.
-// Пометка «напрямую» важна человеку: она означает не сбой, а сработавшее
-// правило — например, адрес из локальной сети.
+// Пометка «напрямую» / «через сервер» важна человеку (ТЗ 51): видно, какой
+// домен сайта ещё идёт через сервер.
 func describeConn(ev events.Event) string {
-	line := ev.Target
+	line := ConnLinePrefix + ev.Target
 	if ev.Direct {
 		line += " — напрямую"
+	} else if !ev.Failed {
+		line += " — через сервер"
 	}
 	if ev.DNSLeak {
 		line += " — адрес известен заранее"

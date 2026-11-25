@@ -85,9 +85,6 @@ func (c *Config) markRemoved(p Profile) {
 // RemovedMarks — отметки, которые ставит удаление профиля p (для телефона:
 // он удаляет профили сам и дописывает их в свой список отметок).
 func RemovedMarks(p Profile) []string {
-	if p.IsPanel() {
-		return nil
-	}
 	var c Config
 	c.markRemoved(p)
 	return c.MeshAutoSeen

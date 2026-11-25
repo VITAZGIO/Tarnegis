@@ -23,6 +23,7 @@ func (s *Server) deviceView() map[string]any {
 	if d := cfg.Device; d != nil {
 		out["device"] = map[string]any{"id": d.ID, "name": d.Name, "join": d.Join, "rev": d.Rev,
 			"mesh": d.Mesh, "frozen": d.Frozen, "servers": d.Servers, "hidden": d.Hidden,
+			"removed": nonNil(cfg.RemovedServers()),
 			"profileFrom": d.ProfileFrom, "profileVer": d.ProfileVer}
 	}
 	return out
@@ -39,6 +40,7 @@ func (s *Server) handleDevice(w http.ResponseWriter, r *http.Request) {
 		Name     string            `json:"name"`
 		Type     string            `json:"type"`
 		ID       string            `json:"id"`
+		Key      string            `json:"key"`
 		Hidden   bool              `json:"hidden"`
 		On       *bool             `json:"on"`
 		OnlyThis *bool             `json:"onlyThis"`
@@ -94,6 +96,13 @@ func (s *Server) handleDevice(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ok(note)
+	case "restore":
+		note, err := s.app.RestoreDeviceServer(req.Key)
+		if err != nil {
+			fail(err)
+			return
+		}
+		ok(note)
 	case "net":
 		n := s.app.Config().DeviceNetOf()
 		if req.Net != nil {
@@ -117,6 +126,14 @@ func (s *Server) handleDevice(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(errUnknownOp(req.Op))
 	}
+}
+
+// nonNil — пустой список отдаётся «[]», не null.
+func nonNil[T any](v []T) []T {
+	if v == nil {
+		return []T{}
+	}
+	return v
 }
 
 type errUnknownOp string

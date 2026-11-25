@@ -402,16 +402,14 @@ func (a *App) UpdateProfile(p config.Profile) error {
 	return cfg.Save()
 }
 
-// RemoveProfile удаляет сервер из списка. Если это был активный (и, значит,
-// возможно, подключённый прямо сейчас) — туннель останавливается: он остался
-// бы работать по адресу, которого в настройках больше нет.
+// RemoveProfile удаляет сервер из списка — любой, и выданный панелью тоже
+// (ТЗ 51: сверка с панелью его не вернёт, см. config.RemoveProfile). Если
+// это был активный (и, значит, возможно, подключённый прямо сейчас) —
+// туннель останавливается: он остался бы работать по адресу, которого в
+// настройках больше нет; активным становится следующий сервер.
 func (a *App) RemoveProfile(id string) (string, error) {
-	p, ok := a.Config().ProfileByID(id)
-	if !ok {
+	if _, ok := a.Config().ProfileByID(id); !ok {
 		return "", errors.New("такого сервера нет")
-	}
-	if p.IsPanel() && !a.DeviceGone() {
-		return "", errors.New("этот сервер выдан панелью — его можно только скрыть у себя")
 	}
 	// Подключены к нему (выбран или запасной) — сначала отключиться, потом
 	// удалять (ТЗ 50): иначе туннель остался бы на сервере, которого нет.
@@ -429,6 +427,11 @@ func (a *App) RemoveProfile(id string) (string, error) {
 	}
 	if _, err := a.SetConfig(cfg); err != nil {
 		return "", err
+	}
+	if note != "" {
+		if n, ok := cfg.ProfileByID(cfg.ActiveProfile); ok {
+			note += ", выбран " + n.Name
+		}
 	}
 	return note, nil
 }
