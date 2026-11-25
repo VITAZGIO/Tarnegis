@@ -242,25 +242,34 @@ func startTunnel(t *testing.T, poolSize int) (*Tunnel, string, string, *testSSHS
 	host, portStr, _ := net.SplitHostPort(srv.addr)
 	sshPort, _ := strconv.Atoi(portStr)
 
-	socksAddr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
-	httpAddr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
-
-	tun := New(Config{
-		Host:           host,
-		SSHPort:        sshPort,
-		User:           "test",
-		KeyPath:        keyPath,
-		SocksAddr:      socksAddr,
-		HTTPAddr:       httpAddr,
-		PoolSize:       poolSize,
-		KnownHostsPath: filepath.Join(dir, "known_hosts"),
-		// Цели в тестах поднимаются на 127.0.0.1, а локальные адреса в
-		// обычном режиме идут мимо туннеля. Здесь проверяется сам туннель,
-		// поэтому локальную сеть намеренно заворачиваем в него.
-		LocalViaTunnel: true,
-	}, events.NewBus())
-
-	if err := tun.Start(); err != nil {
+	// freePort отдаёт порт, который до Start может занять параллельный пакет
+	// тестов («address already in use») — тогда пробуем другие порты.
+	var tun *Tunnel
+	var socksAddr, httpAddr string
+	for try := 0; ; try++ {
+		socksAddr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
+		httpAddr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
+		tun = New(Config{
+			Host:           host,
+			SSHPort:        sshPort,
+			User:           "test",
+			KeyPath:        keyPath,
+			SocksAddr:      socksAddr,
+			HTTPAddr:       httpAddr,
+			PoolSize:       poolSize,
+			KnownHostsPath: filepath.Join(dir, "known_hosts"),
+			// Цели в тестах поднимаются на 127.0.0.1, а локальные адреса в
+			// обычном режиме идут мимо туннеля. Здесь проверяется сам туннель,
+			// поэтому локальную сеть намеренно заворачиваем в него.
+			LocalViaTunnel: true,
+		}, events.NewBus())
+		err := tun.Start()
+		if err == nil {
+			break
+		}
+		if try < 5 && strings.Contains(err.Error(), "address already in use") {
+			continue
+		}
 		t.Fatalf("туннель не запустился: %v", err)
 	}
 	t.Cleanup(tun.Stop)
