@@ -61,8 +61,6 @@ func main() {
 		switch os.Args[1] {
 		case "join":
 			os.Exit(panel.RunJoin(os.Stdin, os.Stdout, os.Getenv, panel.PostJoin))
-		case "join-key":
-			os.Exit(panel.RunJoinKey(os.Args[2:], os.Stdout))
 		}
 	}
 	// Своё имя файла в релизе (ssh_tunnel_panel): по нему проверка и

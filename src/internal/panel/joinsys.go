@@ -4,9 +4,12 @@ package panel
 //
 // Программа входит по SSH пользователем tun_join со своим новым ключом и
 // просит exec «join». sshd пускает tun_join с любым ключом, но только так:
-//   - ключ берётся не из файла, а у AuthorizedKeysCommand — это мы же
-//     (ssh_tunnel_panel join-key %t %k): строка «restrict <ключ>», то есть
-//     без проброса, агента, X11 и терминала;
+//   - ключ берётся не из файла, а у AuthorizedKeysCommand — системный echo
+//     печатает «restrict <тип> <ключ>»: предложенный ключ годится, но без
+//     проброса, агента, X11 и терминала; разбирает ключ сам sshd. Именно
+//     echo из /usr/bin: sshd запускает AuthorizedKeysCommand, только если
+//     весь путь к нему принадлежит root и закрыт для записи другим, а
+//     /usr/local/bin бывает и не таким (это поймал стенд join-lab);
 //   - Match User tun_join: ForceCommand «ssh_tunnel_panel join» (что бы
 //     программа ни попросила), AllowTcpForwarding no, PermitTTY no и прочее
 //     закрыто; ExposeAuthInfo yes — sshd кладёт в файл $SSH_USER_AUTH ключ,
@@ -36,8 +39,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // JoinUser — системный пользователь для входа по приглашению. Не похож на
@@ -52,12 +53,16 @@ const (
 
 // joinSSHDBlock — ограничения sshd для tun_join; exe — путь к панели.
 func joinSSHDBlock(exe string) string {
+	echo := "/usr/bin/echo"
+	if _, err := os.Stat(echo); err != nil {
+		echo = "/bin/echo"
+	}
 	return joinMarkerBegin + "\n" +
 		"Match User " + JoinUser + "\n" +
 		"    AuthenticationMethods publickey\n" +
 		"    PubkeyAuthentication yes\n" +
 		"    AuthorizedKeysFile none\n" +
-		"    AuthorizedKeysCommand " + exe + " join-key %t %k\n" +
+		"    AuthorizedKeysCommand " + echo + " restrict %t %k\n" +
 		"    AuthorizedKeysCommandUser nobody\n" +
 		"    ExposeAuthInfo yes\n" +
 		"    ForceCommand " + exe + " join\n" +
@@ -193,29 +198,6 @@ func ensureJoinFail2ban(port int) error {
 }
 
 // ---------- команды для sshd ----------
-
-// RunJoinKey — AuthorizedKeysCommand: ключ, который предлагает программа,
-// годится (с restrict), если это обычный ключ SSH.
-func RunJoinKey(args []string, out io.Writer) int {
-	if len(args) != 2 {
-		return 1
-	}
-	line := args[0] + " " + args[1]
-	pub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(line))
-	if err != nil || !joinKeyType(pub.Type()) {
-		return 1
-	}
-	fmt.Fprintf(out, "restrict %s\n", strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub))))
-	return 0
-}
-
-func joinKeyType(t string) bool {
-	switch t {
-	case ssh.KeyAlgoED25519, ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521, ssh.KeyAlgoRSA:
-		return true
-	}
-	return false
-}
 
 // userAuthKey — ключ из файла $SSH_USER_AUTH (ExposeAuthInfo): строки
 // «publickey <тип> <base64>»; берётся последняя (успешный способ — в конце).

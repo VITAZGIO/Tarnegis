@@ -182,8 +182,10 @@ mesh-VPN. Публичные адреса без токена не проход�
   такую учётную запись не завести.
 - Свой блок `Match User tun_join` в `sshd_config` (между метками панели):
   `AuthenticationMethods publickey`, `AuthorizedKeysFile none`,
-  `AuthorizedKeysCommand <панель> join-key %t %k` от `nobody` — любой обычный
-  ключ годится, но строкой `restrict <ключ>`; `ForceCommand <панель> join` — что
+  `AuthorizedKeysCommand /usr/bin/echo restrict %t %k` от `nobody` — любой
+  ключ годится, но строкой `restrict <ключ>` (разбирает его сам sshd; путь
+  команды должен целиком принадлежать root — поэтому системный echo, а не
+  панель из `/usr/local/bin`); `ForceCommand <панель> join` — что
   бы ни попросили, выполняется только это; `AllowTcpForwarding no`,
   `AllowStreamLocalForwarding no`, `AllowAgentForwarding no`, `X11Forwarding no`,
   `PermitTunnel no`, `PermitTTY no`, `PermitUserRC no`, `MaxSessions 1`.

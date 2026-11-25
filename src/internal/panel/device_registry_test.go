@@ -248,16 +248,6 @@ func TestКомандаJoinБерётКлючУsshd(t *testing.T) {
 		t.Fatal("не join, а пустили")
 	}
 
-	// AuthorizedKeysCommand: годный ключ → restrict; мусор → ничего.
-	f := strings.Fields(key)
-	out.Reset()
-	if RunJoinKey(f, &out) != 0 || out.String() != "restrict "+key+"\n" {
-		t.Fatalf("join-key: %q", out.String())
-	}
-	out.Reset()
-	if RunJoinKey([]string{"ssh-ed25519", "мусор"}, &out) == 0 || out.Len() != 0 {
-		t.Fatal("мусорный ключ принят")
-	}
 	if userAuthKey("password\npublickey "+key+"\n") != key {
 		t.Fatal("SSH_USER_AUTH")
 	}
@@ -267,7 +257,7 @@ func TestБлокSSHDДляJoin(t *testing.T) {
 	cfg := "Port 22\n"
 	out, changed := ensureJoinBlock(cfg, "/usr/local/bin/ssh_tunnel_panel")
 	if !changed || !strings.Contains(out, "Match User tun_join") || !strings.Contains(out, "ForceCommand /usr/local/bin/ssh_tunnel_panel join\n") ||
-		!strings.Contains(out, "ExposeAuthInfo yes") || !strings.Contains(out, "AllowTcpForwarding no") || !strings.Contains(out, "PermitTTY no") {
+		!strings.Contains(out, "ExposeAuthInfo yes") || !strings.Contains(out, "echo restrict %t %k\n") || !strings.Contains(out, "AllowTcpForwarding no") || !strings.Contains(out, "PermitTTY no") {
 		t.Fatalf("%s", out)
 	}
 	if again, changed := ensureJoinBlock(out, "/usr/local/bin/ssh_tunnel_panel"); changed || again != out {
