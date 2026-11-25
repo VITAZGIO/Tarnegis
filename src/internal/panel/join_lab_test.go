@@ -254,7 +254,13 @@ func TestJoinLabReinstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: s.SelfServiceHandler()}
+	inner := s.SelfServiceHandler()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t0 := time.Now()
+		rec := &statusRec{ResponseWriter: w, code: 200}
+		inner.ServeHTTP(rec, r)
+		t.Logf("самообслуживание: %s %s → %d за %v", r.Method, r.URL.Path, rec.code, time.Since(t0))
+	})}
 	go srv.Serve(ln)
 	defer srv.Close()
 
@@ -299,3 +305,10 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+type statusRec struct {
+	http.ResponseWriter
+	code int
+}
+
+func (r *statusRec) WriteHeader(c int) { r.code = c; r.ResponseWriter.WriteHeader(c) }
