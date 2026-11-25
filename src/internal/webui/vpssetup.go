@@ -17,12 +17,12 @@ package webui
 
 import (
 	"bytes"
-	"regexp"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,6 +108,23 @@ func runVpsSetup(bus *events.Bus, p vpsSetupParams) (err error) {
 
 	addr := net.JoinHostPort(p.Host, strconv.Itoa(p.Port))
 
+	// Повторный запуск (прошлый оборвался на середине): ключ этого компьютера
+	// уже лежит на сервере, а вход по паролю harden.sh мог уже выключить.
+	// Тогда входим по ключу и продолжаем — шаги дальше можно повторять.
+	if kc, kerr := vpsDial(p.User, addr, ssh.PublicKeys(signer), bus); kerr == nil {
+		defer kc.Close()
+		bus.VpsSetupLine("connect", "Этот компьютер уже входит на сервер по ключу — продолжаю настройку (повторный запуск)")
+		kRoot := &rootRunner{client: kc}
+		if p.User != "root" {
+			bus.VpsSetupLine("connect", "Проверяю, что у "+p.User+" есть право sudo")
+			if err := kRoot.detectSudo(p.User, p.Password); err != nil {
+				return err
+			}
+			bus.VpsSetupLine("connect", "sudo работает")
+		}
+		return finishVpsSetup(bus, p, res, pub, kc, kRoot)
+	}
+
 	bus.VpsSetupLine("connect", fmt.Sprintf("Подключаюсь к %s под %s по паролю…", addr, p.User))
 	pwClient, err := vpsDial(p.User, addr, ssh.Password(p.Password), bus)
 	if err != nil {
@@ -147,7 +164,16 @@ func runVpsSetup(bus *events.Bus, p vpsSetupParams) (err error) {
 	// Дальше всё — под root: напрямую или через sudo под тем же
 	// пользователем (пароль sudo — тот же, что для входа; после harden.sh
 	// вход по паролю выключен, но sudo его по-прежнему спрашивает).
-	root := &rootRunner{client: keyClient, sudo: pwRoot.sudo, sudoPass: pwRoot.sudoPass}
+	return finishVpsSetup(bus, p, res, pub, keyClient, pwRoot)
+}
+
+// finishVpsSetup — всё, что после входа по ключу: защита, пользователь
+// туннеля, панель и остальное. sr — как получать root (sudo и его пароль).
+// Шаги повторяемы, поэтому повторный запуск мастера после обрыва идёт сюда
+// же сразу по ключу.
+func finishVpsSetup(bus *events.Bus, p vpsSetupParams, res *events.VpsResult, pub string,
+	keyClient *ssh.Client, sr *rootRunner) error {
+	root := &rootRunner{client: keyClient, sudo: sr.sudo, sudoPass: sr.sudoPass}
 
 	if p.User != "root" {
 		// harden.sh отказывается отключать пароли, пока у root нет ни одного
@@ -374,8 +400,8 @@ func vpsDial(user, addr string, auth ssh.AuthMethod, bus *events.Bus) (*ssh.Clie
 		bus.VpsSetupLine("connect", fmt.Sprintf("Ключ сервера %s запомнен: %s", host, fp))
 	})
 	cfg := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{auth},
+		User:              user,
+		Auth:              []ssh.AuthMethod{auth},
 		HostKeyCallback:   cb,
 		HostKeyAlgorithms: hostkey.Algorithms(config.KnownHostsPath(), addr),
 		Timeout:           vpsDialTimeout,

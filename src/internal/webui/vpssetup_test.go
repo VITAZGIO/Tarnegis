@@ -665,3 +665,29 @@ func TestPanelInstallScriptParse(t *testing.T) {
 		}
 	}
 }
+
+// Повторный запуск после обрыва: ключ этого компьютера уже на сервере, а вход
+// по паролю harden.sh успел выключить — мастер входит по ключу и доделывает.
+func TestRunVpsSetupRerunByKeyAfterPasswordsOff(t *testing.T) {
+	srv := newFakeAdminServer(t, "root-pass")
+	host, port := srv.hostPort(t)
+	key := testKeyPath(t)
+	params := vpsSetupParams{Host: host, Port: port, User: "root", Password: "root-pass", KeyPath: key}
+
+	bus := events.NewBus()
+	var runErr error
+	collectEvents(t, bus, func() { runErr = runVpsSetup(bus, params) })
+	if runErr != nil {
+		t.Fatalf("первый запуск: %v", runErr)
+	}
+
+	srv.mu.Lock()
+	srv.password = "пароли-выключены"
+	srv.mu.Unlock()
+
+	bus2 := events.NewBus()
+	collectEvents(t, bus2, func() { runErr = runVpsSetup(bus2, params) })
+	if runErr != nil {
+		t.Fatalf("повторный запуск по ключу: %v", runErr)
+	}
+}
