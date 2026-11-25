@@ -116,6 +116,10 @@ MaxStartups 120:30:240
 AllowTcpForwarding yes
 EOF
 
+# На Ubuntu 22.10+ sshd запускается сокетом по требованию, и до первого входа
+# нет /run/sshd — без неё sshd -t падает («Missing privilege separation
+# directory»), хотя конфиг верный.
+install -d -m 0755 /run/sshd
 sshd -t || die "конфиг SSH не прошёл проверку, ничего не перезапускаю"
 
 # На Ubuntu 22.10+ SSH поднимается через сокет systemd, и порт задаётся там, а

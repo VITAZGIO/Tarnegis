@@ -116,6 +116,7 @@ func applySSHDConfig(newConfig string) error {
 	}
 	defer os.Remove(tmp)
 
+	ensureRunSSHD()
 	if out, err := exec.Command("sshd", "-t", "-f", tmp).CombinedOutput(); err != nil {
 		return fmt.Errorf("новый sshd_config не проходит проверку sshd -t, конфиг не тронут: %s",
 			strings.TrimSpace(string(out)))
@@ -142,4 +143,11 @@ func reloadSSHD() error {
 		lastErr = fmt.Errorf("systemctl reload %s: %s", unit, strings.TrimSpace(string(out)))
 	}
 	return fmt.Errorf("конфиг sshd обновлён, но не удалось перечитать службу — примени руками: %w", lastErr)
+}
+
+// ensureRunSSHD — на Ubuntu 22.10+ sshd запускается сокетом по требованию, и
+// до первого входа нет /run/sshd: без неё «sshd -t» падает с «Missing
+// privilege separation directory», хотя конфиг верный.
+func ensureRunSSHD() {
+	_ = os.MkdirAll("/run/sshd", 0o755)
 }

@@ -151,6 +151,7 @@ var (
 		if _, err := exec.LookPath("sshd"); err != nil {
 			return errors.New("не нашёл sshd в PATH — без проверки sshd -t менять конфиг вслепую нельзя")
 		}
+		ensureRunSSHD()
 		if out, err := exec.Command("sshd", "-t", "-f", configPath).CombinedOutput(); err != nil {
 			return fmt.Errorf("sshd -t: %s", strings.TrimSpace(string(out)))
 		}

@@ -3958,7 +3958,12 @@ $('selfCheckStart').onclick = runSelfCheck;
 /* ---------- мастер настройки VPS ---------- */
 let vpsSetupRunning = false;
 
+// Цветовые коды терминала (ESC[1;36m) и прогресс dpkg «(Reading database ... N%»
+// в журнале мастера — шум: коды убираем, прогресс не показываем.
+const ANSI_RE = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*[A-Za-z]', 'g');
 function vpsLogLine(text){
+  text = String(text).replace(ANSI_RE, '');
+  if(/^\(Reading database \.\.\.( \d+%)?\s*$/.test(text)) return;
   const box = $('vpsSetupLog');
   box.hidden = false;
   $('vpsLogCopy').hidden = false;
