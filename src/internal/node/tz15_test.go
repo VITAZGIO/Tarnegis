@@ -42,6 +42,9 @@ func newHost15(t *testing.T, opt Options) *Host {
 		opt.Dir = t.TempDir()
 	}
 	opt.Version = "test"
+	if opt.Ports == nil {
+		opt.Ports = anyPorts()
+	}
 	h, err := New(opt)
 	if err != nil {
 		t.Fatal(err)

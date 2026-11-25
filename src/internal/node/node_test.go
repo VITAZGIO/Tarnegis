@@ -24,9 +24,20 @@ import (
 // как это в бою делает ConnContext в admit(). Сама проверка «meshd сказал,
 // кто это» (op who, владелец порта) — в cmd/meshd и в TestAskMeshd* ниже.
 
+// anyPorts — каждому плагину любой свободный порт. Стандартные порты
+// (47836…) в тестах не годятся: их может держать параллельный пакет тестов
+// или работающая программа — тест падал «порт плагина занят».
+func anyPorts() map[string]int {
+	m := make(map[string]int, len(nodeapi.Plugins))
+	for _, p := range nodeapi.Plugins {
+		m[p] = 0
+	}
+	return m
+}
+
 func newTestHost(t *testing.T) *Host {
 	t.Helper()
-	h, err := New(Options{Dir: t.TempDir(), Version: "test"})
+	h, err := New(Options{Dir: t.TempDir(), Version: "test", Ports: anyPorts()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +381,7 @@ func TestAskMeshdСтарыйИНедоступный(t *testing.T) {
 func TestAdmitЗакрываетЧужиеСоединения(t *testing.T) {
 	var mu sync.Mutex
 	known := map[string]nodeapi.Caller{}
-	h, err := New(Options{Dir: t.TempDir(), Version: "test", Who: func(c net.Conn) (nodeapi.Caller, error) {
+	h, err := New(Options{Dir: t.TempDir(), Version: "test", Ports: anyPorts(), Who: func(c net.Conn) (nodeapi.Caller, error) {
 		deadline := time.Now().Add(time.Second)
 		for {
 			mu.Lock()
