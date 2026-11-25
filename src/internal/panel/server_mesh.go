@@ -29,6 +29,19 @@ func (s *Server) meshRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/clients/groups", s.requireAuth(s.handleClientGroups))
 	mux.HandleFunc("/api/clients/creator", s.requireAuth(s.handleClientCreator))
 	mux.HandleFunc("/api/mesh/state", s.requireAuth(s.withMesh(s.handleMeshState)))
+	// Сеть панели (ТЗ 49): завести кнопкой в «Сетях». Ответ — только id.
+	mux.HandleFunc("/api/mesh/panelnet/create", s.requireAuth(s.withMesh(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{}
+		if !decodePost(w, r, &req) {
+			return
+		}
+		rec, err := s.mesh.net.PanelNet(true)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "net": meshNetID(rec.Key)})
+	})))
 	mux.HandleFunc("/api/mesh/role", s.requireAuth(s.withMesh(s.handleMeshRole)))
 	mux.HandleFunc("/api/mesh/reinstall", s.requireAuth(s.withMesh(s.handleMeshReinstall)))
 	mux.HandleFunc("/api/udprelay/install", s.requireAuth(s.withMesh(s.handleUDPRelayInstall)))

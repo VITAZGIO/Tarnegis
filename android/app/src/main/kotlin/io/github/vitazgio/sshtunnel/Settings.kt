@@ -89,7 +89,9 @@ class Settings(context: Context) {
         get() {
             val raw = prefs.getString("profiles", null)
             val list = if (raw != null) decodeProfiles(raw) else mutableListOf()
-            if (list.isEmpty()) {
+            // Пустой сохранённый список — законное состояние (ТЗ 49): человек
+            // удалил все серверы. Заводим профиль, только если списка не было.
+            if (raw == null) {
                 val migrated = migrateLegacy()
                 list.add(migrated)
                 saveAll(list, migrated.id)
@@ -105,7 +107,8 @@ class Settings(context: Context) {
     /** Сервер, который сейчас используется для подключения. */
     fun active(): Profile {
         val list = profiles
-        return list.find { it.id == activeProfileId } ?: list.first()
+        // Серверов нет — пустой профиль без id: подключаться некуда.
+        return list.find { it.id == activeProfileId } ?: list.firstOrNull() ?: newProfile("").copy(id = "")
     }
 
     /** Делает сервер активным. Ничего не значащий id — без эффекта. */
@@ -134,13 +137,12 @@ class Settings(context: Context) {
         return "Server $n"
     }
 
-    /** Последний сервер удалить нельзя — подключаться должно быть куда. */
+    /** Удаляет сервер — и последний тоже (ТЗ 49): тогда серверов ноль. */
     fun removeProfile(id: String): Boolean {
         val list = profiles
-        if (list.size <= 1) return false
         if (!list.removeAll { it.id == id }) return false
         keyFile(id).delete()
-        val active = if (activeProfileId == id) list.first().id else activeProfileId
+        val active = if (activeProfileId == id) list.firstOrNull()?.id.orEmpty() else activeProfileId
         saveAll(list, active)
         return true
     }
@@ -167,6 +169,7 @@ class Settings(context: Context) {
     }
 
     fun saveProfile(p: Profile) {
+        if (p.id.isBlank()) return // пустой профиль «серверов нет» не сохраняется
         val list = profiles
         val i = list.indexOfFirst { it.id == p.id }
         if (i >= 0) list[i] = p else list.add(p)
@@ -388,11 +391,12 @@ class Settings(context: Context) {
             }
             list.add(p)
         }
-        if (list.isEmpty()) return DeviceChange("", false)
+        // Пустой список — только если так решил Go (удалены все серверы).
+        if (list.isEmpty() && arr.length() > 0) return DeviceChange("", false)
         for (p in old) if (list.none { it.id == p.id }) keyFile(p.id).delete()
         val active = o.optString("active").ifBlank { activeProfileId }
         val activeChanged = active != activeProfileId
-        saveAll(list, if (list.any { it.id == active }) active else list.first().id)
+        saveAll(list, if (list.any { it.id == active }) active else list.firstOrNull()?.id.orEmpty())
         deviceJson = dev?.toString() ?: ""
         return DeviceChange(o.optString("note"), activeChanged)
     }
@@ -482,7 +486,7 @@ class Settings(context: Context) {
             }
             list.add(p)
         }
-        saveAll(list, activeProfileId.ifBlank { list.first().id })
+        saveAll(list, activeProfileId.ifBlank { list.firstOrNull()?.id.orEmpty() })
         // Не сохранённый здесь сервер не помечаем «уже добавляли»: иначе Go
         // считал бы его удалённым человеком и больше не предлагал.
         o.optJSONArray("seen")?.let { seen ->

@@ -574,11 +574,24 @@ object AndroidApi : mobile.API {
     }
 
     private fun removeProfile(s: Settings, id: String): String {
-        if (s.profiles.size <= 1) return err(str(R.string.err_last_server))
-        if (s.profiles.find { it.id == id }?.fromPanel?.isNotBlank() == true) return err(str(R.string.err_panel_server))
+        val p = s.profiles.find { it.id == id } ?: return err(str(R.string.err_server_not_found))
         val wasActive = id == s.activeProfileId
-        s.removeProfile(id)
-        if (wasActive) restartIfRunning(s)
+        if (p.fromPanel.isNotBlank()) {
+            // Сервер из панели — только если устройство удалено в панели
+            // (ТЗ 49); убирает его и из устройства общий код Go.
+            if (!deviceGone) return err(str(R.string.err_panel_server))
+            deviceApply(s, deviceState(s, "remove").put("id", id))
+        } else {
+            s.removeProfile(id)
+        }
+        if (wasActive) {
+            // Серверов не осталось — подключаться некуда: туннель остановить.
+            if (s.profiles.isEmpty()) {
+                if (TunnelService.state != "stopped") service(TunnelService.ACTION_STOP)
+            } else restartIfRunning(s)
+        }
+        TunnelService.profilesChanged(s)
+        configChanged()
         return JSONObject().put("config", config(s)).toString()
     }
 
@@ -819,6 +832,8 @@ object AndroidApi : mobile.API {
     // здесь только хранение и ответы экрану, как /api/device на ПК.
 
     @Volatile private var deviceSync = JSONObject()
+    /** Последняя сверка: ни один сервер устройство не знает (удалено в панели). */
+    @Volatile private var deviceGone = false
 
     private fun deviceState(s: Settings, op: String): JSONObject = JSONObject()
         .put("op", op)
@@ -832,8 +847,22 @@ object AndroidApi : mobile.API {
         val out = JSONObject(mobile.Mobile.deviceApply(st.toString()))
         val ch = s.applyDeviceState(out.toString())
         if (ch.activeChanged || restart) restartIfRunning(s)
+        // Новые серверы из профиля — сразу и в работающую службу (иначе
+        // они появлялись только после переподключения, ТЗ 49), и на экран.
+        else if (out.optBoolean("changed")) TunnelService.profilesChanged(s)
+        if (out.optBoolean("changed")) configChanged()
         pushState()
         return Pair(out, ch.note)
+    }
+
+    /**
+     * Настройки поменялись не от экрана (профиль устройства, сеть серверов):
+     * экран перечитывает /api/config — пока туннель поднят, сам он их не
+     * опрашивает (как событие config на ПК).
+     */
+    fun configChanged() {
+        if (!::app.isInitialized) return
+        mobile.Mobile.emit(JSONObject().put("kind", "config").toString())
     }
 
     private fun deviceView(s: Settings, applied: JSONObject?): JSONObject {
@@ -848,6 +877,8 @@ object AndroidApi : mobile.API {
         return JSONObject().put("device", dev)
             .put("net", v.optJSONObject("net") ?: JSONObject())
             .put("meshAllowed", v.optBoolean("meshAllowed", true))
+            .put("netMissing", v.optBoolean("netMissing", false))
+            .put("gone", deviceGone)
             .put("sync", deviceSync)
     }
 
@@ -861,6 +892,10 @@ object AndroidApi : mobile.API {
                 val (out, note) = deviceApply(s, deviceState(s, "set").put("join", JSONObject(j)))
                 val pe = JSONObject(j).optString("profileErr")
                 deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("err", pe)
+                // Профиль сразу не прочитался — есть только сервер приглашения.
+                // Остальные — как только профиль прочитается (своим SSH, не
+                // дожидаясь подключения), а не при следующем подключении.
+                if (pe.isNotBlank()) retryFirstProfile(s)
                 deviceView(s, out).put("ok", true).put("note", note).toString()
             }
             "sync" -> deviceView(s, deviceSyncNow(s)).put("ok", true)
@@ -895,13 +930,27 @@ object AndroidApi : mobile.API {
         return try {
             val prof = mobile.Mobile.deviceFetch(s.deviceJson, s.coreProfilesJson(), s.knownHostsFile.absolutePath)
             val (out, note) = deviceApply(s, deviceState(s, "apply").put("profile", JSONObject(prof)))
+            deviceGone = false
             deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("note", note)
             if (note.isNotBlank()) emitLog(str(R.string.log_panel_profile, note))
             out
         } catch (e: Exception) {
-            deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("err", e.message ?: e.toString())
+            val msg = e.message ?: e.toString()
+            deviceGone = msg.contains(mobile.Mobile.deviceGoneText())
+            deviceSync = JSONObject().put("t", System.currentTimeMillis() / 1000).put("err", msg)
             null
         }
+    }
+
+    /** Первый профиль устройства: до 10 попыток раз в 30 секунд. */
+    private fun retryFirstProfile(s: Settings) {
+        Thread {
+            for (i in 0 until 10) {
+                try { Thread.sleep(30_000) } catch (_: InterruptedException) { return@Thread }
+                if (s.deviceJson.isBlank()) return@Thread
+                if (deviceSyncNow(s) != null) return@Thread
+            }
+        }.start()
     }
 
     private fun obj(body: String): JSONObject = try { JSONObject(body) } catch (_: Exception) { JSONObject() }

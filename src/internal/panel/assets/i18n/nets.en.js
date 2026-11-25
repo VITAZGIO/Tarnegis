@@ -87,4 +87,11 @@ Object.assign(I18N.en, {
   net_approval_on:'New devices now wait for approval',
   net_approval_off:'New devices join at once',
   net_pending:'Awaiting approval',
+  pnet_badge:'panel network',
+  pnet_title:'Panel network',
+  pnet_note:'Devices added by invite land here. An older device moves here with «New invite» on its page in «Devices».',
+  pnet_none:'There is no panel network yet. It is created with the first invite that has the device network — or now, with the button. Devices added by invite join it; older networks stay as they are.',
+  pnet_waiting:'The panel network exists but has no devices yet. It shows up here when the first device added by invite turns the device network on.',
+  pnet_create:'Create panel network',
+  pnet_created:'Panel network created',
 });

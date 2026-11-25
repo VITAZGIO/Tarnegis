@@ -46,6 +46,8 @@ const demoReturnAfter = 45 * time.Second
 
 type demoBackend struct {
 	mu      sync.Mutex
+	// panelNet — id сети панели (ТЗ 49); в показе это «Дом».
+	panelNet string
 	version string
 	started time.Time
 	rnd     *rand.Rand
@@ -228,6 +230,7 @@ func (d *demoBackend) seed() {
 	}
 
 	home := &MeshNetwork{ID: "9f3c2a71d04e8b65", Name: "Дом", Created: unix - 120*day}
+	d.panelNet = home.ID
 	pc := dev("e1a04f", "rabochiy-pk", "windows", "198.19.0.1", 1, true, 3.2, "main")
 	wsl := dev("e1a050", "rabochiy-pk-wsl", "linux", "198.19.0.7", 1, true, 3.4, "main")
 	nb := dev("7c22d9", "noutbuk", "windows", "198.19.0.2", 2, true, 5.1, "main")
@@ -925,6 +928,16 @@ func (d *demoBackend) routes() http.Handler {
 		st := d.state()
 		st.Job = d.meshJob.snapshot()
 		writeJSON(w, http.StatusOK, st)
+	})
+	h("/api/mesh/panelnet/create", func(w http.ResponseWriter, r *http.Request) {
+		var req struct{}
+		if !decodePost(w, r, &req) {
+			return
+		}
+		if d.panelNet == "" {
+			d.panelNet = meshNetID(newPanelMeshKey())
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "net": d.panelNet})
 	})
 	h("/api/mesh/role", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -1653,6 +1666,7 @@ func (d *demoBackend) state() MeshState {
 		ServerAccess: d.self.Enabled, ServerPorts: d.self.Ports,
 		Version: meshdVersion, StartedAt: d.meshdStarted, Release: d.version,
 		Servers: append([]MeshServer{}, d.servers...), Networks: []MeshNetwork{},
+		PanelNet: d.panelNet,
 	}
 	if d.oldMeshd {
 		st.Version, st.Release = "1.6.0 (старая)", ""

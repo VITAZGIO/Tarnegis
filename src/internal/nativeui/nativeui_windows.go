@@ -90,6 +90,8 @@ var (
 	pSetWindowPos     = user32.NewProc("SetWindowPos")
 	pAdjustWindowRect = user32.NewProc("AdjustWindowRectEx")
 	pGetDpiForWindow  = user32.NewProc("GetDpiForWindow")
+	pMonitorFromWin   = user32.NewProc("MonitorFromWindow")
+	pGetMonitorInfo   = user32.NewProc("GetMonitorInfoW")
 	pFindWindow       = user32.NewProc("FindWindowW")
 	pPostMessage      = user32.NewProc("PostMessageW")
 	pSendMsgTimeout   = user32.NewProc("SendMessageTimeoutW")
@@ -544,10 +546,53 @@ func (u *ui) fixWindowStyle() {
 
 	r := rect{0, 0, w, h}
 	pAdjustWindowRect.Call(uintptr(unsafe.Pointer(&r)), style, 0, 0)
+	ow, oh := r.Right-r.Left, r.Bottom-r.Top
 
-	pSetWindowPos.Call(u.hwnd, 0, 0, 0,
-		uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top),
+	// Маленький экран (ноутбук 1366×768 с панелью задач и масштабом 125 %,
+	// ТЗ 49): окно не выше рабочей области монитора — содержимое
+	// прокручивается внутри, нижние кнопки остаются на экране.
+	if wa, ok := u.workArea(); ok {
+		flags := uintptr(swpNoZOrder | swpFrameChanged)
+		if wh := wa.Bottom - wa.Top; oh > wh {
+			oh = wh
+		}
+		if ww := wa.Right - wa.Left; ow > ww {
+			ow = ww
+		}
+		x := wa.Left + (wa.Right-wa.Left-ow)/2
+		y := wa.Top + (wa.Bottom-wa.Top-oh)/2
+		pSetWindowPos.Call(u.hwnd, 0, uintptr(x), uintptr(y), uintptr(ow), uintptr(oh), flags)
+		return
+	}
+	pSetWindowPos.Call(u.hwnd, 0, 0, 0, uintptr(ow), uintptr(oh),
 		swpNoMove|swpNoZOrder|swpFrameChanged)
+}
+
+// workArea — рабочая область монитора окна (без панели задач), в
+// физических пикселях.
+func (u *ui) workArea() (rect, bool) {
+	if pMonitorFromWin.Find() != nil || pGetMonitorInfo.Find() != nil {
+		return rect{}, false
+	}
+	const monitorDefaultToNearest = 2
+	mon, _, _ := pMonitorFromWin.Call(u.hwnd, monitorDefaultToNearest)
+	if mon == 0 {
+		return rect{}, false
+	}
+	var mi struct {
+		Size    uint32
+		Monitor rect
+		Work    rect
+		Flags   uint32
+	}
+	mi.Size = uint32(unsafe.Sizeof(mi))
+	if ok, _, _ := pGetMonitorInfo.Call(mon, uintptr(unsafe.Pointer(&mi))); ok == 0 {
+		return rect{}, false
+	}
+	if mi.Work.Bottom-mi.Work.Top < 200 || mi.Work.Right-mi.Work.Left < 200 {
+		return rect{}, false
+	}
+	return mi.Work, true
 }
 
 // themeTitleBar красит полосу заголовка в цвет фона приложения, чтобы окно

@@ -193,7 +193,7 @@ func (m *ClientManager) RemoveKey(id, pubKey string) error {
 		return fmt.Errorf("неверный открытый ключ")
 	}
 	key := keys[0]
-	return m.setKeys(id, func(c *Client) error {
+	return m.setKeysOpt(id, true, func(c *Client) error {
 		all := c.keys()
 		if !slices.Contains(all, key) {
 			return fmt.Errorf("у устройства нет такого ключа")
@@ -214,6 +214,12 @@ func (m *ClientManager) RemoveKey(id, pubKey string) error {
 }
 
 func (m *ClientManager) setKeys(id string, fn func(*Client) error) error {
+	return m.setKeysOpt(id, false, fn)
+}
+
+// setKeysOpt — missingOK: пользователя на сервере нет — ключи меняются
+// только в записи (убрать ключ у того, кого нет, — уже сделано).
+func (m *ClientManager) setKeysOpt(id string, missingOK bool, fn func(*Client) error) error {
 	m.editMu.Lock()
 	defer m.editMu.Unlock()
 	c, ok := m.store.Get(id)
@@ -224,15 +230,7 @@ func (m *ClientManager) setKeys(id string, fn func(*Client) error) error {
 		return err
 	}
 	if c.State != StateFrozen {
-		content, err := m.provisioner.ReadAuthorizedKeys(c.Username)
-		if err != nil {
-			return err
-		}
-		updated, err := withClientKeys(content, c)
-		if err != nil {
-			return err
-		}
-		if err := m.provisioner.WriteAuthorizedKeys(c.Username, updated); err != nil {
+		if err := m.writeKeys(c); err != nil && !(missingOK && userMissing(err)) {
 			return err
 		}
 	}
@@ -241,6 +239,18 @@ func (m *ClientManager) setKeys(id string, fn func(*Client) error) error {
 	}
 	m.notify(c, false)
 	return nil
+}
+
+func (m *ClientManager) writeKeys(c Client) error {
+	content, err := m.provisioner.ReadAuthorizedKeys(c.Username)
+	if err != nil {
+		return err
+	}
+	updated, err := withClientKeys(content, c)
+	if err != nil {
+		return err
+	}
+	return m.provisioner.WriteAuthorizedKeys(c.Username, updated)
 }
 
 // dropLocal — учётной записи больше нельзя на этот сервер (ТЗ 47): её
@@ -367,7 +377,11 @@ func (m *ClientManager) DeleteClient(id string) error {
 func (m *ClientManager) deleteClient(c Client) error {
 	id := c.ID
 	if err := m.provisioner.DeleteUser(c.Username); err != nil {
-		return fmt.Errorf("не могу удалить пользователя %s: %w", c.Username, err)
+		if !userMissing(err) {
+			return fmt.Errorf("не могу удалить пользователя %s: %w", c.Username, err)
+		}
+		// Пользователя здесь и так нет — удалять нечего, запись уходит.
+		m.warn("пользователя %s на этом сервере уже нет — удаляю только запись", c.Username)
 	}
 	if m.traffic != nil {
 		if err := m.traffic.RemoveClient(c.ID); err != nil {

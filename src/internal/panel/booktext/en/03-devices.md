@@ -54,6 +54,10 @@ before.
 new phone). It adds one more key to the same account; old keys stay until you
 remove them in **Servers and network** → **Keys**.
 
+**New invite** is also the way to move an older device into the **panel
+network** (chapter "Networks"): a device that comes in by invite takes the
+network key from the panel and lands where all invited devices are.
+
 ## The list: address, name, system
 
 Two values in a device row are copied with a click: the **network address**
@@ -76,7 +80,10 @@ Each device has three actions. They differ in strength:
   device can connect again.
 - **Delete** — erases the account and its keys on every server of the network
   (servers that are offline now — at their next sync). Without a new invite the
-  device will not log in again. The panel asks for confirmation.
+  device will not log in again. The panel asks for confirmation. If the
+  device's system user is already gone on a server (removed by hand, an old
+  record), deleting still works: there is nothing to remove there, only the
+  record goes. The program on the device then lets you delete its servers.
 
 ## Why an SSH login and a network device are one row
 

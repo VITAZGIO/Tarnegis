@@ -123,6 +123,13 @@ func (n *ServerNet) collectLocal(ctx context.Context) map[string]any {
 			out[kAccess] = n.srv.settings.Get().Access
 		}
 	}
+	// Сеть панели этого сервера — в общие данные новой сети (входит в чужую
+	// сеть — остаётся заведённый раньше, panelnet.go).
+	n.mu.Lock()
+	if r := n.loadPanelNetLocked(); r.valid() {
+		out[kMeshKey] = r
+	}
+	n.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	ms, err := n.mesh.admin.State(ctx)
@@ -448,7 +455,7 @@ func (n *ServerNet) preview(ctx context.Context, items map[string]srvItem) JoinP
 		}
 	}
 	for k, v := range n.collectLocal(ctx) {
-		if strings.HasPrefix(k, kAcct) || k == kAccess || strings.HasPrefix(k, kOK) {
+		if strings.HasPrefix(k, kAcct) || k == kAccess || strings.HasPrefix(k, kOK) || k == kMeshKey {
 			continue
 		}
 		want, _ := json.Marshal(v)

@@ -73,6 +73,21 @@
   #power:disabled{opacity:.55;cursor:default}
 
   .status{text-align:center;flex:none}
+  /* «?» у «Открыть панель сервера» (ТЗ 49): как открыть панель руками. */
+  .panelHelpBtn{min-width:36px;padding-left:0;padding-right:0;font-weight:700}
+  .panelHelp{margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+             background:var(--card2, var(--card));font-size:12.5px;line-height:1.45}
+  .panelHelp p{margin:0 0 6px}
+  .panelHelp .cmdRow{display:flex;gap:6px;align-items:center;margin:0 0 8px}
+  .panelHelp code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;padding:5px 7px;border-radius:7px;
+                  background:var(--bg);font:12px/1.4 var(--mono, ui-monospace, Consolas, monospace);
+                  -webkit-user-select:all;user-select:all}
+  /* Серверов нет совсем (ТЗ 49): вместо круглой кнопки — как их добавить. */
+  .noServers{align-self:center;display:flex;flex-direction:column;align-items:center;gap:10px;
+             text-align:center;max-width:340px;padding:0 16px}
+  .noServers .t{font-size:18px;font-weight:600}
+  .noServers .btn{width:100%}
+  body.noSrv #power, body.noSrv .under, body.noSrv .stats, body.noSrv #actions{display:none}
   .status .s{font-size:15.5px;font-weight:600}
   /* Как и у строки с задержкой, высота держится постоянной: адрес сервера
      появляется только после подключения, и без этого блок состояния подрастал
@@ -130,7 +145,9 @@
      плавной прокруткой из кода. Длинный список устройств листается внутри
      своей таблицы. */
   #viewMain.on{display:block;overflow:hidden;padding-bottom:0;overscroll-behavior:none}
-  .mainPage{height:100%;display:flex;flex-direction:column;padding-bottom:16px}
+  /* Низкое окно (ноутбук, ТЗ 49): главный экран не сжимается меньше своего
+     содержимого — экран прокручивается, нижние кнопки достижимы. */
+  .mainPage{height:100%;min-height:500px;display:flex;flex-direction:column;padding-bottom:16px}
   .devPage{height:100%;padding:4px 0 16px;display:flex;flex-direction:column}
   .devPage[hidden]{display:none}
   .devTable{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -361,7 +378,7 @@
           flex-direction:column;overflow:hidden}
   .dialog .dh{display:flex;align-items:center;gap:9px;padding:12px 13px 9px}
   .dialog .dh .t{flex:1;font-weight:650;font-size:14px}
-  .dialog .db{padding:0 13px 13px;display:flex;flex-direction:column;min-height:0}
+  .dialog .db{padding:0 13px 13px;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
   .proclist{overflow-y:auto;margin-top:9px;display:flex;flex-direction:column;gap:5px}
   .proc{display:flex;align-items:center;gap:9px;background:var(--card2);
         border:1px solid transparent;border-radius:8px;padding:7px 10px;
@@ -811,6 +828,13 @@
     <!-- Кнопка со статусом занимают всё свободное место и центрируются в нём,
          плитки прижаты к низу окна. -->
     <div class="middle">
+      <div class="noServers" id="noServers" hidden>
+        <div class="t" data-i18n="no_servers">Нет серверов</div>
+        <div class="hint" data-i18n="no_servers_note">Добавь сервер, чтобы подключаться.</div>
+        <button type="button" class="btn primary" id="noSrvInvite" data-i18n="invite_title">Добавить по приглашению</button>
+        <button type="button" class="btn" id="noSrvAdd" data-i18n="add_server">Добавить сервер</button>
+        <button type="button" class="btn desk-only" id="noSrvVps" data-i18n="vps_new_btn">Настроить новый сервер</button>
+      </div>
       <button id="power">
         <svg viewBox="0 0 24 24"><path d="M12 3.2v8.6"/><path d="M6.5 7a8.5 8.5 0 1 0 11 0"/></svg>
         <span class="cap" id="powerCap" data-i18n="connect">Подключить</span>
@@ -1079,8 +1103,10 @@
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input type="text" id="adminUser" spellcheck="false" placeholder="root" style="flex:1;min-width:120px">
         <button type="button" class="btn" id="openPanelBtn" data-i18n="panel_open_btn">Открыть панель сервера</button>
+        <button type="button" class="btn panelHelpBtn" id="openPanelHelpBtn" title="Как открыть панель вручную" data-i18n-title="panel_manual_title" aria-label="?">?</button>
       </div>
       <span class="hint" id="openPanelNote" style="display:block;margin-top:4px"></span>
+      <div class="panelHelp" id="openPanelHelp" hidden></div>
     </div>
 
     <div class="field" id="hkProfileRow" hidden>
@@ -1722,8 +1748,10 @@
         <p class="note" id="vpsResPublic" hidden></p>
         <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px">
           <button class="btn primary" id="vpsResOpenPanel" data-i18n="panel_open_btn">Открыть панель сервера</button>
+          <button type="button" class="btn panelHelpBtn" id="vpsResHelpBtn" title="Как открыть панель вручную" data-i18n-title="panel_manual_title" aria-label="?">?</button>
           <span class="hint" id="vpsResHint"></span>
         </div>
+        <div class="panelHelp" id="vpsResHelp" hidden></div>
       </div>
       <button type="button" class="vpsLink" id="vpsResAgain" style="margin-top:12px" data-i18n="vps_res_again">Настроить ещё один сервер ›</button>
     </div>
@@ -2215,6 +2243,7 @@ const I18N = {
     sc_external_ip_check_failed:'не удалось узнать внешний адрес: {detail}',
     language_label:'Язык интерфейса / Language',
     add_server:'Добавить сервер',
+    no_servers:'Нет серверов', no_servers_note:'Добавь сервер, чтобы подключаться.',
     invite_btn:'По приглашению', invite_title:'Добавить по приглашению',
     invite_hint:'Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): текст начинается с «sshtun1:». '+
       'Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.',
@@ -2227,6 +2256,7 @@ const I18N = {
     devnet_title:'Устройство из панели: {name}', devnet_servers:'Серверов из панели', devnet_synced:'сверено',
     devnet_banned:'Сеть устройств выключена на сервере. Твой выбор сохранён и заработает, когда панель снова её разрешит.',
     devnet_frozen:'Устройство заморожено в панели сервера: сеть устройств не работает, пока его не разморозят.',
+    devnet_nokey:'Панель не выдала сеть устройств — обнови сервер. Пока сети устройств нет.',
     devnet_on:'Включить сеть устройств на этом устройстве', devnet_only:'Только через подключённый сервер',
     devnet_only_hint:'Не держать связь сети устройств с другими серверами из панели — только с тем, к которому подключён туннель.',
     devnet_exit:'Выход в интернет через',
@@ -2270,6 +2300,13 @@ const I18N = {
     vps_res_panel_pass:'Одноразовый пароль (панель попросит сменить его при первом входе):',
     vps_res_public:'Панель открыта в интернет: {u}', vps_res_again:'Настроить ещё один сервер ›',
     panel_open_btn:'Открыть панель сервера', panel_opening:'открываю…',
+    panel_manual_title:'Как открыть панель вручную',
+    panel_manual_1:'Панель слушает только на самом сервере: 127.0.0.1:47823. Открыть её вручную с компьютера — запусти в терминале и не закрывай это окно:',
+    panel_manual_2:'Пока окно открыто, панель — по адресу http://127.0.0.1:47823 в браузере.',
+    panel_manual_3:'Логин — admin. Одноразовый пароль покажет эта команда на сервере:',
+    panel_manual_4:'Пароль потерян — удали users.json в папке данных панели и перезапусти её:',
+    panel_manual_copied:'Скопировано', panel_manual_addr:'адрес',
+    panel_manual_cmd_pass:'journalctl -u ssh_tunnel_panel | grep -E "Логин|Пароль"',
     panel_bar_text:'Панель сервера «{n}» открыта на localhost:{p}', panel_bar_open:'Открыть', panel_bar_close:'Закрыть',
     panel_closed_self:'Проброс к панели закрылся: {r}',
     panel_save_first:'сначала сохрани сервер',
@@ -2612,6 +2649,7 @@ const I18N = {
     sc_external_ip_check_failed:"couldn't check the external address: {detail}",
     language_label:'Interface language',
     add_server:'Add server',
+    no_servers:'No servers', no_servers_note:'Add a server to connect.',
     invite_btn:'By invite', invite_title:'Add by invite',
     invite_hint:'The server panel issues the invite (Devices → “Add device”): the text starts with “sshtun1:”. '+
       'The app creates the device key itself, signs in to the server and adds every server the panel allows. An invite works once.',
@@ -2624,6 +2662,7 @@ const I18N = {
     devnet_title:'Device from the panel: {name}', devnet_servers:'Servers from the panel', devnet_synced:'synced',
     devnet_banned:'The device network is turned off on the server. Your choice is kept and works again once the panel allows it.',
     devnet_frozen:'This device is frozen in the server panel: the device network stays off until it is unfrozen.',
+    devnet_nokey:'The panel did not hand out the device network — update the server. Until then there is no device network.',
     devnet_on:'Turn on the device network on this device', devnet_only:'Only through the connected server',
     devnet_only_hint:'Do not keep device-network links to the other panel servers — only to the one the tunnel is connected to.',
     devnet_exit:'Go to the internet through',
@@ -2664,7 +2703,14 @@ const I18N = {
     vps_res_to_list:'open in the list ›', vps_res_panel_login:'Server panel — login:',
     vps_res_panel_pass:'One-time password (the panel asks to change it on first login):',
     vps_res_public:'Panel is open to the internet: {u}', vps_res_again:'Set up another server ›',
-    panel_open_btn:'Open server panel', panel_opening:'opening…',
+    panel_open_btn:'Open server panel',
+    panel_manual_title:'How to open the panel by hand',
+    panel_manual_1:'The panel listens only on the server itself: 127.0.0.1:47823. To open it by hand from a computer, run this in a terminal and keep the window open:',
+    panel_manual_2:'While that window is open, the panel is at http://127.0.0.1:47823 in a browser.',
+    panel_manual_3:'Login is admin. This command on the server shows the one-time password:',
+    panel_manual_4:'Lost the password? Delete users.json in the panel data folder and restart it:',
+    panel_manual_copied:'Copied', panel_manual_addr:'address',
+    panel_manual_cmd_pass:'journalctl -u ssh_tunnel_panel | grep -E "Логин|Пароль"', panel_opening:'opening…',
     panel_bar_text:'Server panel "{n}" is open at localhost:{p}', panel_bar_open:'Open', panel_bar_close:'Close',
     panel_closed_self:'The panel connection closed: {r}',
     panel_save_first:'save the server first',
@@ -3928,6 +3974,9 @@ function connectEvents(){
     if(e.kind === 'log')      return addMsg(e);
     if(e.kind === 'vpssetup') return onVpsSetupEvent(e);
     if(e.kind === 'core') return renderCore(e.core);
+    // Настройки поменялись не отсюда (профиль устройства из панели, новый
+    // сервер сети): перечитать — пока туннель поднят, сами не опрашиваем.
+    if(e.kind === 'config') return refresh();
     if(e.kind === 'state'){
       setState(e.state, e.state === 'connected' ? e.detail : '');
       return;
@@ -5415,7 +5464,10 @@ function renderGeneralVisibility(){
   // hidden тут не подействует.
   $('showPickerRow').style.display = many ? 'flex' : 'none';
   $('autoPickRow').style.display = many ? 'flex' : 'none';
-  $('removeServerBtn').hidden = !many || isPanelProf(currentProfile());
+  // Удалить можно любой, и последний (ТЗ 49); сервер из панели — только
+  // когда устройство удалено в панели.
+  const cp = currentProfile();
+  $('removeServerBtn').hidden = !cp.id || (isPanelProf(cp) && !(devInfo && devInfo.gone));
   updateServerButtonsSpan();
 }
 
@@ -5473,7 +5525,7 @@ $('selectServerBtn').onclick = async () => {
 };
 
 $('removeServerBtn').onclick = async () => {
-  if((cfg.profiles || []).length <= 1) return;
+  if(!(cfg.profiles || []).length) return;
   if(!await appConfirm(tr('confirm_remove_server'))) return;
   const r = await api('/api/profile/remove', { id: editingProfileId });
   if(r.error){ showError(r.error, 'setError'); return; }
@@ -5573,6 +5625,7 @@ async function loadDevice(){
   if(!r || r.error) return;
   devInfo = r;
   renderDeviceNet();
+  renderGeneralVisibility(); // «Удалить сервер» у серверов из панели зависит от devInfo.gone
 }
 
 function openInvite(text){
@@ -5662,8 +5715,9 @@ function renderDeviceNet(){
   const allowed = !!devInfo.meshAllowed;
   box.classList.toggle('off', !allowed);
   $('devNetTitle').textContent = tr('devnet_title').replace('{name}', d.name || d.id);
-  $('devNetBan').hidden = allowed;
-  $('devNetBan').textContent = tr(d.frozen ? 'devnet_frozen' : 'devnet_banned');
+  // Сеть разрешена, а ключа сети панель не выдала (сервер старше) — сети нет.
+  $('devNetBan').hidden = allowed && !devInfo.netMissing;
+  $('devNetBan').textContent = tr(!allowed ? (d.frozen ? 'devnet_frozen' : 'devnet_banned') : 'devnet_nokey');
   $('devNetOn').checked = !!n.on;
   $('devNetOnly').checked = !!n.onlyThis;
   ['devNetOn','devNetOnly','devExit1','devExit2'].forEach(id => $(id).disabled = !allowed && id !== 'devNetOn');
@@ -6227,8 +6281,20 @@ function applyDoc(newCfg, keepEditing){
   renderHomePicker();
   applyI18n();
   formDirty = false;
+  renderNoServers();
   loadDevice();
 }
+
+// renderNoServers — серверов ноль: на главном вместо круглой кнопки «Нет
+// серверов» и три способа добавить.
+function renderNoServers(){
+  const none = !(cfg.profiles || []).length;
+  document.body.classList.toggle('noSrv', none);
+  $('noServers').hidden = !none;
+}
+$('noSrvInvite').onclick = () => openInvite('');
+$('noSrvAdd').onclick = () => { show('viewServers'); addProfile(); };
+$('noSrvVps').onclick = () => { if(!vpsSetupRunning) vpsShowForm(); show('viewVpsSetup'); };
 
 
 async function refresh(){
@@ -6872,6 +6938,46 @@ async function openServerPanel(id, adminUser, noteEl, cred){
     openExternal(r.url);
   }
 }
+// renderPanelHelp — «?» у «Открыть панель сервера»: как открыть панель
+// вручную (ТЗ 49). Адрес и вход — того сервера, о котором речь.
+function renderPanelHelp(box, host, port, user){
+  if(!box.hidden){ box.hidden = true; return; }
+  box.textContent = '';
+  const addr = (host || '').trim() || '<' + tr('panel_manual_addr') + '>';
+  const login = (user || '').trim() || 'root';
+  const p = Number(port) > 0 && Number(port) !== 22 ? ' -p ' + Number(port) : '';
+  const para = k => { const e = document.createElement('p'); e.textContent = tr(k); box.appendChild(e); };
+  const cmd = (text, copy) => {
+    const row = document.createElement('div');
+    row.className = 'cmdRow';
+    const c = document.createElement('code');
+    c.textContent = text;
+    row.appendChild(c);
+    if(copy){
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn'; b.textContent = tr('mesh_copy');
+      b.onclick = async () => { if(await copyToClipboard(text)){ b.textContent = tr('panel_manual_copied'); setTimeout(() => b.textContent = tr('mesh_copy'), 1500); } };
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+  };
+  para('panel_manual_1');
+  cmd('ssh' + p + ' -L 47823:127.0.0.1:47823 ' + login + '@' + addr, true);
+  para('panel_manual_2');
+  para('panel_manual_3');
+  // Строки журнала панели — по-русски на любом языке интерфейса.
+  cmd(tr('panel_manual_cmd_pass'), true);
+  para('panel_manual_4');
+  cmd('rm /etc/ssh_tunnel_panel/users.json && systemctl restart ssh_tunnel_panel', false);
+  box.hidden = false;
+}
+$('openPanelHelpBtn').onclick = () => {
+  const pr = currentProfile();
+  renderPanelHelp($('openPanelHelp'), pr.host, pr.sshPort, ($('adminUser').value || '').trim() || pr.adminUser);
+};
+$('vpsResHelpBtn').onclick = () => {
+  renderPanelHelp($('vpsResHelp'), $('vpsHost').value, $('vpsPort').value, $('vpsUser').value);
+};
 $('openPanelBtn').onclick = () => {
   if(formDirty){ $('openPanelNote').textContent = tr('panel_save_first'); return; }
   openServerPanel(editingProfileId, ($('adminUser').value || '').trim(), $('openPanelNote'));

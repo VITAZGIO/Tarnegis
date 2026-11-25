@@ -313,15 +313,25 @@ app does the rest:
 - it adds **every server the panel allows**, marked “from panel”.
 
 Panel servers follow the panel: their address, port and sign-in cannot be
-edited, and they cannot be removed — only **“Hide here”**. When the panel
-removes a server it disappears from the device too (if it was the connected
-one, the app switches to another and says so in one line); when the panel
-adds one it shows up with its key already recorded. The app syncs with the
-panel on every connect and every 10 minutes while connected to such a server,
-and remembers the last answer for starting offline.
+edited, and they cannot be removed — only **“Hide here”** (until the device is
+deleted in the panel: then they can be removed). When the panel removes a
+server it disappears from the device too (if it was the connected one, the app
+switches to another and says so in one line); when the panel adds one it shows
+up right away, with its key already recorded, without restarting the app. The
+app syncs with the panel on every connect, when the network's server list
+changes and every 10 minutes while connected to such a server, and remembers
+the last answer for starting offline.
 
-The **device network** for these servers is set once per device, not per
-server: **Settings → Device network**, “Device from the panel” block (on/off,
+You can delete all of your own servers, the last one too: the main screen then
+says “No servers” with three buttons: “Add by invite”, “Add server”, “Set up a
+new server”.
+
+The **device network** for these servers is the **panel network**: the panel
+hands out the network key, so every device added by invite is in one network.
+A device from the panel never makes a key of its own; with an old server that
+does not hand out the key there is no device network, and the app says “the
+panel did not hand out the device network — update the server”. Its settings
+are set once per device, not per server: **Settings → Device network**, “Device from the panel” block (on/off,
 “only through the connected server”, go to the internet through). If the
 panel turns the device network off for this device, the block is greyed out;
 your choice is kept and works again once the panel allows it. Servers you

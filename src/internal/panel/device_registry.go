@@ -313,6 +313,12 @@ func (s *Server) createInvite(req inviteReq) (inviteResult, error) {
 		}
 		d.Servers = list
 	}
+	if !d.NoMesh && s.mesh != nil {
+		// Первое приглашение с сетью устройств заводит сеть панели.
+		if _, err := s.mesh.net.PanelNet(true); err != nil {
+			return inviteResult{}, err
+		}
+	}
 	tok, d, err := s.inviteStore().add(d)
 	if err != nil {
 		return inviteResult{}, err
@@ -465,6 +471,9 @@ type deviceProfile struct {
 	Servers []profileServer `json:"servers"`
 	Mesh    bool            `json:"mesh"`
 	Frozen  bool            `json:"frozen"`
+	// MeshKey — ключ сети панели (ТЗ 49): только устройству с сетью
+	// устройств и не замороженному, только по его же каналу.
+	MeshKey string `json:"meshKey,omitempty"`
 }
 
 // netProfile — серверы сети, разрешённые записи, и rev по общим данным:
@@ -478,7 +487,8 @@ func (n *ServerNet) netProfile(user string, servers []string) (list []profileSer
 		return nil, 0, false
 	}
 	for k, it := range n.f.Items {
-		if k == kAcct+user || strings.HasPrefix(k, kSrv) || strings.HasPrefix(k, kSName) {
+		// kMeshKey — появилась сеть панели: устройства должны забрать ключ.
+		if k == kAcct+user || strings.HasPrefix(k, kSrv) || strings.HasPrefix(k, kSName) || k == kMeshKey {
 			rev = max(rev, it.T)
 		}
 	}
@@ -515,6 +525,15 @@ func (n *ServerNet) netProfile(user string, servers []string) (list []profileSer
 func (s *Server) profileOf(c Client) deviceProfile {
 	p := deviceProfile{V: 1, ID: c.ID, Name: c.Name, Rev: c.Rev, Mesh: !c.NoMesh, Frozen: c.State == StateFrozen,
 		Servers: []profileServer{}}
+	if s.mesh != nil && p.Mesh && !p.Frozen {
+		if r, err := s.mesh.net.PanelNet(true); err == nil && r.valid() {
+			p.MeshKey = r.Key
+			// Один сервер: ключ появился позже записи — профиль новее.
+			p.Rev = max(p.Rev, r.Created)
+		} else if err != nil {
+			log.Printf("профиль устройства: %v", err)
+		}
+	}
 	if s.mesh != nil {
 		if list, rev, ok := s.mesh.net.netProfile(c.Username, c.Servers); ok {
 			p.Servers = append(p.Servers, list...)

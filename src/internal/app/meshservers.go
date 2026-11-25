@@ -27,6 +27,11 @@ func (a *App) onMeshServers(ns mesh.NetServers) {
 			HostKey: s.HostKey, Net: s.Net, Acct: s.Acct, Via: s.Via})
 	}
 	cfg := a.Config()
+	if cfg.Device != nil {
+		// Устройство из панели: его серверы решает профиль устройства —
+		// список сети поменялся, значит, мог поменяться и он (ТЗ 49).
+		defer a.kickDevice()
+	}
 	cfg.Profiles = append([]config.Profile(nil), cfg.Profiles...)
 	cfg.MeshAutoSeen = append([]string(nil), cfg.MeshAutoSeen...)
 	res := cfg.ApplyNetServers(list, ns.Nets)
