@@ -28,15 +28,16 @@ import (
 func CallbackByName(knownHostsPath string, onLearn func(host, fingerprint string)) ssh.HostKeyCallback {
 	return func(hostname string, _ net.Addr, key ssh.PublicKey) error {
 		fp := ssh.FingerprintSHA256(key)
-		known, match, err := lookupByName(knownHostsPath, hostname, key)
+		known, match, old, err := lookupByName(knownHostsPath, hostname, key)
 		if err != nil {
 			return err
 		}
 		switch {
 		case match:
+			clearPending(hostname)
 			return nil
 		case known:
-			return &ErrChanged{Host: hostname, KnownHosts: knownHostsPath, Fingerprint: fp}
+			return changed(knownHostsPath, hostname, []string{knownhosts.Normalize(hostname)}, key, old)
 		}
 		return learn(knownHostsPath, hostname, nil, key, fp, onLearn)
 	}
@@ -45,13 +46,13 @@ func CallbackByName(knownHostsPath string, onLearn func(host, fingerprint string
 // lookupByName ищет строки known_hosts для имени: known — имя записано с
 // ключом того же типа, match — ключ совпал. Ключ другого типа под тем же
 // именем — тоже смена ключа, как у knownhosts.
-func lookupByName(path, hostname string, key ssh.PublicKey) (known, match bool, err error) {
+func lookupByName(path, hostname string, key ssh.PublicKey) (known, match bool, old []ssh.PublicKey, err error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return false, false, nil
+		return false, false, nil, nil
 	}
 	if err != nil {
-		return false, false, err
+		return false, false, nil, err
 	}
 	want := knownhosts.Normalize(hostname)
 	sc := bufio.NewScanner(bytes.NewReader(data))
@@ -71,10 +72,11 @@ func lookupByName(path, hostname string, key ssh.PublicKey) (known, match bool, 
 		}
 		known = true
 		if pk.Type() == key.Type() && bytes.Equal(pk.Marshal(), key.Marshal()) {
-			return true, true, nil
+			return true, true, nil, nil
 		}
+		old = append(old, pk)
 	}
-	return known, false, nil
+	return known, false, old, nil
 }
 
 // hostsMatch — поле имён строки known_hosts содержит имя want (уже

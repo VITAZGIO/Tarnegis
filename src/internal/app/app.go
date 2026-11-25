@@ -20,6 +20,7 @@ import (
 	"sshtunnel/internal/core"
 	"sshtunnel/internal/devnet"
 	"sshtunnel/internal/events"
+	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/mesh"
 	"sshtunnel/internal/routing"
 	"sshtunnel/internal/speedtest"
@@ -158,6 +159,9 @@ func New(cfg config.Config) *App {
 		tunneled: routing.NewDirectList(active.TunnelHosts),
 		seenApps: map[string]struct{}{},
 	}
+	hostkey.SetVouchLog(func(host, fp string) {
+		a.Bus.Infof("Ключ сервера %s обновлён по данным сети серверов: %s", host, fp)
+	})
 	a.meshHost = tunnel.NewMeshHost(tunnel.MeshLog(a.Bus))
 	a.meshLinks = tunnel.NewMeshLinks(a.meshHost, tunnel.MeshLog(a.Bus))
 	a.upd = updater.NewAuto(a.autoUpdateSetting, updater.DefaultRun(a.StopNow), a.onAutoChanged)

@@ -328,7 +328,9 @@ Linux flags: `-host`, `-sshport`, `-user`, `-key`, `-port`, `-httpport`,
 
 - **The server key is checked.** On the first connection its fingerprint is
   remembered (TOFU) in `known_hosts`; if it changes later, the program refuses
-  to connect instead of quietly talking to whoever answered.
+  to connect instead of quietly talking to whoever answered. If the server was
+  reinstalled, the new key is accepted right in the program — after checking
+  the fingerprint against the provider console.
 - **Host names are resolved on the server**, so the whole request goes through
   the tunnel. Connections that arrive already resolved (the application looked
   the name up itself) are marked in the log: those do not leave entirely via the

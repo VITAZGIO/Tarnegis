@@ -54,6 +54,8 @@ class TunnelService : VpnService(), Callbacks {
         /** Состояние и журнал для экрана: служба живёт отдельно от него. */
         @Volatile var state: String = "stopped"
         @Volatile var detail: String = ""
+        /** Код причины последней ошибки (ТЗ 46: "hostkey_changed" — карточка смены ключа). */
+        @Volatile var errorKind: String = ""
 
         /**
          * Туннель поднят без сервера ради сети устройств (ТЗ 11): почему
@@ -1159,6 +1161,7 @@ class TunnelService : VpnService(), Callbacks {
         // После «Выключить» ядро ещё может прислать «переподключение» —
         // для человека туннель уже выключен, кнопку обратно не красим.
         if (stopping || draining) return
+        TunnelService.errorKind = if (state == "error" || state == "reconnecting") errorKind else ""
         report(state, connErrorText(errorKind, detail))
     }
 

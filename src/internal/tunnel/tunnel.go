@@ -452,6 +452,14 @@ func (t *Tunnel) setState(s, detail string) {
 // I18N переводит сам; для смены ключа сервера (hostkey.ErrChanged) и любого
 // другого случая — как раньше, текстом ошибки без изменений.
 func (t *Tunnel) reportDialErr(s string, err error) {
+	// Смена ключа сервера — свой код: экран показывает карточку с
+	// отпечатками и кнопкой «принять» (ТЗ 46), а не текст ошибки.
+	var changed *hostkey.ErrChanged
+	if errors.As(err, &changed) {
+		t.state.Store(s)
+		t.bus.StateErr(s, err.Error(), HostKeyChangedKind)
+		return
+	}
 	var ce *ConnError
 	if errors.As(err, &ce) {
 		t.state.Store(s)

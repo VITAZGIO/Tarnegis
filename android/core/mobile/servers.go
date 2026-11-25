@@ -226,6 +226,12 @@ func (t *Tunnel) ApplyNetServers(profilesJSON, seenJSON string) (string, error) 
 	}
 	seenBefore := len(cfg.MeshAutoSeen)
 	list := make([]config.NetServerAd, 0, len(ns.Servers))
+	// Ключи серверов глазами сети — свидетели для смены ключа (ТЗ 46).
+	wit := make([]hostkey.Witness, 0, len(ns.Servers))
+	for _, s := range ns.Servers {
+		wit = append(wit, hostkey.Witness{Host: s.Host, Port: s.Port, Key: s.HostKey, Via: s.Via})
+	}
+	hostkey.SetWitnesses(wit)
 	for _, s := range ns.Servers {
 		list = append(list, config.NetServerAd{ID: s.ID, Name: s.Name, Host: s.Host, Port: s.Port,
 			HostKey: s.HostKey, Net: s.Net, Acct: s.Acct, Via: s.Via})

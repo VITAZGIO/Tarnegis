@@ -351,6 +351,11 @@
      перебивает встроенное правило для hidden, и невидимая подложка
      блокирует весь интерфейс. */
   .overlay[hidden]{display:none}
+  .err-box.hk{cursor:pointer;text-decoration:underline dotted}
+  .hkFp{font-family:var(--mono, ui-monospace, Consolas, monospace);font-size:12px;word-break:break-all}
+  .hkRow{margin:0 0 6px;font-size:12.5px;line-height:1.4}
+  .hkRow b{display:inline-block;min-width:58px;color:var(--dim);font-weight:500}
+  .hkCause{margin:8px 0;padding-left:16px;font-size:12.5px;line-height:1.45}
   .dialog{background:var(--card);border:1px solid var(--line);border-radius:13px;
           width:100%;max-width:380px;max-height:82vh;display:flex;
           flex-direction:column;overflow:hidden}
@@ -1051,6 +1056,15 @@
         <button type="button" class="btn" id="openPanelBtn" data-i18n="panel_open_btn">Открыть панель сервера</button>
       </div>
       <span class="hint" id="openPanelNote" style="display:block;margin-top:4px"></span>
+    </div>
+
+    <div class="field" id="hkProfileRow" hidden>
+      <label data-i18n="hk_profile_label">Ключ сервера</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="hkFp" id="hkProfileKey" style="flex:1;min-width:160px;color:var(--dim)"></span>
+        <button type="button" class="btn" id="hkForgetBtn" style="font-size:12px;padding:5px 10px" data-i18n="hk_forget">Забыть ключ</button>
+      </div>
+      <button type="button" class="vpsLink" id="hkProfilePending" hidden style="margin-top:4px" data-i18n="hk_profile_pending">Сервер показал другой ключ — разобраться ›</button>
     </div>
 
     <div class="chk-row">
@@ -1854,6 +1868,7 @@
       видно, где сломалось. Работает и без включённого туннеля: соединение для проверки своё, отдельное.</p>
 
     <div id="selfCheckSteps"></div>
+    <button class="btn" id="hkSelfBtn" hidden style="margin-top:10px" data-i18n="hk_selfcheck_btn">Разобраться со сменой ключа</button>
 
     <button class="btn primary" id="selfCheckStart" style="margin-top:10px"
       data-i18n="selfcheck_start">Проверить</button>
@@ -1915,6 +1930,47 @@
         <button class="btn" id="pasteCancelBtn" data-i18n="cancel">Отмена</button>
         <button class="btn primary" id="pasteOkBtn">OK</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Смена ключа сервера (ТЗ 46): отпечатки, причины, как проверить,
+     «принять» с подтверждением отпечатка. -->
+<div class="overlay" id="hkOverlay" hidden>
+  <div class="dialog" style="max-width:440px">
+    <div class="dh"><span class="t" id="hkTitle"></span></div>
+    <div class="db" style="overflow-y:auto">
+      <div id="hkStep1">
+        <div id="hkOld"></div>
+        <p class="hkRow"><b data-i18n="hk_now">Сейчас:</b> <span class="hkFp" id="hkNew"></span></p>
+        <ul class="hkCause">
+          <li data-i18n="hk_cause_reinstall">Ты переустановил сервер (или хостер пересоздал его) — тогда это нормально.</li>
+          <li data-i18n="hk_cause_attack">Ты ничего не менял — тогда кто-то может подменять соединение, подключаться нельзя.</li>
+        </ul>
+        <p class="note" style="margin:6px 0" data-i18n="hk_check">Как проверить: открой консоль сервера у хостера и выполни
+          эту команду — отпечаток должен совпасть с «Сейчас».</p>
+        <div class="cmdbox">
+          <button class="cp" data-cmd="hkCmd" data-note="hkNote" data-i18n-title="copy_title" title="Скопировать">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          </button>
+          <span id="hkCmd"></span>
+        </div>
+        <button class="btn primary" id="hkAcceptBtn" style="width:100%;margin-top:12px" data-i18n="hk_accept">Я переустановил сервер — принять новый ключ</button>
+        <button class="btn" id="hkCancelBtn" style="width:100%;margin-top:8px" data-i18n="cancel">Отмена</button>
+      </div>
+      <div id="hkStep2" hidden>
+        <p style="margin:0 0 8px;font-size:13.5px;line-height:1.4" data-i18n="hk_confirm_text">Принять новый ключ? Убедись,
+          что в консоли хостера тот же отпечаток:</p>
+        <p class="hkFp" id="hkNew2" style="margin:0 0 10px;font-size:13px"></p>
+        <label class="chk" style="margin:0 0 12px"><input type="checkbox" id="hkMatch">
+          <span class="lbl" data-i18n="hk_match">Отпечаток совпадает</span></label>
+        <div class="two">
+          <button class="btn" id="hkBackBtn" data-i18n="hk_back">Назад</button>
+          <button class="btn primary" id="hkConfirmBtn" disabled data-i18n="hk_confirm_btn">Принять ключ</button>
+        </div>
+      </div>
+      <span class="hint" id="hkNote" style="display:block;margin-top:6px"></span>
     </div>
   </div>
 </div>
@@ -2232,6 +2288,20 @@ const I18N = {
     vps_setup_need_fields:'заполни адрес сервера и пароль',
     vps_setup_done_ok:'готово',
     vps_setup_done_fail:'не получилось:',
+    hk_title:'Ключ сервера «{n}» изменился', hk_was:'Было:', hk_now:'Сейчас:',
+    hk_cause_reinstall:'Ты переустановил сервер (или хостер пересоздал его) — тогда это нормально.',
+    hk_cause_attack:'Ты ничего не менял — тогда кто-то может подменять соединение, подключаться нельзя.',
+    hk_check:'Как проверить: открой консоль сервера у хостера и выполни эту команду — отпечаток должен совпасть с «Сейчас».',
+    hk_accept:'Я переустановил сервер — принять новый ключ',
+    hk_confirm_text:'Принять новый ключ? Убедись, что в консоли хостера тот же отпечаток:',
+    hk_match:'Отпечаток совпадает', hk_confirm_btn:'Принять ключ', hk_back:'Назад',
+    hk_err_main:'Ключ сервера изменился — нажми, чтобы разобраться',
+    hk_selfcheck_btn:'Разобраться со сменой ключа',
+    hk_profile_label:'Ключ сервера', hk_profile_none:'ещё не запомнен — запомнится при первом подключении',
+    hk_forget:'Забыть ключ',
+    hk_forget_confirm:'Забыть ключ этого сервера? При следующем подключении программа запомнит тот ключ, который '+
+      'покажет сервер. Делай так, только если сам переустановил сервер.',
+    hk_profile_pending:'Сервер показал другой ключ — разобраться ›',
     filter_title:'Какие программы вести через туннель',
     local_via_tunnel:'Локальную сеть тоже вести через сервер',
     udp_relay_enabled:'Пробрасывать UDP (звонки, игры) через сервер',
@@ -2595,6 +2665,20 @@ const I18N = {
     vps_setup_need_fields:'fill in the server address and the password',
     vps_setup_done_ok:'done',
     vps_setup_done_fail:'failed:',
+    hk_title:'The key of server "{n}" has changed', hk_was:'Was:', hk_now:'Now:',
+    hk_cause_reinstall:'You reinstalled the server (or the provider recreated it) — then this is expected.',
+    hk_cause_attack:'You changed nothing — then someone may be intercepting the connection; do not connect.',
+    hk_check:'How to check: open the server console at your provider and run this command — the fingerprint must match "Now".',
+    hk_accept:'I reinstalled the server — accept the new key',
+    hk_confirm_text:'Accept the new key? Make sure the provider console shows the same fingerprint:',
+    hk_match:'The fingerprint matches', hk_confirm_btn:'Accept key', hk_back:'Back',
+    hk_err_main:'The server key has changed — tap to sort it out',
+    hk_selfcheck_btn:'Sort out the key change',
+    hk_profile_label:'Server key', hk_profile_none:'not saved yet — it is saved on the first connection',
+    hk_forget:'Forget key',
+    hk_forget_confirm:'Forget this server\'s key? On the next connection the program saves whatever key the server '+
+      'shows. Do this only if you reinstalled the server yourself.',
+    hk_profile_pending:'The server showed a different key — sort it out ›',
     filter_title:'Which apps go through the tunnel',
     local_via_tunnel:'Route the local network through the server too',
     udp_relay_enabled:'Route UDP (calls, games) through the server',
@@ -3632,6 +3716,7 @@ function renderCore(st){
   b.title = tr('mesh_btn_hint');
   const failed = t === 'error' ? st.tunnel : st.mesh.phase === 'error' ? st.mesh : null;
   showError(failed ? connErrorText(failed.errorKind, failed.error) : '');
+  hkOnMainError(failed);
   $('meddleOffer').hidden = t !== 'error';
   renderExitMainStatus();
 }
@@ -3747,7 +3832,8 @@ $('logCopy').onclick = async () => {
 // интерфейса. Пустой или незнакомый код (и "hostkey_changed" — своя,
 // отдельная защита, её текст не трогаем) — показываем detail как есть.
 function connErrorText(kind, detail){
-  if(!kind || kind === 'hostkey_changed') return detail;
+  if(kind === 'hostkey_changed') return tr('hk_err_main');
+  if(!kind) return detail;
   const known = ['auth', 'no_response', 'refused', 'dropped'];
   if(known.includes(kind)) return tr('conn_err_' + kind);
   return tr('conn_err_other_prefix') + detail;
@@ -3920,6 +4006,7 @@ function selfCheckCodeText(name, code, detail){
 let lastSelfCheckSteps = [];
 function renderSelfCheckSteps(steps){
   lastSelfCheckSteps = steps || [];
+  $('hkSelfBtn').hidden = !(steps || []).some(s => s.code === 'host_key_changed');
   const box = $('selfCheckSteps');
   const byName = {};
   (steps || []).forEach(s => { byName[s.name] = s; });
@@ -3954,6 +4041,128 @@ async function runSelfCheck(){
   $('selfCheckStart').textContent = tr('selfcheck_start');
 }
 $('selfCheckStart').onclick = runSelfCheck;
+
+/* ---------- смена ключа сервера (ТЗ 46) ---------- */
+/* Ключ сервера не совпал с запомненным — карточка вместо пути к known_hosts:
+   оба отпечатка, две честные причины, команда для проверки в консоли
+   хостера и «принять» только после подтверждения отпечатка. Данные — из
+   /api/hostkey (общий Go-код ПК и телефона), сам ключ берётся там же, где
+   его показал сервер: окно присылает только отпечаток для сверки. */
+// var, не let: renderCore может позвать hkOnMainError раньше этой строки.
+var hkCur = null, hkCtx = '', hkLastErr = '';
+var hkShown = {};
+function hkServerName(v){
+  const p = (cfg.profiles || []).find(p => (p.host || '').trim().toLowerCase() === String(v.server).toLowerCase() &&
+    (p.sshPort || 22) === v.port);
+  return p ? p.name : v.server + (v.port !== 22 ? ':' + v.port : '');
+}
+async function hkFetch(server){
+  const r = await api('/api/hostkey').catch(() => null);
+  const list = (r && r.pending) || [];
+  if(!list.length) return null;
+  if(server){
+    return list.find(v => String(v.server).toLowerCase() === server.toLowerCase()) || null;
+  }
+  // Главная: сначала выбранный сервер, иначе любой (запасной из автовыбора).
+  const a = (cfg.profiles || []).find(p => p.id === cfg.activeProfile) || {};
+  return list.find(v => String(v.server).toLowerCase() === String(a.host || '').trim().toLowerCase()) || list[0];
+}
+// hkCheck — есть смена ключа (для server или вообще) — показать карточку.
+// auto: не открывать второй раз ту же, что уже закрыли «Отменой».
+async function hkCheck(ctx, server, auto){
+  const v = await hkFetch(server);
+  if(!v) return false;
+  if(auto && hkShown[v.host + v.fingerprint]) return true;
+  hkShown[v.host + v.fingerprint] = true;
+  hkOpen(v, ctx);
+  return true;
+}
+function hkOpen(v, ctx){
+  hkCur = v; hkCtx = ctx;
+  $('hkTitle').textContent = tr('hk_title').replace('{n}', hkServerName(v));
+  const old = $('hkOld');
+  old.innerHTML = '';
+  (v.old || []).forEach(k => {
+    const row = document.createElement('p');
+    row.className = 'hkRow';
+    row.innerHTML = '<b></b> <span class="hkFp"></span>';
+    row.firstChild.textContent = tr('hk_was');
+    row.lastChild.textContent = k.fingerprint + ' (' + k.type + ')';
+    old.appendChild(row);
+  });
+  $('hkNew').textContent = v.fingerprint + ' (' + v.keyType + ')';
+  $('hkNew2').textContent = v.fingerprint;
+  $('hkCmd').textContent = v.cmd;
+  $('hkStep1').hidden = false;
+  $('hkStep2').hidden = true;
+  $('hkNote').textContent = '';
+  $('hkOverlay').hidden = false;
+}
+function hkClose(){ $('hkOverlay').hidden = true; hkCur = null; }
+// «Отмена» — ничего не меняется: ключ не принят, подключения нет.
+$('hkCancelBtn').onclick = hkClose;
+$('hkAcceptBtn').onclick = () => {
+  $('hkStep1').hidden = true;
+  $('hkStep2').hidden = false;
+  $('hkMatch').checked = false;
+  $('hkConfirmBtn').disabled = true;
+};
+$('hkBackBtn').onclick = () => { $('hkStep1').hidden = false; $('hkStep2').hidden = true; };
+$('hkMatch').onchange = () => { $('hkConfirmBtn').disabled = !$('hkMatch').checked; };
+$('hkConfirmBtn').onclick = async () => {
+  if(!hkCur || !$('hkMatch').checked) return;
+  const r = await api('/api/hostkey', {op: 'accept', host: hkCur.host, fingerprint: hkCur.fingerprint})
+    .catch(e => ({error: String(e)}));
+  if(!r || r.error){ $('hkNote').textContent = (r && r.error) || ''; return; }
+  const ctx = hkCtx;
+  hkClose();
+  // Ключ записан — продолжаем то, на чём споткнулись.
+  if(ctx === 'main') wantCore({tunnel: true});
+  else if(ctx === 'selfcheck') runSelfCheck();
+  else if(ctx === 'vps') $('vpsSetupStart').click();
+  if(current === 'viewServers') loadProfileKey();
+};
+// Главная: ошибка сменилась — проверяем, не смена ли это ключа (на
+// телефоне код причины может не дойти, поэтому спрашиваем по самой ошибке).
+function hkOnMainError(failed){
+  const err = failed ? (failed.error || '') + '|' + (failed.errorKind || '') : '';
+  if(err === hkLastErr) return;
+  hkLastErr = err;
+  $('error').classList.remove('hk');
+  if(!failed) return;
+  hkCheck('main', '', true).then(found => {
+    if(!found) return;
+    $('error').classList.add('hk');
+    showError(tr('hk_err_main'));
+  });
+}
+$('error').addEventListener('click', () => { if($('error').classList.contains('hk')) hkCheck('main', ''); });
+$('hkSelfBtn').onclick = () => hkCheck('selfcheck', '');
+
+// Настройки сервера: какой ключ запомнен, «забыть ключ».
+async function loadProfileKey(){
+  const p = currentProfile ? currentProfile() : null;
+  const host = p ? (p.host || '').trim() : '';
+  $('hkProfileRow').hidden = !host;
+  if(!host) return;
+  const port = p.sshPort || 22;
+  const r = await api('/api/hostkey?host=' + encodeURIComponent(host) + '&port=' + port).catch(() => null);
+  if(!r || r.error){ $('hkProfileRow').hidden = true; return; }
+  const keys = r.keys || [];
+  $('hkProfileKey').textContent = keys.length ? keys.map(k => k.fingerprint + ' (' + k.type + ')').join(', ')
+    : tr('hk_profile_none');
+  $('hkForgetBtn').hidden = !keys.length;
+  $('hkProfilePending').hidden = !r.pending;
+  $('hkProfilePending').onclick = () => { if(r.pending) hkOpen(r.pending, 'profile'); };
+}
+$('hkForgetBtn').onclick = async () => {
+  const p = currentProfile();
+  if(!p || !p.host) return;
+  if(!await appConfirm(tr('hk_forget_confirm'))) return;
+  const r = await api('/api/hostkey', {op: 'forget', host: p.host.trim(), port: p.sshPort || 22}).catch(() => null);
+  if(r && r.error) showError(r.error, 'setError');
+  loadProfileKey();
+};
 
 /* ---------- мастер настройки VPS ---------- */
 let vpsSetupRunning = false;
@@ -4029,9 +4238,16 @@ async function onVpsSetupEvent(e){
   if(e.done){
     vpsSetupRunning = false;
     $('vpsSetupStart').disabled = false;
-    $('vpsPassword').value = '';
     $('vpsSetupNote').textContent = e.failed ? '' : tr('vps_setup_done_ok');
-    if(e.failed){ vpsLogLine(tr('vps_setup_done_fail') + ' ' + (e.error || '')); return; }
+    if(e.failed){
+      vpsLogLine(tr('vps_setup_done_fail') + ' ' + (e.error || ''));
+      // Ключ сервера сменился (переустановка) — та же карточка; после
+      // «принять» мастер запускается снова, пароль для этого остаётся в поле.
+      const hk = await hkCheck('vps', ($('vpsHost').value || '').trim());
+      if(!hk) $('vpsPassword').value = '';
+      return;
+    }
+    $('vpsPassword').value = '';
     if(e.vps){
       showVpsResult(e.vps);
       // Новый сервер уже в настройках программы — подтягиваем список, не
@@ -5445,6 +5661,7 @@ function fillProfileForm(p){
   renderMeshSummary();
   renderAdvSummary();
   renderOwnRulesNote();
+  loadProfileKey();
 }
 $('ownRules').addEventListener('change', () => {
   formDirty = true;

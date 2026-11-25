@@ -9,6 +9,7 @@ import (
 	"sshtunnel/internal/config"
 	"sshtunnel/internal/core"
 	"sshtunnel/internal/events"
+	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/tunnel"
 )
 
@@ -156,6 +157,10 @@ func (a *App) publishState() {
 
 // errorKind — стабильный код причины ошибки подключения для экрана.
 func errorKind(err error) string {
+	var changed *hostkey.ErrChanged
+	if errors.As(err, &changed) {
+		return tunnel.HostKeyChangedKind
+	}
 	var ce *tunnel.ConnError
 	if errors.As(err, &ce) {
 		return string(ce.Kind)
