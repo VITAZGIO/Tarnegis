@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -381,5 +382,23 @@ func TestDeviceВыгрузкаИЗагрузка(t *testing.T) {
 	na, _ := n.ProfileByKey("203.0.113.1:22")
 	if n.Device.KeyPath != "/new/tun_1" || !nb.Hidden || !slices.Equal(na.ExitVia, []string{nb.ID}) || na.KeyPath != "/new/tun_1" {
 		t.Fatalf("%+v a=%+v b=%+v", n.Device, na, nb)
+	}
+}
+
+// ТЗ 50: панель без сети устройств — строка называет сервер и версию его панели.
+func TestDeviceNetMissingНазываетСервер(t *testing.T) {
+	c := Default()
+	c.SetDevice(Device{ID: "tun_1", KeyPath: "/k"}, DeviceProfile{ID: "tun_1", Rev: 1, Mesh: true, From: "203.0.113.1:22",
+		Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	if !c.DeviceNetMissing() {
+		t.Fatal("нет отметки")
+	}
+	if s := c.DeviceNetMissingText(); !strings.Contains(s, "203.0.113.1:22") || !strings.Contains(s, "старше") {
+		t.Fatal(s)
+	}
+	c.ApplyDevice(DeviceProfile{ID: "tun_1", Rev: 2, Mesh: true, From: "203.0.113.1:22", Ver: "v1.10.30",
+		Servers: []DeviceServer{devSrv("А", "203.0.113.1")}})
+	if s := c.DeviceNetMissingText(); !strings.Contains(s, "v1.10.30") {
+		t.Fatal(s)
 	}
 }

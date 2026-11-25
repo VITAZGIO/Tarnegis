@@ -21,6 +21,8 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 	"golang.org/x/crypto/ssh"
+
+	"sshtunnel/internal/updater"
 )
 
 // devServer — сервер сети для галочек «Серверы».
@@ -474,6 +476,9 @@ type deviceProfile struct {
 	// MeshKey — ключ сети панели (ТЗ 49): только устройству с сетью
 	// устройств и не замороженному, только по его же каналу.
 	MeshKey string `json:"meshKey,omitempty"`
+	// Ver — версия этой панели (ТЗ 50): программа называет её, если
+	// сеть устройств не выдана.
+	Ver string `json:"ver,omitempty"`
 }
 
 // netProfile — серверы сети, разрешённые записи, и rev по общим данным:
@@ -524,7 +529,7 @@ func (n *ServerNet) netProfile(user string, servers []string) (list []profileSer
 // (одинаковый на всех серверах), иначе — Rev записи здесь.
 func (s *Server) profileOf(c Client) deviceProfile {
 	p := deviceProfile{V: 1, ID: c.ID, Name: c.Name, Rev: c.Rev, Mesh: !c.NoMesh, Frozen: c.State == StateFrozen,
-		Servers: []profileServer{}}
+		Servers: []profileServer{}, Ver: updater.Version}
 	if s.mesh != nil && p.Mesh && !p.Frozen {
 		if r, err := s.mesh.net.PanelNet(true); err == nil && r.valid() {
 			p.MeshKey = r.Key

@@ -68,7 +68,6 @@
     <string name="cal_cd_today">Сегодня</string>
     <string name="cal_cd_prev">Предыдущий месяц</string>
     <string name="cal_cd_next">Следующий месяц</string>
-    <string name="cal_cd_add">Новое событие</string>
     <string name="cal_cd_sync">Сверить сейчас</string>
     <string name="cal_cd_weeks">Номера недель</string>
     <string name="cal_more">+%1$d</string>

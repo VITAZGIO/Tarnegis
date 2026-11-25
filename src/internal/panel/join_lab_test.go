@@ -37,6 +37,9 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"sshtunnel/internal/hostkey"
+	"sshtunnel/internal/invite"
 )
 
 func TestJoinLab(t *testing.T) {
@@ -228,3 +231,84 @@ func (nopCloser) Close() error { return nil }
 func readAllLimit(r *http.Request, n int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(r.Body, n))
 }
+
+// TestJoinLabReinstall — ТЗ 50 на настоящем sshd (у него, как на настоящем
+// сервере, ключи хоста ECDSA, ed25519 и RSA) и с настоящими учётными
+// записями (useradd). «Переустановка»: в known_hosts под адресом сервера
+// лежат ключи прежней установки обоих типов, приглашение несёт новый
+// ed25519. Вход и чтение профиля должны пройти, профиль — со всеми
+// серверами (здесь сервер один), следующая сверка по known_hosts — тоже.
+func TestJoinLabReinstall(t *testing.T) {
+	if os.Getenv("JOIN_LAB") == "" {
+		t.Skip("только на стенде (JOIN_LAB=1, root, sshd)")
+	}
+	if err := EnsureJoinAccess(22); err != nil {
+		t.Fatalf("EnsureJoinAccess: %v", err)
+	}
+	dir := t.TempDir()
+	users, _ := OpenStore(filepath.Join(dir, "users.json"))
+	cs, _ := OpenClientStore(filepath.Join(dir, "clients.json"))
+	s := NewServer(users, NewClientManager(cs, NewSystemProvisioner())).WithDataDir(dir)
+	s.WithClientDefaults("127.0.0.1", 22, "") // ключи хоста — настоящие, /etc/ssh
+	ln, err := net.Listen("tcp", SelfServiceAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := s.SelfServiceHandler()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t0 := time.Now()
+		rec := &statusRec{ResponseWriter: w, code: 200}
+		inner.ServeHTTP(rec, r)
+		t.Logf("самообслуживание: %s %s → %d за %v", r.Method, r.URL.Path, rec.code, time.Since(t0))
+	})}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	res, err := s.createInvite(inviteReq{Name: "Переустановка", DeviceType: "android"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cdir := t.TempDir()
+	kh := filepath.Join(cdir, "known_hosts")
+	_, oldEd, _ := ed25519.GenerateKey(rand.Reader)
+	oldSigner, _ := ssh.NewSignerFromKey(oldEd)
+	oldLine := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(oldSigner.PublicKey())))
+	os.WriteFile(kh, []byte("127.0.0.1 "+oldLine+"\n"), 0o600)
+
+	r, err := invite.Redeem(context.Background(), res.Text, invite.Options{KeyDir: cdir, KnownHosts: kh, Name: "Переустановка", Type: "phone"})
+	if err != nil {
+		t.Fatalf("вход: %v", err)
+	}
+	defer s.clients.DeleteClient(r.Device.ID)
+	if r.ProfileErr != nil || len(r.Profile.Servers) != 1 {
+		t.Fatalf("профиль после входа: %v %+v", r.ProfileErr, r.Profile)
+	}
+	if strings.Contains(mustRead(t, kh), oldLine) {
+		t.Fatal("старый ключ остался в known_hosts")
+	}
+	signer, err := invite.LoadKey(r.Device.KeyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := invite.Fetch(context.Background(), invite.Target{Host: "127.0.0.1", Port: 22, User: r.Device.ID, Signer: signer,
+		HostKey: hostkey.Callback(kh, nil), KnownHosts: kh})
+	if err != nil || p.ID != r.Device.ID {
+		t.Fatalf("сверка по known_hosts: %v", err)
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+type statusRec struct {
+	http.ResponseWriter
+	code int
+}
+
+func (r *statusRec) WriteHeader(c int) { r.code = c; r.ResponseWriter.WriteHeader(c) }

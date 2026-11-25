@@ -369,7 +369,7 @@
      перебивает встроенное правило для hidden, и невидимая подложка
      блокирует весь интерфейс. */
   .overlay[hidden]{display:none}
-  .err-box.hk{cursor:pointer;text-decoration:underline dotted}
+  .err-box.hk, #devNetState.hk{cursor:pointer;text-decoration:underline dotted}
   .hkFp{font-family:var(--mono, ui-monospace, Consolas, monospace);font-size:12px;word-break:break-all}
   .hkRow{margin:0 0 6px;font-size:12.5px;line-height:1.4}
   .hkRow b{display:inline-block;min-width:58px;color:var(--dim);font-weight:500}
@@ -2397,6 +2397,9 @@ const I18N = {
     hk_confirm_text:'Принять новый ключ? Убедись, что в консоли хостера тот же отпечаток:',
     hk_match:'Отпечаток совпадает', hk_confirm_btn:'Принять ключ', hk_back:'Назад',
     hk_err_main:'Ключ сервера изменился — нажми, чтобы разобраться',
+    hk_err_device:'Ключ сервера {n} изменился — профиль не сверен. Нажми, чтобы разобраться',
+    devnet_nokey_srv:'Панель сервера {s} не выдала сеть устройств — обнови этот сервер (панель {v}). Пока сети устройств нет.',
+    devnet_nokey_old:'старше v1.10.24',
     hk_selfcheck_btn:'Разобраться со сменой ключа',
     hk_profile_label:'Ключ сервера', hk_profile_none:'ещё не запомнен — запомнится при первом подключении',
     hk_forget:'Забыть ключ',
@@ -2800,6 +2803,9 @@ const I18N = {
     hk_confirm_text:'Accept the new key? Make sure the provider console shows the same fingerprint:',
     hk_match:'The fingerprint matches', hk_confirm_btn:'Accept key', hk_back:'Back',
     hk_err_main:'The server key has changed — tap to sort it out',
+    hk_err_device:'The key of server {n} has changed — the profile is not synced. Tap to sort it out',
+    devnet_nokey_srv:'The panel of server {s} did not hand out the device network — update that server (panel {v}). Until then there is no device network.',
+    devnet_nokey_old:'older than v1.10.24',
     hk_selfcheck_btn:'Sort out the key change',
     hk_profile_label:'Server key', hk_profile_none:'not saved yet — it is saved on the first connection',
     hk_forget:'Forget key',
@@ -4250,6 +4256,7 @@ $('hkConfirmBtn').onclick = async () => {
   if(ctx === 'main') wantCore({tunnel: true});
   else if(ctx === 'selfcheck') runSelfCheck();
   else if(ctx === 'vps') $('vpsSetupStart').click();
+  else if(ctx === 'device') $('devSyncBtn').click();
   if(current === 'viewServers') loadProfileKey();
 };
 // Главная: ошибка сменилась — проверяем, не смена ли это ключа (на
@@ -5718,7 +5725,10 @@ function renderDeviceNet(){
   $('devNetTitle').textContent = tr('devnet_title').replace('{name}', d.name || d.id);
   // Сеть разрешена, а ключа сети панель не выдала (сервер старше) — сети нет.
   $('devNetBan').hidden = allowed && !devInfo.netMissing;
-  $('devNetBan').textContent = tr(!allowed ? (d.frozen ? 'devnet_frozen' : 'devnet_banned') : 'devnet_nokey');
+  // Какой сервер отдал профиль без сети и какая там панель (ТЗ 50).
+  $('devNetBan').textContent = !allowed ? tr(d.frozen ? 'devnet_frozen' : 'devnet_banned')
+    : d.profileFrom ? tr('devnet_nokey_srv').replace('{s}', d.profileFrom).replace('{v}', d.profileVer || tr('devnet_nokey_old'))
+    : tr('devnet_nokey');
   $('devNetOn').checked = !!n.on;
   $('devNetOnly').checked = !!n.onlyThis;
   ['devNetOn','devNetOnly','devExit1','devExit2'].forEach(id => $(id).disabled = !allowed && id !== 'devNetOn');
@@ -5728,6 +5738,8 @@ function renderDeviceNet(){
   if(sy.err) st += ' · ' + sy.err;
   else if(sy.note) st += ' · ' + sy.note;
   $('devNetState').textContent = st;
+  $('devNetState').classList.remove('hk');
+  if(sy.err) devHkCheck(d, true);
   const via = n.exitVia || [];
   devExitOptions($('devExit1'), '', via[0] || '');
   devExitOptions($('devExit2'), $('devExit1').value, $('devExit1').value ? (via[1] || '') : '');
@@ -5764,10 +5776,31 @@ $('devExit1').addEventListener('change', () => {
   if(!$('devExit1').value) $('devExit2').value = '';
   saveDeviceNet();
 });
+// devHkCheck — сверка споткнулась о смену ключа сервера из панели: вместо
+// голого текста — карточка «ключ изменился» (ТЗ 46), после «Принять» —
+// сверка заново (ТЗ 50).
+async function devHkCheck(d, auto){
+  const r = await api('/api/hostkey').catch(() => null);
+  const hosts = (d.servers || []).map(x => String(x.host || '').toLowerCase());
+  const v = ((r && r.pending) || []).find(x => hosts.includes(String(x.server).toLowerCase()));
+  if(!v) return false;
+  $('devNetState').textContent = tr('hk_err_device').replace('{n}', hkServerName(v));
+  $('devNetState').classList.add('hk');
+  $('devNetState').onclick = () => hkOpen(v, 'device');
+  if(!auto || !hkShown[v.host + v.fingerprint]){
+    hkShown[v.host + v.fingerprint] = true;
+    hkOpen(v, 'device');
+  }
+  return true;
+}
 $('devSyncBtn').onclick = async () => {
   $('devNetNote').textContent = tr('devnet_syncing');
   const r = await api('/api/device', { op: 'sync' });
-  if(r.error){ $('devNetNote').textContent = r.error; return; }
+  if(r.error){
+    $('devNetNote').textContent = r.error;
+    if(devInfo && devInfo.device) devHkCheck(devInfo.device, false);
+    return;
+  }
   devInfo = r;
   $('devNetNote').textContent = r.note || '';
   const c = await api('/api/config');

@@ -9,6 +9,8 @@ on:
     branches: ["claude/**"]
     paths:
       - "src/internal/panel/joinsys*"
+      - "src/internal/invite/**"
+      - "src/internal/hostkey/**"
       - "src/internal/panel/devinvite*"
       - "src/internal/panel/device_registry*"
       - "src/internal/panel/join_lab_test.go"
@@ -19,6 +21,8 @@ on:
   pull_request:
     paths:
       - "src/internal/panel/joinsys*"
+      - "src/internal/invite/**"
+      - "src/internal/hostkey/**"
       - "src/internal/panel/devinvite*"
       - "src/internal/panel/device_registry*"
       - "src/internal/panel/join_lab_test.go"
@@ -58,7 +62,7 @@ jobs:
       - name: Стенд
         run: |
           cd /tmp
-          sudo env JOIN_LAB=1 PATH="$PATH:/usr/sbin:/sbin" /tmp/panel.test -test.run 'TestJoinLab$' -test.v -test.timeout 5m
+          sudo env JOIN_LAB=1 PATH="$PATH:/usr/sbin:/sbin" /tmp/panel.test -test.run 'TestJoinLab' -test.v -test.timeout 5m
 
       - name: Журнал sshd при неудаче
         if: failure()

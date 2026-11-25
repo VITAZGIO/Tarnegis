@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -374,12 +373,20 @@ func (a *App) SwitchProfile(id string) (string, error) {
 // AddProfile заводит новый сервер и сразу сохраняет его в списке — activным
 // он не становится сам: выбор сервера остаётся отдельным явным действием.
 func (a *App) AddProfile(name, flag string) (config.Profile, error) {
-	a.mu.Lock()
-	p := a.cfg.AddProfile(name, flag)
-	cfg := a.cfg
-	a.mu.Unlock()
-	if err := cfg.Save(); err != nil {
+	// Через SetConfig, как любая правка: экран получает событие config,
+	// а при нуле серверов новый сразу становится выбранным (ТЗ 50).
+	a.exitMu.Lock()
+	defer a.exitMu.Unlock()
+	cfg := cloneConfig(a.Config())
+	p := cfg.AddProfile(name, flag)
+	if _, ok := cfg.ProfileByID(cfg.ActiveProfile); !ok {
+		cfg.ActiveProfile = p.ID
+	}
+	if _, err := a.SetConfig(cfg); err != nil {
 		return config.Profile{}, err
+	}
+	if q, ok := a.Config().ProfileByID(p.ID); ok {
+		return q, nil
 	}
 	return p, nil
 }
@@ -399,29 +406,31 @@ func (a *App) UpdateProfile(p config.Profile) error {
 // возможно, подключённый прямо сейчас) — туннель останавливается: он остался
 // бы работать по адресу, которого в настройках больше нет.
 func (a *App) RemoveProfile(id string) (string, error) {
-	if p, ok := a.Config().ProfileByID(id); ok && p.IsPanel() && !a.DeviceGone() {
-		return "", errors.New("этот сервер выдан панелью — его можно только скрыть у себя")
-	}
-	a.mu.Lock()
-	wasActive := a.cfg.ActiveProfile == id
-	a.cfg.Profiles = slices.Clone(a.cfg.Profiles)
-	ok := a.cfg.RemoveProfile(id)
-	cfg := a.cfg
-	wasRunning := a.running
-	a.mu.Unlock()
+	p, ok := a.Config().ProfileByID(id)
 	if !ok {
 		return "", errors.New("такого сервера нет")
 	}
-	if err := cfg.Save(); err != nil {
-		return "", err
+	if p.IsPanel() && !a.DeviceGone() {
+		return "", errors.New("этот сервер выдан панелью — его можно только скрыть у себя")
 	}
-	a.Bus.Publish(events.Event{Kind: events.KindConfig})
-	if wasActive && wasRunning {
+	// Подключены к нему (выбран или запасной) — сначала отключиться, потом
+	// удалять (ТЗ 50): иначе туннель остался бы на сервере, которого нет.
+	note := ""
+	if a.Running() && (a.Config().ActiveProfile == id || a.EffectiveProfileID() == id) {
 		a.machine.Restore(core.Want{})
 		a.settle(nil, nil)
-		return "удалённый сервер был подключён — туннель остановлен", nil
+		note = "удалённый сервер был подключён — туннель остановлен"
 	}
-	return "", nil
+	a.exitMu.Lock()
+	defer a.exitMu.Unlock()
+	cfg := cloneConfig(a.Config())
+	if !cfg.RemoveProfile(id) {
+		return "", errors.New("такого сервера нет")
+	}
+	if _, err := a.SetConfig(cfg); err != nil {
+		return "", err
+	}
+	return note, nil
 }
 
 // connectionSettingsChanged — поменялось ли у активного сервера то, ради чего

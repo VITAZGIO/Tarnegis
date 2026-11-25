@@ -9,7 +9,10 @@ Each device has its own key and its own system account on the server.
 2. Enter the **Device name** ("Laptop", "Phone") and choose the type: Windows,
    Linux or Android.
 3. Tick the **Servers** the device may use. This server is always ticked: the
-   device joins through it. Later you can untick it like any other.
+   device joins through it. Later you can untick it like any other. If the
+   list has only this server, it is not in a server network and the device
+   gets only this server; other servers join the network in **Networks** →
+   **Servers of the network** → **Add a server**.
 4. **Device network** is on by default. Turn it off if the device only needs
    internet access through the server.
 5. Press **Create invite**.

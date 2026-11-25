@@ -120,4 +120,5 @@ Object.assign(I18N.en, {
   inv_revoke:'Revoke',
   inv_revoked:'Invite revoked',
   dev_elsewhere:'This device is not allowed on this server: its account does not exist here. Tick this server in "Servers and network" to let it in.',
+  dev_alone:'This server is not in a server network — the device gets only this server. Other servers join the network in Networks → Servers of the network → «Add a server».',
 });

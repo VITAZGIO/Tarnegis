@@ -73,7 +73,7 @@ func DeviceFetch(deviceJSON, profilesJSON, knownHosts string) (string, error) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		prof, err := invite.Fetch(ctx, invite.Target{Host: p.Host, Port: p.SSHPort, User: d.ID, Signer: signer,
-			HostKey: hostkey.Callback(knownHosts, nil)})
+			HostKey: hostkey.Callback(knownHosts, nil), KnownHosts: knownHosts})
 		cancel()
 		if err == nil {
 			out, err := json.Marshal(prof.Config())
@@ -128,6 +128,7 @@ func DeviceApply(stateJSON string) (string, error) {
 	cfg := config.Config{Profiles: st.Profiles, ActiveProfile: st.Active, Device: st.Device}
 	var res config.DeviceResult
 	note := ""
+	from := st.Profile.From // откуда профиль: его ключ подтвердило соединение
 	switch st.Op {
 	case "set":
 		var j struct {
@@ -140,6 +141,7 @@ func DeviceApply(stateJSON string) (string, error) {
 		}
 		emptyOnly := len(cfg.Profiles) == 1 && cfg.Profiles[0].Host == "" && !cfg.Profiles[0].IsPanel()
 		res = cfg.SetDevice(j.Device, j.Profile)
+		from = j.Profile.From
 		if emptyOnly {
 			// Первый запуск: пустой сервер не нужен.
 			out := cfg.Profiles[:0:0]
@@ -185,7 +187,7 @@ func DeviceApply(stateJSON string) (string, error) {
 	default:
 		return "", fmt.Errorf("неизвестное действие %q", st.Op)
 	}
-	invite.PinServers(st.KnownHosts, res.Pins)
+	invite.PinProfile(st.KnownHosts, res.Pins, from)
 	added, removed := []string{}, res.Removed
 	for _, p := range res.Added {
 		added = append(added, p.Name)
@@ -217,7 +219,8 @@ func DeviceApply(stateJSON string) (string, error) {
 	}
 	out, err := json.Marshal(map[string]any{"profiles": cfg.Profiles, "active": cfg.ActiveProfile, "device": cfg.Device,
 		"changed": res.Changed, "added": added, "removed": removed, "switched": res.Switched, "note": note,
-		"net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed(), "netMissing": cfg.DeviceNetMissing()})
+		"net": cfg.DeviceNetOf(), "meshAllowed": cfg.DeviceMeshAllowed(), "netMissing": cfg.DeviceNetMissing(),
+		"netMissingText": cfg.DeviceNetMissingText()})
 	return string(out), err
 }
 
@@ -255,5 +258,18 @@ func DeviceImport(deviceJSON, profilesJSON string) string {
 		return ""
 	}
 	out, _ := json.Marshal(nd)
+	return string(out)
+}
+
+// RemovedMarks — отметки «удалён человеком» для профиля (JSON профиля ПК,
+// как в SetProfiles): телефон дописывает их в свой список «уже добавляли»,
+// и сеть серверов удалённый сервер не возвращает (ТЗ 50). Ответ — JSON-массив.
+func RemovedMarks(profileJSON string) string {
+	var p config.Profile
+	_ = json.Unmarshal([]byte(profileJSON), &p)
+	out, _ := json.Marshal(config.RemovedMarks(p))
+	if string(out) == "null" {
+		return "[]"
+	}
 	return string(out)
 }
