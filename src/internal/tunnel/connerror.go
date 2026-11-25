@@ -89,7 +89,9 @@ func isRefused(err error) bool {
 	if errors.Is(err, syscall.ECONNREFUSED) {
 		return true
 	}
-	return strings.Contains(err.Error(), "connection refused")
+	// Windows пишет отказ по-своему: «…the target machine actively refused it».
+	msg := err.Error()
+	return strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused")
 }
 
 // isNoResponse — до адреса не достучаться вовсе: таймаут установки
