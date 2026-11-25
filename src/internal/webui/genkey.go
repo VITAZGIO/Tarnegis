@@ -35,8 +35,9 @@ func ensureKey(path string) (pubLine string, created bool, err error) {
 	case privErr == nil && pubErr == nil:
 		return strings.TrimSpace(string(pubData)), false, nil
 	case privErr == nil && pubErr != nil:
-		return "", false, fmt.Errorf(
-			"приватный ключ %s уже есть, а файла %s.pub рядом нет — проверь вручную", path, path)
+		// Открытой части рядом нет (так бывает у ключа, пришедшего вместе с
+		// профилем) — её можно получить из самого приватного ключа.
+		return pubFromPrivate(path)
 	}
 
 	line, privPEM, err := generateKeyPair()
@@ -53,6 +54,26 @@ func ensureKey(path string) (pubLine string, created bool, err error) {
 		return "", false, fmt.Errorf("не могу записать открытый ключ: %w", err)
 	}
 	return line, true, nil
+}
+
+// pubFromPrivate — открытая часть из приватного ключа по пути path; заодно
+// кладёт её рядом в path.pub (не вышло записать — не беда, строка есть).
+func pubFromPrivate(path string) (string, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false, fmt.Errorf("не могу прочитать ключ %s: %w", path, err)
+	}
+	signer, err := ssh.ParsePrivateKey(data)
+	if err != nil {
+		var pp *ssh.PassphraseMissingError
+		if errors.As(err, &pp) {
+			return "", false, fmt.Errorf("ключ %s защищён паролем — для настройки сервера нужен ключ без пароля", path)
+		}
+		return "", false, fmt.Errorf("ключ %s не читается: %w", path, err)
+	}
+	line := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
+	_ = os.WriteFile(path+".pub", []byte(line+"\n"), 0o644)
+	return line, false, nil
 }
 
 // generateKeyPair — новая пара ed25519 в памяти, без записи на диск: то же
