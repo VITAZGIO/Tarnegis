@@ -1609,7 +1609,9 @@
     </div>
 
     <div class="help" id="vpsSetupLog" hidden style="margin-top:14px;max-height:320px;overflow:auto;
-      white-space:pre-wrap;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace"></div>
+      white-space:pre-wrap;user-select:text;-webkit-user-select:text;cursor:text;
+      font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace"></div>
+    <button class="btn" id="vpsLogCopy" hidden style="margin-top:8px" data-i18n="log_copy_all">Копировать всё</button>
   </div>
 
   <!-- САМОПРОВЕРКА -->
@@ -3418,9 +3420,9 @@ $('toSelfCheck').onclick = () => { show('viewSelfCheck'); runSelfCheck(); };
 $('backFromVpsSetup').onclick = () => show('viewWizard');
 $('wzVpsModeAuto').onclick = () => {
   $('wzVpsModeAuto').classList.add('on'); $('wzVpsModeManual').classList.remove('on');
-  if(!$('vpsHost').value) $('vpsHost').value = $('host').value;
-  if($('user').value) $('vpsUser').value = $('user').value;
-  if($('sshPort').value) $('vpsPort').value = $('sshPort').value;
+  // Мастер — для нового сервера: адрес вводится заново, пользователь по
+  // умолчанию root, порт 22. Подставлять из текущего профиля нельзя: там
+  // пользователь туннеля (tun_…), а не администратор сервера.
   show('viewVpsSetup');
 };
 $('wzVpsModeManual').onclick = () => {
@@ -3831,10 +3833,15 @@ let vpsSetupRunning = false;
 function vpsLogLine(text){
   const box = $('vpsSetupLog');
   box.hidden = false;
+  $('vpsLogCopy').hidden = false;
   const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
   box.textContent += (box.textContent ? '\n' : '') + text;
   if(atBottom) box.scrollTop = box.scrollHeight;
 }
+
+$('vpsLogCopy').onclick = async () => {
+  if(await copyToClipboard($('vpsSetupLog').textContent)) flashCopied($('vpsLogCopy'));
+};
 
 function onVpsSetupEvent(e){
   if(e.done){
@@ -3863,6 +3870,7 @@ $('vpsSetupStart').onclick = async () => {
   $('vpsSetupNote').textContent = '';
   $('vpsSetupLog').hidden = true;
   $('vpsSetupLog').textContent = '';
+  $('vpsLogCopy').hidden = true;
 
   const r = await api('/api/vpssetup/start', {
     host, port, user, password,
