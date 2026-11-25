@@ -113,35 +113,59 @@ func (c Conn) named() string {
 // «через сервер»), после сети устройств идёт только через сервер, а без
 // сервера — отказ: пункты 2–6 к нему не применяются.
 func Decide(r Rules, c Conn) Route {
+	route, _ := DecideWhy(r, c)
+	return route
+}
+
+// Why — почему ядро выбрало этот путь: код для журнала соединений (экран
+// переводит его словами). Строки стабильны — их видят API и сторонние
+// программы.
+type Why string
+
+const (
+	WhyMesh     Why = "mesh"     // адрес сети устройств
+	WhyMeshOff  Why = "mesh-off" // сеть устройств выключена — отказ
+	WhyForced   Why = "forced"   // источник только через сервер (Docker)
+	WhyOff      Why = "off"      // круглая кнопка выключена или слив
+	WhyTunneled Why = "tunneled" // список «всегда через сервер»
+	WhyLocal    Why = "local"    // локальная сеть
+	WhyList     Why = "list"     // список «всегда напрямую»
+	WhyApp      Why = "app"      // программа идёт мимо сервера по правилам
+	WhyDefault  Why = "default"  // остальное — через сервер
+)
+
+// DecideWhy — то же решение, что Decide, вместе с причиной (порядок правил
+// описан у Decide). Правило одно: Decide — его обёртка.
+func DecideWhy(r Rules, c Conn) (Route, Why) {
 	named := c.named()
 	if IsMeshTarget(c.Target) || (named != "" && IsMeshTarget(named)) {
 		if r.Mesh {
-			return RouteMesh
+			return RouteMesh, WhyMesh
 		}
-		return RouteBlock
+		return RouteBlock, WhyMeshOff
 	}
 	if c.Forced {
 		if !r.Bypass || r.Draining {
-			return RouteBlock
+			return RouteBlock, WhyForced
 		}
-		return RouteServer
+		return RouteServer, WhyForced
 	}
 	if !r.Bypass || r.Draining {
-		return RouteDirect
+		return RouteDirect, WhyOff
 	}
 	if matches(r.Tunneled, c.Target, named) {
-		return RouteServer
+		return RouteServer, WhyTunneled
 	}
 	if !r.LocalViaTunnel && (routing.IsLocalTarget(c.Target) || (named != "" && routing.IsLocalTarget(named))) {
-		return RouteDirect
+		return RouteDirect, WhyLocal
 	}
 	if matches(r.Direct, c.Target, named) {
-		return RouteDirect
+		return RouteDirect, WhyList
 	}
 	if c.Process != "" && r.Policy != nil && !r.Policy.UseTunnel(c.Process) {
-		return RouteDirect
+		return RouteDirect, WhyApp
 	}
-	return RouteServer
+	return RouteServer, WhyDefault
 }
 
 // DNSRefuse — не отвечать на имя адресом (отказ): у источника, обязанного

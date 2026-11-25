@@ -104,8 +104,9 @@ type Config struct {
 	ProtectSocket func(network, address string, c syscall.RawConn) error
 
 	// PinDirect ставит маршрут к адресу через настоящую сеть на время
-	// прямого соединения и возвращает функцию, которая его снимает (см.
-	// dialDirect). nil — платформе это не нужно (прокси, Android).
+	// прямого соединения и возвращает функцию, которая его снимает. Только
+	// запасной ход (ТЗ 52): зовётся, если привязанный сокет не дождался
+	// ответа (см. dialDirect). nil — платформе это не нужно (прокси, Android).
 	PinDirect func(addr netip.Addr) (release func())
 
 	// Resolver разрешает имена для соединений, которые программа открывает
@@ -253,6 +254,10 @@ type Tunnel struct {
 	realIP atomic.Pointer[routing.DirectList]
 	// sdns — ответы, полученные через сервер (см. LookupViaServer).
 	sdns serverDNS
+
+	// pinsNeeded — на этой сети прямые соединения отвечают только с
+	// маршрутом к адресу (см. dialDirect); сбрасывается при смене сети (Kick).
+	pinsNeeded atomic.Bool
 
 	// kickMu и kick — сигнал «пересобрать пул немедленно», см. Kick.
 	kickMu sync.Mutex
@@ -425,6 +430,8 @@ func (t *Tunnel) currentKick() <-chan struct{} {
 // заводить не пришлось. Безопасно вызывать в любой момент, включая случай,
 // когда туннель ещё не запущен.
 func (t *Tunnel) Kick() {
+	// Новая сеть — заново проверить, нужны ли маршруты прямым соединениям.
+	t.pinsNeeded.Store(false)
 	t.kickMu.Lock()
 	old := t.kick
 	t.kick = make(chan struct{})

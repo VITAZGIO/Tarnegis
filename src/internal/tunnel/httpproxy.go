@@ -82,11 +82,11 @@ func (t *Tunnel) httpForward(conn net.Conn, br *bufio.Reader, req *http.Request)
 	}
 
 	proc, pid := lookupProcess(conn)
-	route, c := t.decide(proc, target)
+	route, c, why := t.decideWhy(proc, target, "", false)
 	direct := route == core.RouteDirect
-	remote, err := t.dialRoute(route, target)
+	remote, st, err := t.dialRouteTimed(route, target)
 	if err != nil {
-		t.bus.Publish(eventConn(proc, pid, target, "http", false, direct, err))
+		t.bus.Publish(timed(eventConn(proc, pid, target, "http", false, direct, err), why, st))
 		fmt.Fprintf(conn, "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\nssh_tunnel: %s\r\n", shortErr(err))
 		return
 	}
@@ -95,7 +95,7 @@ func (t *Tunnel) httpForward(conn net.Conn, br *bufio.Reader, req *http.Request)
 	untrack := t.track(c, route, entryProxy, func() { conn.Close(); remote.Close() })
 	defer untrack()
 
-	t.bus.Publish(eventConn(proc, pid, target, "http", isIPHost(target), direct, nil))
+	t.bus.Publish(timed(eventConn(proc, pid, target, "http", isIPHost(target), direct, nil), why, st))
 	t.stats.active.Add(1)
 	t.stats.total.Add(1)
 	defer t.stats.active.Add(-1)

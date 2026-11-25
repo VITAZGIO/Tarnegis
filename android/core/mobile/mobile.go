@@ -650,11 +650,13 @@ func (t *Tunnel) StartStack(tunFD int, mtu int) error {
 			if cb == nil {
 				return nil, fmt.Errorf("нет резолвера")
 			}
+			t0 := time.Now()
 			ips, err := parseIPs(cb.ResolveLocal(name))
 			if err == nil {
 				// Приложение придёт уже с адресом, а не с именем, —
-				// ядро должно узнать его и не повести через сервер.
-				tun.LearnDirect(name, ips)
+				// ядро должно узнать его и не повести через сервер; время
+				// разрешения покажется в журнале у этого соединения.
+				tun.LearnDirectTimed(name, ips, time.Since(t0))
 			}
 			return ips, err
 		},
@@ -782,6 +784,13 @@ func describeConn(ev events.Event) string {
 	}
 	if ev.Failed && ev.Error != "" {
 		line += " — ошибка: " + ev.Error
+	}
+	// ТЗ 52: сколько ушло на DNS и соединение — видно, что тормозит.
+	if ev.DNSMs > 0 {
+		line += fmt.Sprintf(" — DNS %d мс", ev.DNSMs)
+	}
+	if ev.ConnMs > 0 {
+		line += fmt.Sprintf(" — соединение %d мс", ev.ConnMs)
 	}
 	return line
 }

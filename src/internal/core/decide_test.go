@@ -176,3 +176,37 @@ func TestDecideDNSForced(t *testing.T) {
 		}
 	}
 }
+
+// DecideWhy называет то правило, которое сработало, и решает так же, как
+// Decide.
+func TestDecideWhy(t *testing.T) {
+	r := Rules{Bypass: true, Mesh: true, Direct: routing.NewDirectList([]string{"vk.com"}),
+		Tunneled: routing.NewDirectList([]string{"api.vk.com"})}
+	cases := []struct {
+		c     Conn
+		route Route
+		why   Why
+	}{
+		{Conn{Target: "example.org:443"}, RouteServer, WhyDefault},
+		{Conn{Target: "m.vk.com:443"}, RouteDirect, WhyList},
+		{Conn{Target: "87.240.1.1:443", Name: "vk.com"}, RouteDirect, WhyList},
+		{Conn{Target: "api.vk.com:443"}, RouteServer, WhyTunneled},
+		{Conn{Target: "192.168.1.5:80"}, RouteDirect, WhyLocal},
+		{Conn{Target: "198.19.0.7:22"}, RouteMesh, WhyMesh},
+		{Conn{Target: "vk.com:443", Forced: true}, RouteServer, WhyForced},
+	}
+	for _, tc := range cases {
+		route, why := DecideWhy(r, tc.c)
+		if route != tc.route || why != tc.why {
+			t.Errorf("%+v: %v %q, ждали %v %q", tc.c, route, why, tc.route, tc.why)
+		}
+		if Decide(r, tc.c) != route {
+			t.Errorf("%+v: Decide расходится с DecideWhy", tc.c)
+		}
+	}
+	off := r
+	off.Bypass = false
+	if route, why := DecideWhy(off, Conn{Target: "x.com:443"}); route != RouteDirect || why != WhyOff {
+		t.Errorf("обход выключен: %v %q", route, why)
+	}
+}

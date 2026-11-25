@@ -37,11 +37,21 @@ import (
 // DirectList потокобезопасен: список правится в настройках, не останавливая
 // туннель.
 type DirectList struct {
-	mu       sync.RWMutex
-	ips      []net.IP
-	nets     []*net.IPNet
-	names    []string
-	suffixes []string
+	mu   sync.RWMutex
+	ips  []net.IP
+	nets []*net.IPNet
+	// names — имена, вписанные человеком (и их спутники): их можно
+	// разрешить заранее (Names). Имена из готовых групп сюда не входят: это
+	// домены целиком (userapi.com), а соединения идут к их поддоменам.
+	names []string
+	// domains — имя вместе с поддоменами, subOnly — только поддомены
+	// (".corp.local"), exact — только само имя («full:» из geosite).
+	// Поиск — по меткам имени справа налево, как у domain matcher в
+	// Xray/sing-box: время не растёт с длиной списка (в группах — сотни
+	// доменов, а проверка идёт на каждое соединение и каждый DNS-запрос).
+	domains map[string]bool
+	subOnly map[string]bool
+	exact   map[string]bool
 }
 
 func NewDirectList(entries []string) *DirectList {
@@ -52,45 +62,70 @@ func NewDirectList(entries []string) *DirectList {
 
 func (d *DirectList) Set(entries []string) {
 	var (
-		ips      []net.IP
-		nets     []*net.IPNet
-		names    []string
-		suffixes []string
+		ips     []net.IP
+		nets    []*net.IPNet
+		names   []string
+		domains = map[string]bool{}
+		subOnly = map[string]bool{}
+		exact   = map[string]bool{}
 	)
-	// Готовые группы («@vk», groups.go) — их доменами.
-	for _, raw := range ExpandGroups(entries) {
-		e := CleanEntry(raw)
+	add := func(raw string, typed bool) {
+		e := strings.ToLower(strings.TrimSpace(raw))
+		if n, ok := strings.CutPrefix(e, FullPrefix); ok {
+			if n = strings.TrimSuffix(n, "."); n != "" {
+				exact[n] = true
+			}
+			return
+		}
+		e = CleanEntry(e)
 		if e == "" {
-			continue
+			return
 		}
 		if n := parseNet(e); n != nil {
 			nets = append(nets, n)
-			continue
+			return
 		}
 		if ip := net.ParseIP(e); ip != nil {
 			ips = append(ips, ip)
-			continue
+			return
 		}
 		// Имя: "*.corp.local" и ".corp.local" — одно и то же правило.
 		if s, ok := strings.CutPrefix(e, "*"); ok {
 			e = s
 		}
-		if strings.HasPrefix(e, ".") {
-			suffixes = append(suffixes, e)
-			continue
+		if s, ok := strings.CutPrefix(e, "."); ok {
+			if s != "" {
+				subOnly[s] = true
+			}
+			return
 		}
 		e = strings.TrimSuffix(e, ".")
-		names = append(names, e)
-		suffixes = append(suffixes, "."+e)
+		domains[e] = true
+		if typed {
+			names = append(names, e)
+		}
+	}
+	for _, raw := range entries {
+		// Готовая группа («@vk», groups.go) — её доменами.
+		if strings.HasPrefix(strings.TrimSpace(raw), GroupPrefix) {
+			if g, ok := GroupByID(raw); ok {
+				for _, dom := range g.Domains {
+					add(dom, false)
+				}
+			}
+			continue
+		}
+		add(raw, true)
 	}
 	// Спутники известных сайтов (companions.go) — тем же правилом.
 	for _, c := range withCompanions(names)[len(names):] {
 		names = append(names, c)
-		suffixes = append(suffixes, "."+c)
+		domains[c] = true
 	}
 
 	d.mu.Lock()
-	d.ips, d.nets, d.names, d.suffixes = ips, nets, names, suffixes
+	d.ips, d.nets, d.names = ips, nets, names
+	d.domains, d.subOnly, d.exact = domains, subOnly, exact
 	d.mu.Unlock()
 }
 
@@ -131,6 +166,9 @@ func CleanEntries(entries []string) []string {
 	entries = ExpandGroups(entries)
 	out := make([]string, 0, len(entries))
 	for _, e := range entries {
+		// «full:имя» из geosite — для прокси просто имя: исключение без
+		// звёздочки и так касается только его самого.
+		e = strings.TrimPrefix(strings.TrimSpace(e), FullPrefix)
 		if e = CleanEntry(e); e != "" {
 			out = append(out, e)
 		}
@@ -158,7 +196,7 @@ func (d *DirectList) Empty() bool {
 	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return len(d.ips)+len(d.nets)+len(d.names)+len(d.suffixes) == 0
+	return len(d.ips)+len(d.nets)+len(d.domains)+len(d.subOnly)+len(d.exact) == 0
 }
 
 // Match — попадает ли цель ("host" или "host:port") под одно из правил.
@@ -194,13 +232,11 @@ func (d *DirectList) Match(target string) bool {
 		return false
 	}
 
-	for _, n := range d.names {
-		if h == n {
-			return true
-		}
+	if d.exact[h] || d.domains[h] {
+		return true
 	}
-	for _, s := range d.suffixes {
-		if strings.HasSuffix(h, s) {
+	for p := parentOf(h); p != ""; p = parentOf(p) {
+		if d.domains[p] || d.subOnly[p] {
 			return true
 		}
 	}
