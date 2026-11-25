@@ -625,7 +625,8 @@ func TestRunVpsSetupPanelLocalByDefault(t *testing.T) {
 	if !srv.hasScriptContaining("ssh_tunnel_panel") {
 		t.Fatal("панель не ставилась")
 	}
-	if srv.hasScriptContaining("-listen") || srv.hasScriptContaining("ufw allow") {
+	// «ufw allow» есть и в harden.sh (порт SSH) — ищем именно порт панели.
+	if srv.hasScriptContaining("-listen 0.0.0.0") || srv.hasScriptContaining("comment 'ssh_tunnel_panel'") {
 		t.Error("панель открыта наружу, хотя выбрано «только локально»")
 	}
 	if srv.hasScriptContaining("ключ для root записан") {
