@@ -40,6 +40,17 @@ In settings you can send some sites or programs **directly** (bypassing the
 server) or, on the contrary, **always through the server**. The local network
 (router, printer, NAS) goes directly by default.
 
+The ready groups (“+ VK”, “+ Yandex”, “+ Russian government sites”, “+ Russian
+banks”) are not hand-written: they are categories of the shared domain list
+[domain-list-community](https://github.com/v2fly/domain-list-community)
+(used by Xray, sing-box and mihomo); “VK” is the whole VK Group: VK, OK,
+Mail.ru, Dzen. The list is updated with the program.
+
+Direct connections bypass the VPN adapter the same way these programs do it:
+the socket is bound to the real network, the route table is left alone. The
+log shows for every connection why it took that path and how long DNS and
+the connection itself took — if a site is slow, you can see where.
+
 ## Exit through another server
 
 With more than one server, each one's settings have "Exit through": you can

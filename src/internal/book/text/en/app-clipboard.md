@@ -19,6 +19,13 @@ network**, encrypted like the network; turn on «Device network».
   “Copy”. Turn it on from the plugin page (step-by-step instructions there,
   including “Allow restricted settings” on Android 13+). The service only
   sees the label of the tapped button and does not read the screen.
+- **Screenshots straight to the shared clipboard** (phone, a checkbox on the
+  plugin page, off by default): take a screenshot and it goes to the other
+  devices as an image right away — on the PC, Ctrl+V into a chat. Works in
+  the background while ssh_tunnel runs. Needs photo access (“Allow all”:
+  with “Selected photos only” new screenshots are not visible). Only new
+  screenshots from the screenshots folder, taken after you turn it on, are
+  sent; over 8 MB they are scaled down.
 - **Photos**: JPEG, PNG and GIF from the phone paste on the PC both as a
   picture (Paint, Word, a messenger) and as a file (Explorer). HEIC, WebP and
   other formats are converted to JPEG on the phone first. Very large images

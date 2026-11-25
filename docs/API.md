@@ -63,7 +63,11 @@
 
 `GET /events` — поток Server-Sent Events, по строке `data: {…}` на событие:
 `core` (поле `core` — то же, что `GET /api/state`), `state` (связь), `conn`
-(соединение: программа, цель, напрямую ли), `log`, `stats`, `speed`,
+(соединение: программа, цель, напрямую ли; `why` — почему этот путь:
+`list` «всегда напрямую», `default` через сервер по умолчанию, `local`,
+`app`, `tunneled`, `off`, `mesh`, `mesh-off`, `forced`; `dnsMs`, `connMs` —
+сколько заняли DNS и само соединение, мс; `pinned` — прямому соединению
+понадобился маршрут к адресу), `log`, `stats`, `speed`,
 `vpssetup`. При подключении сначала приходит недавний журнал и текущее `core`.
 
 ## Плагины
@@ -142,10 +146,14 @@
 с панелью (ТЗ 47): `internal/invite`. Что заводить, убирать и скрывать —
 `config.ApplyDevice` (`internal/config/device.go`).
 
-- `GET /api/directgroups` → `{"groups":[{"id":"vk","name":"ВКонтакте","nameEn":"VK","domains":[…]}]}` —
+- `GET /api/directgroups` → `{"groups":[{"id":"vk","name":"ВКонтакте","nameEn":"VK","geosite":["mailru-group"],"domains":[…]}]}` —
   готовые группы «всегда напрямую» (ТЗ 51). В `directHosts` группа — одна
   запись `@id` (`@vk`); правила раскрывают её в домены (каждый — с
-  поддоменами), в исключения системного прокси — тоже.
+  поддоменами; `full:имя` — только само имя), в исключения системного
+  прокси — тоже. Домены — категории geosite из v2fly/domain-list-community
+  (ТЗ 52, `geosite`): `@vk` — `mailru-group`, `@yandex` — `yandex`,
+  `@gosuslugi` — `category-gov-ru`, `@banks` — `category-bank-ru`; `@mailru`
+  (старый id, `hidden`) — тоже `mailru-group`.
 - `GET /api/device` → `{"device":{id,name,join,rev,mesh,frozen,servers:[{name,host,port,hk,flag}],hidden:["h:p"],removed:[{name,host,port,hk,flag}]}|null,
   "net":{on,key,onlyThis,exitVia:[id профиля],exitT,exitBy},"meshAllowed":bool,"sync":{t,err,note}}`.
   `net` есть и без устройства — тогда это значения активного профиля (как
@@ -713,6 +721,10 @@ meshd: `{id,name,host,user,online,gone,folders}`); `POST /api/node/folder/access
   содержимое (до 50 МБ): в историю и всем устройствам сети, кто в сети.
   Ответ `{"ok":true,"item"}` или `{"error","tooBig"}`.
 - `POST /api/clipboard/delete` `{"id"}` или `{"all":true}`.
+- `GET /api/clipboard/settings` → `{"screenshots":bool,"screenshotsSince":unix}`;
+  `POST {"screenshots":true|false}` — «Скриншоты сразу в общий буфер»
+  (телефон, ТЗ 52; по умолчанию выключено): новый скриншот уходит картинкой
+  (`image`, PNG ≤ 8 МБ) всем устройствам. Старше включения — не уходят.
 
 Между устройствами буфер ходит по сети устройств на порт 47837
 (`POST /clip?id=&kind=&name=&mime=`); нет службы на порту — устройство не

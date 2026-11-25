@@ -4839,11 +4839,12 @@ async function renderDirectGroups(){
       x.onclick = e => { e.preventDefault(); setDirectGroup(g.id, false); };
       sm.appendChild(t); sm.appendChild(x);
       const dl = document.createElement('div');
-      dl.className = 'dl'; dl.textContent = g.domains.join(', ');
+      dl.className = 'dl'; dl.textContent = g.domains.map(x => x.replace(/^full:/, '')).join(', ');
       d.appendChild(sm); d.appendChild(dl);
       box.appendChild(d);
       return;
     }
+    if(g.hidden) return; // старый id той же группы: работает, но не предлагается
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn'; b.textContent = '+ ' + gname(g);
     b.onclick = () => setDirectGroup(g.id, true);

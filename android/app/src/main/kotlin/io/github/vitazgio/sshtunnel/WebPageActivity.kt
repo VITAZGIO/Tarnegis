@@ -191,6 +191,14 @@ class WebPageActivity : AppCompatActivity() {
         @JavascriptInterface
         fun openAppInfo() = runOnUiThread { ClipAccess.openAppInfo(this@WebPageActivity) }
 
+        /** «Скриншоты сразу в общий буфер» (ТЗ 52): есть ли доступ к новым
+         * картинкам и спросить его. */
+        @JavascriptInterface
+        fun screenshotsPermitted(): Boolean = Screenshots.permitted(this@WebPageActivity)
+
+        @JavascriptInterface
+        fun askScreenshots() = runOnUiThread { Screenshots.ask(this@WebPageActivity) }
+
         /** «Сканер сети» → Wi-Fi: сети вокруг, своя сеть сейчас, разрешение. */
         @JavascriptInterface
         fun wifiScan(): String = WifiScan.scanJson(this@WebPageActivity)

@@ -32,6 +32,11 @@
     <!-- Только чтобы отсканировать QR с настройками — приложение не снимает
          фото и не пишет видео, само разрешение спрашивается по нажатию. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- ТЗ 52: «Скриншоты сразу в общий буфер» — видеть новые скриншоты
+         (только с галочкой; спрашивается со страницы «Общий буфер»). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <!-- Скачанное обновление открывается сразу в установщике: без этого
          разрешения Android даже не предложит разрешить установку. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
