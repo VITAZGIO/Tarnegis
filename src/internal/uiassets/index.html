@@ -235,7 +235,7 @@
 
   .field{margin-bottom:10px}
   .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:3px}
-  input[type=text],input[type=number]{width:100%;background:var(--card);
+  input[type=text],input[type=number],.field input[type=password]{width:100%;background:var(--card);
        border:1px solid var(--line);border-radius:8px;padding:7px 10px;
        color:var(--text);font:inherit}
   input:focus{outline:none;border-color:var(--accent)}
@@ -390,6 +390,18 @@
   .infoq:hover .tip, .infoq.show .tip{display:block}
   .help .step{margin:11px 0 5px;font-weight:600;color:var(--text)}
   .help .note{margin:5px 0 0;color:var(--dim)}
+  .vpsPick .btn{width:100%}
+  .vpsPick .note{margin:6px 0 16px}
+  .vpsLink{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;font-size:12.5px;text-align:left}
+  .vpsWarn{color:var(--warn)}
+  .vpsResult b{word-break:break-all}
+  .panelBar{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;display:flex;gap:8px;
+    align-items:center;flex-wrap:wrap;max-width:calc(100vw - 32px);box-sizing:border-box;padding:8px 10px 8px 14px;
+    border-radius:12px;background:var(--card);color:var(--text);border:1px solid var(--accent);
+    box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:13px}
+  .panelBar[hidden]{display:none}
+  .panelBar #panelBarText{flex:1;min-width:160px}
+  .panelBar .btn{padding:5px 11px;font-size:12.5px}
   .netline{display:flex;gap:7px;align-items:flex-start;padding:3px 0}
   .netline .mark{flex:none;width:14px;text-align:center}
   .netline.bad .mark{color:#ff8a5c}
@@ -1032,6 +1044,15 @@
         <input type="number" id="httpPort" min="1" max="65535"></div>
     </div>
 
+    <div class="field desk-only">
+      <label for="adminUser" data-i18n="admin_user_label">Администратор сервера (для панели)</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="adminUser" spellcheck="false" placeholder="root" style="flex:1;min-width:120px">
+        <button type="button" class="btn" id="openPanelBtn" data-i18n="panel_open_btn">Открыть панель сервера</button>
+      </div>
+      <span class="hint" id="openPanelNote" style="display:block;margin-top:4px"></span>
+    </div>
+
     <div class="chk-row">
       <label class="chk"><input type="checkbox" id="ownRules">
         <span class="lbl" data-i18n="own_rules">Свои правила для этого сервера</span></label>
@@ -1477,19 +1498,26 @@
       </div>
     </div>
 
-    <!-- VPS: два способа — набор команд для ручной вставки (docs/SERVER_SETUP.md)
-         или тот же результат одной кнопкой (программа сама заходит по паролю root). -->
+    <!-- VPS: одна главная дорога — «Настроить новый сервер» (программа сама
+         заходит по паролю и делает всё); рядом — сервер, который уже настроен
+         (вписать адрес, пользователя и ключ), и, мелко, команды для ручной
+         вставки, когда входа по паролю нет вовсе (docs/SERVER_SETUP.md). -->
     <div id="wzVPS" hidden>
+      <div class="vpsPick">
+        <button class="btn primary" id="wzVpsNew" data-i18n="vps_new_btn">Настроить новый сервер</button>
+        <p class="note" data-i18n="vps_new_note">Нужны только адрес и пароль от хостера. Программа сама защитит
+          сервер, положит на него свой ключ, заведёт пользователя для туннеля и добавит сервер в список.</p>
+        <button class="btn" id="wzVpsHave" data-i18n="vps_have_btn">У меня уже есть данные для входа</button>
+        <p class="note" data-i18n="vps_have_note">Сервер уже настроен: есть адрес, пользователь и ключ —
+          впиши их в новый сервер в списке.</p>
+        <button type="button" class="vpsLink" id="wzVpsManualToggle" data-i18n="vps_manual_link">Входа по паролю нет —
+          собрать команды, чтобы вставить на сервере руками ›</button>
+      </div>
+
+      <div id="wzVpsManual" hidden>
       <p class="note" style="margin-top:0" data-i18n="wizard_vps_intro">Готовые команды для новго
         сервера — вставить целиком на нём под root. Что настраивают: ключи вместо паролей,
         firewall, бан за перебор, автообновления и отдельный пользователь для туннеля.</p>
-
-      <div class="two" style="margin-bottom:14px">
-        <button class="btn wztab on" id="wzVpsModeManual" data-i18n="vps_mode_manual">Вручную</button>
-        <button class="btn wztab" id="wzVpsModeAuto" data-i18n="vps_mode_auto">Автоматически</button>
-      </div>
-
-      <div id="wzVpsManual">
       <div class="two">
         <div class="field"><label for="wzNewUser" data-i18n="wizard_admin_user">Обычный пользователь (необязательно)</label>
           <input type="text" id="wzNewUser" spellcheck="false" data-i18n-ph="wizard_admin_user_ph"></div>
@@ -1556,6 +1584,12 @@
       </div>
     </div>
   </div><!-- /view viewWizard -->
+  <!-- Проброс к панели сервера открыт: видно на любом экране, пока не закрыли. -->
+  <div class="panelBar" id="panelBar" hidden>
+    <span id="panelBarText"></span>
+    <button type="button" class="btn" id="panelBarOpen" data-i18n="panel_bar_open">Открыть</button>
+    <button type="button" class="btn" id="panelBarClose" data-i18n="panel_bar_close">Закрыть</button>
+  </div>
   <!-- НАСТРОЙКА VPS -->
   <div class="view" id="viewVpsSetup">
     <div class="head">
@@ -1565,11 +1599,12 @@
       <span class="t" data-i18n="vps_setup_title">Настройка сервера по SSH</span>
     </div>
 
-    <p class="note" style="margin-top:0" data-i18n="vps_setup_intro">Программа сама подключится по паролю
-      root, положит на сервер свой ключ, проверит, что вход по нему работает, и только после этого
+    <div id="vpsForm">
+    <p class="note" style="margin-top:0" data-i18n="vps_setup_intro">Программа сама подключится по паролю,
+      положит на сервер свой ключ, проверит, что вход по нему работает, и только после этого
       выполнит те же шаги, что описаны в docs/SERVER_SETUP.md: базовую защиту (firewall, бан за перебор,
       отключение входа по паролю) и отдельного пользователя, которому можно только пробрасывать
-      соединения. Пароль root нигде не сохраняется и не показывается повторно.</p>
+      соединения. Пароль нужен один раз — он нигде не сохраняется.</p>
 
     <div class="field"><label for="vpsHost" data-i18n="host_label">Адрес сервера</label>
       <input type="text" id="vpsHost" spellcheck="false" data-i18n-ph="host_ph"></div>
@@ -1579,15 +1614,31 @@
       <div class="field"><label for="vpsUser" data-i18n="vps_user_label">Пользователь</label>
         <input type="text" id="vpsUser" spellcheck="false" value="root"></div>
     </div>
-    <div class="field"><label for="vpsPassword" data-i18n="vps_password_label">Пароль root</label>
+    <p class="note" style="margin-top:-6px" data-i18n="vps_user_note">root — или другой пользователь с правом sudo.</p>
+    <div class="field"><label for="vpsPassword" data-i18n="vps_password_label">Пароль</label>
       <input type="password" id="vpsPassword" autocomplete="off" spellcheck="false"></div>
 
     <label class="chk" style="margin:4px 0 14px">
-      <input type="checkbox" id="vpsInstallPanel">
+      <input type="checkbox" id="vpsInstallPanel" checked>
       <span class="lbl" data-i18n="vps_install_panel">Заодно поставить веб-панель для клиентов</span></label>
-    <p class="note" style="margin-top:-8px" data-i18n="vps_install_panel_note">Отдельная веб-страница для
-      администрирования сервера (систeмные службы, сеть, диски) — новый открытый порт наружу. Показывает
-      адрес и одноразовый пароль после установки.</p>
+    <p class="note" style="margin-top:-8px" data-i18n="vps_install_panel_note">Веб-страница сервера: устройства,
+      пользователи, трафик, плагины. После установки покажет одноразовый пароль.</p>
+    <div id="vpsPanelWhere" style="margin:0 0 14px 26px">
+      <label class="chk" style="margin:2px 0 4px">
+        <input type="radio" name="vpsPanelWhere" id="vpsPanelLocal" checked>
+        <span class="lbl" data-i18n="vps_panel_local">Панель только локально (через туннель)</span></label>
+      <p class="note" style="margin-top:0" data-i18n="vps_panel_local_note">В интернет ничего не открывается.
+        Открыть панель — кнопкой «Открыть панель сервера»: программа сама проложит к ней временный путь по SSH.</p>
+      <label class="chk" style="margin:8px 0 4px">
+        <input type="radio" name="vpsPanelWhere" id="vpsPanelPublic">
+        <span class="lbl" data-i18n="vps_panel_public">Панель открыта в интернет на порту</span>
+        <input type="number" id="vpsPanelPort" min="1" max="65535" value="47823"
+               style="width:90px;margin-left:8px;padding:3px 6px"></label>
+      <p class="note vpsWarn" id="vpsPanelPublicWarn" hidden data-i18n="vps_panel_public_warn">Осторожно: без
+        шифрования. Пароль панели и всё, что в ней, идут по сети открытым текстом, а страницу входа увидит
+        любой, кто знает адрес. Выбирай, только если понимаешь зачем; надёжнее — локально или через nginx/Caddy
+        с сертификатом.</p>
+    </div>
 
     <label class="chk" style="margin:4px 0 14px">
       <input type="checkbox" id="vpsInstallUdpRelay">
@@ -1602,10 +1653,39 @@
     <p class="note" style="margin-top:-8px" data-i18n="vps_install_mesh_note">Твои устройства увидят друг
       друга по именам вида «ноутбук.mesh» — через этот сервер, без белых адресов и проброса портов. Слушает
       только 127.0.0.1. После установки включи «Сеть устройств» в настройках сервера на каждом устройстве.</p>
+    </div><!-- /#vpsForm -->
 
     <div style="display:flex;gap:9px;align-items:center;margin-top:6px">
       <button class="btn primary" id="vpsSetupStart" data-i18n="vps_setup_start">Настроить сервер</button>
       <span class="hint" id="vpsSetupNote"></span>
+    </div>
+
+    <!-- Итог удачной настройки: сервер в списке, пароль панели, вход в панель. -->
+    <div class="help vpsResult" id="vpsResult" hidden>
+      <p class="step" style="margin-top:0" data-i18n="vps_res_title">Сервер настроен</p>
+      <p><span data-i18n="vps_res_added">Добавлен в список серверов:</span> <b id="vpsResName"></b>
+        <button type="button" class="vpsLink" id="vpsResToServers" data-i18n="vps_res_to_list">открыть в списке ›</button></p>
+      <p class="note" id="vpsResProfileNote" hidden></p>
+      <div id="vpsResPanel" hidden>
+        <p><span data-i18n="vps_res_panel_login">Панель сервера — логин:</span> <b id="vpsResLogin"></b></p>
+        <div id="vpsResPassBox">
+          <p style="margin-bottom:4px" data-i18n="vps_res_panel_pass">Одноразовый пароль (панель попросит сменить его при первом входе):</p>
+          <div class="cmdbox">
+            <button class="cp" data-cmd="vpsResPass" data-note="vpsResHint" data-i18n-title="copy_title" title="Скопировать">
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/>
+                <path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            </button>
+            <span id="vpsResPass" style="user-select:all;-webkit-user-select:all"></span>
+          </div>
+        </div>
+        <p class="note" id="vpsResPanelNote" hidden></p>
+        <p class="note" id="vpsResPublic" hidden></p>
+        <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn primary" id="vpsResOpenPanel" data-i18n="panel_open_btn">Открыть панель сервера</button>
+          <span class="hint" id="vpsResHint"></span>
+        </div>
+      </div>
+      <button type="button" class="vpsLink" id="vpsResAgain" style="margin-top:12px" data-i18n="vps_res_again">Настроить ещё один сервер ›</button>
     </div>
 
     <div class="help" id="vpsSetupLog" hidden style="margin-top:14px;max-height:320px;overflow:auto;
@@ -2041,17 +2121,40 @@ const I18N = {
     discard_unsaved:'Есть несохранённые правки — переключиться и потерять их?',
     host_label:'Адрес сервера', host_ph:'адрес или домен сервера',
     user_label:'Пользователь SSH', key_label:'Приватный ключ',
-    vps_mode_manual:'Вручную', vps_mode_auto:'Автоматически',
-    vps_setup_title:'Настройка сервера по SSH',
-    vps_setup_intro:'Программа сама подключится по паролю root, положит на сервер свой ключ, '+
+    vps_new_btn:'Настроить новый сервер',
+    vps_new_note:'Нужны только адрес и пароль от хостера. Программа сама защитит сервер, положит на него '+
+      'свой ключ, заведёт пользователя для туннеля и добавит сервер в список.',
+    vps_have_btn:'У меня уже есть данные для входа',
+    vps_have_note:'Сервер уже настроен: есть адрес, пользователь и ключ — впиши их в новый сервер в списке.',
+    vps_manual_link:'Входа по паролю нет — собрать команды, чтобы вставить на сервере руками ›',
+    vps_setup_title:'Новый сервер',
+    vps_setup_intro:'Программа сама подключится по паролю, положит на сервер свой ключ, '+
       'проверит, что вход по нему работает, и только после этого выполнит те же шаги, что описаны в '+
       'docs/SERVER_SETUP.md: базовую защиту (firewall, бан за перебор, отключение входа по паролю) и '+
-      'отдельного пользователя, которому можно только пробрасывать соединения. Пароль root нигде не '+
-      'сохраняется и не показывается повторно.',
-    vps_port_label:'SSH-порт', vps_user_label:'Пользователь', vps_password_label:'Пароль root',
+      'отдельного пользователя, которому можно только пробрасывать соединения. Пароль нужен один раз — '+
+      'он нигде не сохраняется.',
+    vps_port_label:'SSH-порт', vps_user_label:'Пользователь', vps_password_label:'Пароль',
+    vps_user_note:'root — или другой пользователь с правом sudo.',
     vps_install_panel:'Заодно поставить веб-панель для клиентов',
-    vps_install_panel_note:'Отдельная веб-страница для администрирования сервера (системные службы, '+
-      'сеть, диски) — новый открытый порт наружу. Показывает адрес и одноразовый пароль после установки.',
+    vps_install_panel_note:'Веб-страница сервера: устройства, пользователи, трафик, плагины. После установки '+
+      'покажет одноразовый пароль.',
+    vps_panel_local:'Панель только локально (через туннель)',
+    vps_panel_local_note:'В интернет ничего не открывается. Открыть панель — кнопкой «Открыть панель сервера»: '+
+      'программа сама проложит к ней временный путь по SSH.',
+    vps_panel_public:'Панель открыта в интернет на порту',
+    vps_panel_public_warn:'Осторожно: без шифрования. Пароль панели и всё, что в ней, идут по сети открытым '+
+      'текстом, а страницу входа увидит любой, кто знает адрес. Выбирай, только если понимаешь зачем; надёжнее — '+
+      'локально или через nginx/Caddy с сертификатом.',
+    vps_panel_port_bad:'порт панели: число от 1 до 65535, не равное SSH-порту',
+    vps_res_title:'Сервер настроен', vps_res_added:'Добавлен в список серверов:',
+    vps_res_to_list:'открыть в списке ›', vps_res_panel_login:'Панель сервера — логин:',
+    vps_res_panel_pass:'Одноразовый пароль (панель попросит сменить его при первом входе):',
+    vps_res_public:'Панель открыта в интернет: {u}', vps_res_again:'Настроить ещё один сервер ›',
+    panel_open_btn:'Открыть панель сервера', panel_opening:'открываю…',
+    panel_bar_text:'Панель сервера «{n}» открыта на localhost:{p}', panel_bar_open:'Открыть', panel_bar_close:'Закрыть',
+    panel_closed_self:'Проброс к панели закрылся: {r}',
+    panel_save_first:'сначала сохрани сервер',
+    admin_user_label:'Администратор сервера (для панели)',
     adv_title:'Дополнительно', adv_default:'По умолчанию', adv_sec:'с', adv_timeout_short:'ожидание',
     adv_lan_short:'прокси в локальной сети',
     adv_intro:'Тонкая настройка соединения — одна на все серверы. Не уверен — оставь как есть: значения по умолчанию '+
@@ -2126,7 +2229,7 @@ const I18N = {
       'достучаться до него можно только через уже настроенный туннель. После установки включи '+
       '«Пробрасывать UDP через сервер» в настройках сервера.',
     vps_setup_start:'Настроить сервер',
-    vps_setup_need_fields:'заполни адрес сервера и пароль root',
+    vps_setup_need_fields:'заполни адрес сервера и пароль',
     vps_setup_done_ok:'готово',
     vps_setup_done_fail:'не получилось:',
     filter_title:'Какие программы вести через туннель',
@@ -2384,17 +2487,38 @@ const I18N = {
     discard_unsaved:'There are unsaved changes — switch and lose them?',
     host_label:'Server address', host_ph:'server address or domain',
     user_label:'SSH user', key_label:'Private key',
-    vps_mode_manual:'Manual', vps_mode_auto:'Automatic',
-    vps_setup_title:'Server setup over SSH',
-    vps_setup_intro:'The program connects with the root password itself, installs its own key on the '+
+    vps_new_btn:'Set up a new server',
+    vps_new_note:'All you need is the address and the password from your hosting provider. The program '+
+      'hardens the server, installs its key, creates a tunnel user and adds the server to the list.',
+    vps_have_btn:'I already have login details',
+    vps_have_note:'The server is already set up: you have the address, user and key — enter them into a new server in the list.',
+    vps_manual_link:'No password login — build commands to paste on the server by hand ›',
+    vps_setup_title:'New server',
+    vps_setup_intro:'The program logs in with the password itself, installs its own key on the '+
       'server, checks that logging in with it actually works, and only then runs the same steps described '+
       'in docs/SERVER_SETUP.md: basic hardening (firewall, brute-force ban, disabling password login) and '+
-      'a dedicated user that can only forward connections. The root password is never saved and never '+
-      'shown again.',
-    vps_port_label:'SSH port', vps_user_label:'User', vps_password_label:'Root password',
+      'a dedicated user that can only forward connections. The password is used once and never saved.',
+    vps_port_label:'SSH port', vps_user_label:'User', vps_password_label:'Password',
+    vps_user_note:'root — or another user with sudo rights.',
     vps_install_panel:'Also install the client web panel',
-    vps_install_panel_note:'A separate web page for administering the server (system services, network, '+
-      'disks) — one more open port. Shows the address and a one-time password once installed.',
+    vps_install_panel_note:'The server web page: devices, users, traffic, plugins. Shows a one-time password once installed.',
+    vps_panel_local:'Panel only locally (through a tunnel)',
+    vps_panel_local_note:'Nothing is opened to the internet. Open the panel with "Open server panel": '+
+      'the program builds a temporary path to it over SSH.',
+    vps_panel_public:'Panel open to the internet on port',
+    vps_panel_public_warn:'Careful: no encryption. The panel password and everything in it travel in plain text, '+
+      'and anyone who knows the address sees the login page. Pick this only if you know why; safer is local only '+
+      'or nginx/Caddy with a certificate.',
+    vps_panel_port_bad:'panel port: a number from 1 to 65535, not the SSH port',
+    vps_res_title:'Server is set up', vps_res_added:'Added to the server list:',
+    vps_res_to_list:'open in the list ›', vps_res_panel_login:'Server panel — login:',
+    vps_res_panel_pass:'One-time password (the panel asks to change it on first login):',
+    vps_res_public:'Panel is open to the internet: {u}', vps_res_again:'Set up another server ›',
+    panel_open_btn:'Open server panel', panel_opening:'opening…',
+    panel_bar_text:'Server panel "{n}" is open at localhost:{p}', panel_bar_open:'Open', panel_bar_close:'Close',
+    panel_closed_self:'The panel connection closed: {r}',
+    panel_save_first:'save the server first',
+    admin_user_label:'Server administrator (for the panel)',
     adv_title:'Advanced', adv_default:'Defaults', adv_sec:'s', adv_timeout_short:'timeout',
     adv_lan_short:'proxy shared on LAN',
     adv_intro:'Fine tuning of the connection — one for all servers. Not sure — leave it as is: the defaults suit almost '+
@@ -2468,7 +2592,7 @@ const I18N = {
       'through the tunnel that\'s already set up. Once installed, turn on "Route UDP through the server" '+
       'in the server settings.',
     vps_setup_start:'Set up server',
-    vps_setup_need_fields:'fill in the server address and the root password',
+    vps_setup_need_fields:'fill in the server address and the password',
     vps_setup_done_ok:'done',
     vps_setup_done_fail:'failed:',
     filter_title:'Which apps go through the tunnel',
@@ -2848,7 +2972,7 @@ $('language').addEventListener('change', () => {
   saveLook(); // сразу, как тема (ТЗ 32)
 });
 
-const FIELDS = ['host','user','keyPath','sshPort','socksPort','httpPort','poolSize','meshName','meshKey',
+const FIELDS = ['host','user','keyPath','adminUser','sshPort','socksPort','httpPort','poolSize','meshName','meshKey',
                 'keepAliveSec','connectTimeoutSec','cipher','ipVersion'];
 const PROFILE_CHECKS = ['localViaTunnel', 'udpRelayEnabled', 'meshEnabled', 'meshIncoming', 'shareLan'];
 // Общие настройки программы (ТЗ 32, config.Prefs): RULE_KEYS — правила и
@@ -3418,16 +3542,20 @@ $('toSelfCheck').onclick = () => { show('viewSelfCheck'); runSelfCheck(); };
 // «Настроить сервер по SSH» — вариант «автоматически» внутри вкладки VPS
 // мастера настройки, поэтому назад возвращает туда же, а не в настройки.
 $('backFromVpsSetup').onclick = () => show('viewWizard');
-$('wzVpsModeAuto').onclick = () => {
-  $('wzVpsModeAuto').classList.add('on'); $('wzVpsModeManual').classList.remove('on');
+$('wzVpsNew').onclick = () => {
   // Мастер — для нового сервера: адрес вводится заново, пользователь по
   // умолчанию root, порт 22. Подставлять из текущего профиля нельзя: там
   // пользователь туннеля (tun_…), а не администратор сервера.
+  if(!vpsSetupRunning) vpsShowForm();
   show('viewVpsSetup');
 };
-$('wzVpsModeManual').onclick = () => {
-  $('wzVpsModeManual').classList.add('on'); $('wzVpsModeAuto').classList.remove('on');
+// «Уже есть данные для входа» — обычный новый сервер в списке: адрес,
+// пользователь и ключ человек вписывает сам.
+$('wzVpsHave').onclick = async () => {
+  show('viewServers');
+  await addProfile();
 };
+$('wzVpsManualToggle').onclick = () => { $('wzVpsManual').hidden = !$('wzVpsManual').hidden; };
 
 /* ---------- форматирование ---------- */
 function fmtMbps(v){
@@ -3843,13 +3971,71 @@ $('vpsLogCopy').onclick = async () => {
   if(await copyToClipboard($('vpsSetupLog').textContent)) flashCopied($('vpsLogCopy'));
 };
 
-function onVpsSetupEvent(e){
+// vpsShowForm — снова пустая форма (новый сервер), итог прошлого прячется.
+function vpsShowForm(){
+  $('vpsForm').hidden = false;
+  $('vpsResult').hidden = true;
+  $('vpsSetupStart').hidden = false;
+  $('vpsSetupNote').textContent = '';
+}
+function vpsPanelWhere(){
+  $('vpsPanelWhere').hidden = !$('vpsInstallPanel').checked;
+  $('vpsPanelPublicWarn').hidden = !$('vpsPanelPublic').checked;
+}
+['vpsInstallPanel','vpsPanelLocal','vpsPanelPublic'].forEach(id => $(id).addEventListener('change', vpsPanelWhere));
+$('vpsPanelPort').addEventListener('focus', () => { $('vpsPanelPublic').checked = true; vpsPanelWhere(); });
+vpsPanelWhere();
+
+let vpsResProfile = '';
+function showVpsResult(v){
+  $('vpsForm').hidden = true;
+  $('vpsSetupStart').hidden = true;
+  $('vpsResult').hidden = false;
+  vpsResProfile = v.profileId || '';
+  $('vpsResName').textContent = v.profileName || v.host || '';
+  $('vpsResToServers').hidden = !vpsResProfile;
+  $('vpsResProfileNote').hidden = !v.profileNote;
+  $('vpsResProfileNote').textContent = v.profileNote || '';
+  $('vpsResPanel').hidden = !v.panel;
+  $('vpsResLogin').textContent = v.panelLogin || 'admin';
+  $('vpsResPassBox').hidden = !v.panelPass;
+  $('vpsResPass').textContent = v.panelPass || '';
+  $('vpsResPanelNote').hidden = !v.panelNote;
+  $('vpsResPanelNote').textContent = v.panelNote || '';
+  const pub = v.panelPublic ? 'http://' + (v.host.includes(':') ? '[' + v.host + ']' : v.host) + ':' + v.panelPublic + '/' : '';
+  $('vpsResPublic').hidden = !pub;
+  $('vpsResPublic').textContent = pub ? tr('vps_res_public').replace('{u}', pub) : '';
+  $('vpsResOpenPanel').hidden = !vpsResProfile;
+  $('vpsResHint').textContent = '';
+}
+$('vpsResToServers').onclick = async () => {
+  show('viewServers');
+  if(vpsResProfile && vpsResProfile !== editingProfileId) await toggleEdit(vpsResProfile);
+};
+$('vpsResAgain').onclick = () => {
+  $('vpsHost').value = '';
+  $('vpsSetupLog').hidden = true;
+  $('vpsLogCopy').hidden = true;
+  vpsShowForm();
+};
+$('vpsResOpenPanel').onclick = () => openServerPanel(vpsResProfile, '', $('vpsResHint'));
+
+async function onVpsSetupEvent(e){
   if(e.done){
     vpsSetupRunning = false;
     $('vpsSetupStart').disabled = false;
     $('vpsPassword').value = '';
     $('vpsSetupNote').textContent = e.failed ? '' : tr('vps_setup_done_ok');
-    if(e.failed) vpsLogLine(tr('vps_setup_done_fail') + ' ' + (e.error || ''));
+    if(e.failed){ vpsLogLine(tr('vps_setup_done_fail') + ' ' + (e.error || '')); return; }
+    if(e.vps){
+      showVpsResult(e.vps);
+      // Новый сервер уже в настройках программы — подтягиваем список, не
+      // трогая несохранённые правки в форме сервера.
+      try {
+        const st = await api('/api/status');
+        if(st && st.config && !formDirty) applyDoc(st.config, true);
+      } catch(_){ }
+    }
     return;
   }
   vpsLogLine(e.text || '');
@@ -3865,6 +4051,12 @@ $('vpsSetupStart').onclick = async () => {
     $('vpsSetupNote').textContent = tr('vps_setup_need_fields');
     return;
   }
+  const panelPublic = $('vpsInstallPanel').checked && $('vpsPanelPublic').checked;
+  const panelPort = parseInt($('vpsPanelPort').value, 10) || 0;
+  if(panelPublic && (panelPort < 1 || panelPort > 65535 || panelPort === port)){
+    $('vpsSetupNote').textContent = tr('vps_panel_port_bad');
+    return;
+  }
   vpsSetupRunning = true;
   $('vpsSetupStart').disabled = true;
   $('vpsSetupNote').textContent = '';
@@ -3878,6 +4070,7 @@ $('vpsSetupStart').onclick = async () => {
     installPanel: $('vpsInstallPanel').checked,
     installUdpRelay: $('vpsInstallUdpRelay').checked,
     installMesh: $('vpsInstallMesh').checked,
+    panelPublicPort: panelPublic ? panelPort : 0,
   });
   if(r.error){
     vpsSetupRunning = false;
@@ -6148,6 +6341,52 @@ $('wzVpsBtn').onclick = async () => {
   const copied = await copyToClipboard(r.script);
   $('wzVpsNote').textContent = copied ? tr('wizard_vps_copied') : tr('copy_manually');
 };
+
+/* ---------- «Открыть панель сервера»: временный проброс по SSH ---------- */
+let panelFwd = {open: false};
+let panelFwdTimer = null;
+function renderPanelBar(st){
+  panelFwd = st || {open: false};
+  $('panelBar').hidden = !panelFwd.open;
+  if(panelFwd.open){
+    $('panelBarText').textContent = tr('panel_bar_text').replace('{n}', panelFwd.name || '').replace('{p}', panelFwd.port);
+  }
+  clearInterval(panelFwdTimer);
+  // Пока проброс открыт, раз в несколько секунд сверяемся: если связь с
+  // сервером оборвалась, полоска уходит сама и говорит почему.
+  if(panelFwd.open) panelFwdTimer = setInterval(pollPanelFwd, 5000);
+}
+async function pollPanelFwd(){
+  let st;
+  try { st = await api('/api/panelfwd'); } catch(_) { return; }
+  if(!st || st.error) return;
+  if(!st.open && panelFwd.open && st.closed){
+    // Сама закрылась — говорим об этом там, откуда её открывали.
+    const t = tr('panel_closed_self').replace('{r}', st.closed);
+    $('openPanelNote').textContent = t;
+    $('vpsResHint').textContent = t;
+  }
+  renderPanelBar(st);
+}
+async function openServerPanel(id, adminUser, noteEl){
+  if(!id) return;
+  noteEl.textContent = tr('panel_opening');
+  const r = await api('/api/panelfwd', {op: 'open', id, adminUser: adminUser || ''}).catch(e => ({error: String(e)}));
+  if(!r || r.error){ noteEl.textContent = (r && r.error) || ''; return; }
+  noteEl.textContent = '';
+  renderPanelBar(r);
+  openExternal(r.url);
+}
+$('openPanelBtn').onclick = () => {
+  if(formDirty){ $('openPanelNote').textContent = tr('panel_save_first'); return; }
+  openServerPanel(editingProfileId, ($('adminUser').value || '').trim(), $('openPanelNote'));
+};
+$('panelBarOpen').onclick = () => { if(panelFwd.open) openExternal(panelFwd.url); };
+$('panelBarClose').onclick = async () => {
+  const r = await api('/api/panelfwd', {op: 'close'}).catch(() => ({open: false}));
+  renderPanelBar(r && !r.error ? r : {open: false});
+};
+if(!ANDROID) pollPanelFwd();
 
 /* ---------- телефон: мост SSHTunnelAndroid ---------- */
 function openExternal(url){

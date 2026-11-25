@@ -93,6 +93,8 @@ type Event struct {
 	// (успешно или нет; при неудаче заполнен Error). Пароль root сюда никогда
 	// не попадает: он не покидает функцию, которая открывает SSH-соединение.
 	Stage string `json:"stage,omitempty"`
+	// Vps — итог удачной настройки (только в событии с Done=true).
+	Vps *VpsResult `json:"vps,omitempty"`
 
 	// KindCore — полное состояние ядра (core.State): экран рисует главное
 	// только по нему и сам ничего не хранит.
@@ -185,9 +187,32 @@ func (b *Bus) VpsSetupLine(stage, text string) {
 	b.Publish(Event{Kind: KindVpsSetup, Stage: stage, Text: text})
 }
 
+// VpsResult — что получилось у мастера настройки VPS: какой сервер добавлен
+// в список и с чем зайти в его панель. Одноразовый пароль панели здесь — он
+// нужен человеку сразу, на экране итога; на диск он не пишется, а события
+// vpssetup в историю шины не попадают (Publish).
+type VpsResult struct {
+	ProfileID   string `json:"profileId,omitempty"`
+	ProfileName string `json:"profileName,omitempty"`
+	Host        string `json:"host,omitempty"`
+	AdminUser   string `json:"adminUser,omitempty"`
+	Panel       bool   `json:"panel,omitempty"`       // панель поставлена
+	PanelPublic int    `json:"panelPublic,omitempty"` // открыта в интернет на этом порту; 0 — только локально
+	PanelLogin  string `json:"panelLogin,omitempty"`
+	PanelPass   string `json:"panelPass,omitempty"` // одноразовый пароль; пусто — не нашёлся
+	PanelNote   string `json:"panelNote,omitempty"` // почему пароля нет / что не так с панелью
+	UDPRelay    bool   `json:"udpRelay,omitempty"`  // ретранслятор UDP поставлен
+	ProfileNote string `json:"profileNote,omitempty"`
+}
+
 // VpsSetupDone сообщает об окончании работы мастера — успешном или нет.
 func (b *Bus) VpsSetupDone(errMsg string) {
 	b.Publish(Event{Kind: KindVpsSetup, Done: true, Failed: errMsg != "", Error: errMsg})
+}
+
+// VpsSetupOK — мастер закончил удачно, с итогом для экрана.
+func (b *Bus) VpsSetupOK(res *VpsResult) {
+	b.Publish(Event{Kind: KindVpsSetup, Done: true, Vps: res})
 }
 
 func (b *Bus) Infof(format string, args ...any)  { b.logf("info", format, args...) }

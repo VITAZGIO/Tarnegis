@@ -123,7 +123,7 @@
   `GET /api/appicon?pkg=<пакет>` — значок PNG.
 - `/api/update/download` скачивает APK и открывает установщик.
 
-Настольного (`/api/bootstart`, `/api/pickfile`, `/api/vpssetup/*`, `/api/window`
+Настольного (`/api/bootstart`, `/api/pickfile`, `/api/vpssetup/*`, `/api/panelfwd`, `/api/window`
 …) на телефоне нет — ответ `{"error":…}`, экран эти пункты не показывает.
 
 ## Обновление сети устройств (ТЗ 40)

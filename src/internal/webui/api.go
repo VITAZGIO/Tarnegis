@@ -77,6 +77,7 @@ func (s *Server) coreRoutes() []route {
 		{"/api/androidkey", "POST", "Ключ и настройки для телефона (QR / текст).", s.handleAndroidKey},
 		{"/api/vpsscript", "GET", "Скрипт настройки сервера для ручного запуска.", s.handleVPSScript},
 		{"/api/vpssetup/start", "POST", "Мастер настройки VPS (ход — событиями vpssetup).", s.handleVpsSetupStart},
+		{"/api/panelfwd", "GET, POST", "Временный проброс к веб-панели сервера: GET — состояние {open,profileId,name,port,url}; POST {\"op\":\"open\",\"id\",\"adminUser\"} — открыть 127.0.0.1:<порт> → панель сервера (по SSH ключом сервера под администратором), {\"op\":\"close\"} — закрыть.", s.handlePanelFwd},
 		{"/api/serverusers", "POST", "Пользователи на сервере: {\"op\":\"whoami\"|\"create\",…}.", s.handleServerUsers},
 		{"/api/checkip", "GET", "Внешний адрес через туннель.", s.handleCheckIP},
 		{"/api/speedtest", "POST", "Тест скорости туннеля (ход — событиями speed).", s.handleSpeedTest},
