@@ -142,7 +142,11 @@
 с панелью (ТЗ 47): `internal/invite`. Что заводить, убирать и скрывать —
 `config.ApplyDevice` (`internal/config/device.go`).
 
-- `GET /api/device` → `{"device":{id,name,join,rev,mesh,frozen,servers:[{name,host,port,hk,flag}],hidden:["h:p"]}|null,
+- `GET /api/directgroups` → `{"groups":[{"id":"vk","name":"ВКонтакте","nameEn":"VK","domains":[…]}]}` —
+  готовые группы «всегда напрямую» (ТЗ 51). В `directHosts` группа — одна
+  запись `@id` (`@vk`); правила раскрывают её в домены (каждый — с
+  поддоменами), в исключения системного прокси — тоже.
+- `GET /api/device` → `{"device":{id,name,join,rev,mesh,frozen,servers:[{name,host,port,hk,flag}],hidden:["h:p"],removed:[{name,host,port,hk,flag}]}|null,
   "net":{on,key,onlyThis,exitVia:[id профиля],exitT,exitBy},"meshAllowed":bool,"sync":{t,err,note}}`.
   `net` есть и без устройства — тогда это значения активного профиля (как
   до ТЗ 48). `meshAllowed` — панель пускает устройство в сеть устройств
@@ -160,7 +164,11 @@
   каждом подключении к серверу из панели и раз в 10 минут). Применяется,
   только если `rev` вырос.
 - `{"op":"hide","id":"<профиль>","hidden":bool}` — скрыть сервер из панели
-  у себя (удалить его нельзя: `POST /api/profile/remove` отвечает ошибкой).
+  у себя. С ТЗ 51 экран не скрывает, а удаляет: `POST /api/profile/remove`
+  удаляет и сервер из панели, он запоминается в `device.removed`, и сверка
+  с панелью его не возвращает. Устройство остаётся и без серверов.
+- `{"op":"restore","key":"адрес:порт"}` — вернуть удалённый (или скрытый)
+  у себя сервер из панели (ТЗ 51). Вернуть можно и новым приглашением.
 - `{"op":"net","on":bool,"onlyThis":bool,"exitVia":[id,…]}` — сеть устройств
   на этом устройстве (любое поле можно не указывать). Действует на все
   серверы из панели; `mesh:false` от панели выбор не стирает.

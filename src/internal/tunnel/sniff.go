@@ -42,11 +42,15 @@ var serverFirst = map[string]bool{
 	"587": true, "3306": true, "5432": true, "5900": true,
 }
 
-// sniffWanted — искать ли имя в начале соединения: пришло с голым адресом,
-// подставных адресов нет (с ними имя приносит сам адрес), и от имени хоть
-// что-то зависит (в «Обходе», не к устройствам сети).
+// sniffWanted — искать ли имя в начале соединения: пришло с голым адресом
+// и от имени хоть что-то зависит (в «Обходе», не к устройствам сети).
+//
+// С подставными адресами (телефон) тоже (ТЗ 51): настоящий адрес приходит,
+// когда имя разрешал не наш DNS — «Частный DNS» Android, DoH браузера, кеш
+// приложения с прошлого подключения. Без имени такое соединение к сайту из
+// «Всегда напрямую» уходило через сервер, и ВКонтакте грузился минутами.
 func (t *Tunnel) sniffWanted(target string) bool {
-	if t.fakeIP.Load() || t.bypassOff.Load() || t.draining.Load() || core.IsMeshTarget(target) {
+	if t.bypassOff.Load() || t.draining.Load() || core.IsMeshTarget(target) {
 		return false
 	}
 	_, port, err := net.SplitHostPort(target)

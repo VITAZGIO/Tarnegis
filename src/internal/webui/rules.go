@@ -50,6 +50,11 @@ func rulesOf(cfg config.Config) rulesResp {
 //	{"fakeIP":true|false}
 //
 // Правила применяются сразу, как при сохранении настроек.
+// handleDirectGroups — готовые группы «всегда напрямую» (ТЗ 51).
+func (s *Server) handleDirectGroups(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{"groups": routing.Groups()})
+}
+
 func (s *Server) handleRules(w http.ResponseWriter, r *http.Request) {
 	cfg := s.app.Config()
 	p := cfg.Active()

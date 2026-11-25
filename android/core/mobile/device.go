@@ -16,6 +16,7 @@ import (
 	"sshtunnel/internal/config"
 	"sshtunnel/internal/hostkey"
 	"sshtunnel/internal/invite"
+	"sshtunnel/internal/routing"
 )
 
 // InviteInfo — разбор приглашения для экрана: JSON {host,port,name,exp,expired}
@@ -280,6 +281,13 @@ func DeviceImport(deviceJSON, profilesJSON string) string {
 		return ""
 	}
 	out, _ := json.Marshal(nd)
+	return string(out)
+}
+
+// DirectGroups — готовые группы «всегда напрямую» (ТЗ 51), JSON как
+// GET /api/directgroups на ПК.
+func DirectGroups() string {
+	out, _ := json.Marshal(map[string]any{"groups": routing.Groups()})
 	return string(out)
 }
 

@@ -61,9 +61,11 @@ func TestSniffWanted(t *testing.T) {
 			t.Errorf("%s: ждать нечего", target)
 		}
 	}
+	// С подставными адресами настоящий адрес — значит, имя разрешал не
+	// наш DNS (ТЗ 51): имя ищется тоже.
 	tun.SetDNSMode(true, nil)
-	if tun.sniffWanted("1.2.3.4:443") {
-		t.Error("с подставными адресами имя приносит адрес")
+	if !tun.sniffWanted("1.2.3.4:443") {
+		t.Error("с подставными адресами имя настоящего адреса не ищется")
 	}
 	tun.SetDNSMode(false, nil)
 	tun.SetBypass(false)

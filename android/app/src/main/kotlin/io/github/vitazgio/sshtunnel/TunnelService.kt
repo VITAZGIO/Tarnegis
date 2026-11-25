@@ -100,6 +100,24 @@ class TunnelService : VpnService(), Callbacks {
             }.start()
         }
 
+        /**
+         * Списки «напрямую» / «через сервер» поменялись (POST /api/rules,
+         * ТЗ 51) — сразу в работающее ядро, без переподключения.
+         */
+        fun routingChanged(s: Settings) {
+            val svc = current ?: return
+            val direct = s.directHosts
+            val local = s.localViaTunnel
+            val tunneled = s.tunnelHosts
+            Thread {
+                try {
+                    svc.tunnel.updateRouting(direct, local)
+                    svc.tunnel.setTunnelHosts(tunneled)
+                } catch (_: Exception) {
+                }
+            }.start()
+        }
+
         /** Сеть устройств одной строкой (mobile.MeshSummary). */
         @Volatile var meshSummary: String = """{"state":"off"}"""
         @Volatile var statsJson: String = "{}"
