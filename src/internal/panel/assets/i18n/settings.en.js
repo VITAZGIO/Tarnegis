@@ -91,7 +91,7 @@ Object.assign(I18N.en, {
   confirm_mesh_off:'Turn off the device network on this server? Devices will stop seeing each other through it. Their addresses and names are kept — turn it back on and everything returns.',
   confirm_off_yes:'Turn off',
   egress_title:'Server egress → through server B',
-  egress_note:'This server\'s own traffic (updates, containers, tunnel users exiting here) will leave through another ssh_tunnel server. Inbound access (SSH, this panel, devices) is not affected.',
+  egress_note:'This server\'s own traffic (updates, containers, tunnel users exiting here) will leave through another Tarnegis server. Inbound access (SSH, this panel, devices) is not affected.',
   egress_link_label:'Client link from server B\'s panel',
   egress_link_ph:'sshtunnel://import?...',
   egress_link_note:'Create a regular client in server B\'s panel ("Devices → Add") and paste its link here — it is shown once, right after creation.',

@@ -56,7 +56,7 @@ through an SSH tunnel, or add a domain and nginx/Caddy later (see "Domain
 and TLS" below):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --lan --ssh-host=THIS_SERVERS_ADDRESS
 ```
 
@@ -65,7 +65,7 @@ record pointing at this server — then the panel gets its own Let's Encrypt
 certificate and is reachable over HTTPS right away:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --domain=panel.example.com
 ```
 
@@ -81,7 +81,7 @@ it without an open port — a third option, without `--lan` and without
 `--domain` (this is the default mode, see "Domain and TLS" below):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --ssh-host=THIS_SERVERS_ADDRESS
 ```
 
@@ -295,7 +295,7 @@ on around the clock, or it sits behind a different network.
   addresses, passwords and tokens stay on the devices, and the server cannot
   call a device first. So the history has no holes for machines read by a
   device that is always on (a home server, or the machine itself running
-  ssh_tunnel with the "this device" source); a laptop that was off sees it
+  Tarnegis with the "this device" source); a laptop that was off sees it
   from the server. It is kept for "Keep machine history" days (30 by
   default) and counted in the shared quota. Each network shows who sends
   which machines; "Erase history" erases it. Other devices of the network
@@ -347,7 +347,7 @@ or proxy to the device's address in its local network.
 
 **Settings → "Server egress → through server B"**: this server's own
 traffic (package updates, containers, tunnel users exiting here) leaves
-through another ssh_tunnel server. Inbound access (SSH to this server, this
+through another Tarnegis server. Inbound access (SSH to this server, this
 panel, devices, the device network) is not affected — it keeps answering
 the way it came in.
 

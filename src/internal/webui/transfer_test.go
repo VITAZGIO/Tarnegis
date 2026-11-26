@@ -54,10 +54,10 @@ func TestExportImportRoundTrip(t *testing.T) {
 	if !strings.Contains(expResp.Data, "fakekeyfakekey") {
 		t.Error("ключ не попал в экспорт")
 	}
-	if expResp.Filename != "ssh_tunnel-server.json" {
+	if expResp.Filename != "tarnegis-server.json" {
 		// Кириллица в имени схлопывается в дефисы — так и задумано, но
 		// проверим хотя бы расширение и префикс.
-		if !strings.HasPrefix(expResp.Filename, "ssh_tunnel-") || !strings.HasSuffix(expResp.Filename, ".json") {
+		if !strings.HasPrefix(expResp.Filename, "tarnegis-") || !strings.HasSuffix(expResp.Filename, ".json") {
 			t.Errorf("странное имя файла: %q", expResp.Filename)
 		}
 	}

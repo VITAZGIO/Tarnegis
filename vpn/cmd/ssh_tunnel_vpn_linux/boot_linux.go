@@ -84,11 +84,11 @@ func vpnUnitText(exe string, flags []string, env string) string {
 	for _, f := range flags {
 		cmd += " " + quoteArg(f)
 	}
-	return `# Служба ssh_tunnel VPN. Создана самой программой по галочке
+	return `# Служба Tarnegis VPN. Создана самой программой по галочке
 # «Запускать при старте системы»; снять галочку — служба выключится.
 [Unit]
-Description=ssh_tunnel VPN — весь трафик через собственный сервер
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Description=Tarnegis VPN — весь трафик через собственный сервер
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target systemd-resolved.service
 Wants=network-online.target
 

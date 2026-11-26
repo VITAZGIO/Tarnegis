@@ -30,7 +30,7 @@ import (
 )
 
 // releasesTagURL — релиз по номеру (GitHub: /releases/tags/<tag>).
-var releasesTagURL = "https://api.github.com/repos/VITAZGIO/ssh_tunnel/releases/tags/"
+var releasesTagURL = "https://api.github.com/repos/VITAZGIO/Tarnegis/releases/tags/"
 
 // AutoRetry — не чаще раза в столько пробовать одну и ту же версию сам.
 const AutoRetry = time.Hour
@@ -54,7 +54,7 @@ func ReleaseByVersion(ctx context.Context, ver string) (Release, error) {
 		return Release{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "ssh_tunnel/"+Version+" ("+runtime.GOOS+")")
+	req.Header.Set("User-Agent", "Tarnegis/"+Version+" ("+runtime.GOOS+")")
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return Release{}, fmt.Errorf("не удалось связаться с GitHub: %w", err)

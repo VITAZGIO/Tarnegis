@@ -123,7 +123,7 @@ func SaveReport(files []ReportFile) (string, error) {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		dir = home
 	}
-	p := filepath.Join(dir, "ssh_tunnel-report-"+time.Now().Format("20060102-150405")+".zip")
+	p := filepath.Join(dir, "tarnegis-report-"+time.Now().Format("20060102-150405")+".zip")
 	if err := os.WriteFile(p, data, 0o600); err != nil {
 		return "", err
 	}

@@ -382,7 +382,7 @@ func staleProcess() uint32 {
 			continue
 		}
 		name := strings.ToLower(windows.UTF16ToString(e.ExeFile[:]))
-		if name != "ssh_tunnel.exe" && name != "ssh_tunnel_vpn.exe" {
+		if !ourExeName(name) {
 			continue
 		}
 		var sess uint32
@@ -410,7 +410,7 @@ func processAge(pid uint32) time.Duration {
 	return time.Since(time.Unix(0, created.Nanoseconds()))
 }
 
-// isOurProcess — процесс запущен из ssh_tunnel.exe или ssh_tunnel_vpn.exe.
+// isOurProcess — процесс запущен из нашего exe (см. ourExeName).
 // Окно ищется и по одному классу «webview», а он общий у всех программ на
 // той же библиотеке: чужую программу закрывать нельзя ни в коем случае.
 func isOurProcess(pid uint32) bool {
@@ -425,7 +425,19 @@ func isOurProcess(pid uint32) bool {
 		return false
 	}
 	path := strings.ToLower(windows.UTF16ToString(buf[:n]))
-	return strings.HasSuffix(path, `\ssh_tunnel.exe`) || strings.HasSuffix(path, `\ssh_tunnel_vpn.exe`)
+	i := strings.LastIndexByte(path, '\\')
+	return ourExeName(path[i+1:])
+}
+
+// ourExeName — имя файла нашей программы (в нижнем регистре): прежнее
+// ssh_tunnel*.exe (после самообновления файл не переименовывается) или
+// новое tarnegis*.exe (ТЗ 53, так файл зовётся в релизе).
+func ourExeName(name string) bool {
+	switch name {
+	case "ssh_tunnel.exe", "ssh_tunnel_vpn.exe", "tarnegis.exe", "tarnegis_vpn.exe":
+		return true
+	}
+	return false
 }
 
 func killProcess(pid uint32) bool {
@@ -445,9 +457,9 @@ func killProcess(pid uint32) bool {
 }
 
 func showStuckMessage() {
-	text, _ := windows.UTF16PtrFromString("Предыдущая копия ssh_tunnel зависла и не закрывается сама.\n\n" +
-		"Закрой её в Диспетчере задач (Ctrl+Shift+Esc → ssh_tunnel → «Снять задачу») и запусти программу снова.")
-	caption, _ := windows.UTF16PtrFromString("ssh_tunnel")
+	text, _ := windows.UTF16PtrFromString("Предыдущая копия Tarnegis зависла и не закрывается сама.\n\n" +
+		"Закрой её в Диспетчере задач (Ctrl+Shift+Esc → Tarnegis → «Снять задачу») и запусти программу снова.")
+	caption, _ := windows.UTF16PtrFromString("Tarnegis")
 	windows.MessageBox(0, text, caption, windows.MB_ICONWARNING)
 }
 

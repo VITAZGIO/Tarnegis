@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ssh_tunnel</title>
+<title>Tarnegis</title>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="pages.css">
 <style>
@@ -176,7 +176,7 @@ function setIcons(){
   $('listTitle').textContent = L('Плагины', 'Plugins');
   $('catTitle').textContent = L('Каталог', 'Catalog');
   $('firstMore').textContent = L('Подробнее — в Книге', 'More in the Book');
-  document.title = L('Плагины', 'Plugins') + ' — ssh_tunnel';
+  document.title = L('Плагины', 'Plugins') + ' — Tarnegis';
 }
 
 async function load(){
@@ -313,12 +313,12 @@ async function openApp(id, here){
   $('firstText').textContent = appHint(m);
   $('firstMore').hidden = !m.book;
   show('vApp');
-  if(SOLO) document.title = appName(m) + ' — ssh_tunnel';
+  if(SOLO) document.title = appName(m) + ' — Tarnegis';
 }
 
 function popOut(id){
   const m = manifest(id);
-  return openWindow(id, appName(m) + ' — ssh_tunnel', pageURL('apps.html', {open: id, solo: '1', key: id}));
+  return openWindow(id, appName(m) + ' — Tarnegis', pageURL('apps.html', {open: id, solo: '1', key: id}));
 }
 
 $('first').querySelector('#firstOk').onclick = () => { $('first').hidden = true; if(current) op('seen', current); };

@@ -42,8 +42,8 @@ func init() {
 			Name: map[string]string{"ru": "Общий буфер", "en": "Shared clipboard"},
 			Icon: "content_paste",
 			Hint: map[string]string{
-				"ru": "Скопировал на ПК — вставил на телефоне. Текст, картинки и файлы до 50 МБ, только по сети устройств. С телефона — «Поделиться → ssh_tunnel» или плитка в шторке.",
-				"en": "Copy on the PC — paste on the phone. Text, images and files up to 50 MB, only over the device network. From the phone — Share → ssh_tunnel or the quick tile.",
+				"ru": "Скопировал на ПК — вставил на телефоне. Текст, картинки и файлы до 50 МБ, только по сети устройств. С телефона — «Поделиться → Tarnegis» или плитка в шторке.",
+				"en": "Copy on the PC — paste on the phone. Text, images and files up to 50 MB, only over the device network. From the phone — Share → Tarnegis or the quick tile.",
 			},
 			Book: "app-clipboard", Page: "addons/clipboard.html", Background: true, Needs: []string{"mesh"}, Permissions: []string{},
 		},

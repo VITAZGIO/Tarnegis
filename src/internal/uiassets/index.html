@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ssh_tunnel</title>
+<title>Tarnegis</title>
 <!-- Цвета и темы — общие со страницами Книги и приложений. -->
 <link rel="stylesheet" href="theme.css">
 <style>
@@ -1414,7 +1414,7 @@
       <div class="author">
         <svg viewBox="0 0 626 520" role="img" aria-label="Vitaz Gio"><path d="M0 0 137 449 180 308 86 0Z"/><path d="M159 520 221 520 246 437 354 83 379 0 293 0 190 338 146 479Z"/><path d="M468 520 524 337 437 337 406 437 264 437 239 520Z"/><path d="M554 236 394 236 368 319 442 319 529 319Z"/><path d="M373 83 601 83 626 0 398 0Z"/></svg>
         <span class="who"><span class="a" data-i18n="author">Автор</span><b>Vitaz Gio</b></span>
-        <a id="codeLink" href="https://github.com/VITAZGIO/ssh_tunnel" target="_blank" rel="noopener">
+        <a id="codeLink" href="https://github.com/VITAZGIO/Tarnegis" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg><span data-i18n="source_code">Код</span></a>
       </div>
     </div>
@@ -2490,7 +2490,7 @@ const I18N = {
     boot_ready:'Включено: туннель поднимется сам при загрузке машины.',
     boot_problem_other:'Сейчас в автозагрузке другая копия программы (другой файл). Поставь галочку — запускаться будет эта.',
     boot_problem_missing:'В автозагрузке записан файл, которого уже нет (программу переместили или удалили). Поставь галочку заново.',
-    boot_problem_taskmgr:'Автозапуск выключен в Диспетчере задач (Ctrl+Shift+Esc → «Автозагрузка» → ssh_tunnel → «Включить»). Или сними и снова поставь галочку здесь.',
+    boot_problem_taskmgr:'Автозапуск выключен в Диспетчере задач (Ctrl+Shift+Esc → «Автозагрузка» → Tarnegis или ssh_tunnel → «Включить»). Или сними и снова поставь галочку здесь.',
     boot_need_root:'Включено, но только после входа в систему — чтобы поднимался при загрузке, нужен пароль sudo.',
     boot_configuring:'настраиваю…',
     autoconnect_note:'Туннель поднимется сам, как только программа стартует (сейчас или после перезагрузки) — жать «Подключить» в панели не придётся. Выключи, если хочешь запускать вручную.',
@@ -2587,7 +2587,7 @@ const I18N = {
     netupd_stage_ready:'обновление {v} скачано: {p} — поставь вручную',
     import_ok_with_key:'сервер импортирован вместе с ключом — можно нажимать «Подключить»',
     import_ok_no_key:'сервер импортирован без ключа — укажи свой приватный ключ перед подключением',
-    import_bad_file:'этот файл не похож на экспорт ssh_tunnel',
+    import_bad_file:'этот файл не похож на экспорт Tarnegis',
     exported:'файл сохранён',
     export_apps:'Экспортировать список', import_apps:'Импортировать список',
     apps_imported:'список программ импортирован',
@@ -2628,7 +2628,7 @@ const I18N = {
     paste_failed:'не удалось прочитать буфер обмена',
     paste_manual_title:'Вставь сюда (Ctrl+V)',
     paste_manual_hint:'Браузер не даёт странице прочитать буфер обмена по адресу http:// — вставь скопированный текст сам.',
-    paste_not_config:'в буфере не похоже на настройки ssh_tunnel',
+    paste_not_config:'в буфере не похоже на настройки Tarnegis',
   },
   en: {
     key_paste:'Paste key', key_saved:'Key saved', key_missing:'No key — paste it from the clipboard',
@@ -2896,7 +2896,7 @@ const I18N = {
     boot_note_windows:'The program will add itself to Windows startup (for the current user, no administrator rights needed) — it will launch on the next login.',
     boot_problem_other:'Another copy of the program (a different file) is in startup now. Tick the box to start this one instead.',
     boot_problem_missing:'Startup points to a file that no longer exists (the program was moved or deleted). Tick the box again.',
-    boot_problem_taskmgr:'Startup is disabled in Task Manager (Ctrl+Shift+Esc → Startup → ssh_tunnel → Enable). Or untick and tick the box here again.',
+    boot_problem_taskmgr:'Startup is disabled in Task Manager (Ctrl+Shift+Esc → Startup → Tarnegis or ssh_tunnel → Enable). Or untick and tick the box here again.',
     boot_note_linux_vpn:'The program will install the ssh_tunnel_vpn system service: the VPN will come up at boot, before anyone logs in. It takes effect from the next boot — to start it now, close the program (Ctrl+C) and run: sudo systemctl start ssh_tunnel_vpn.',
     boot_note_windows_service:'The program will install itself as a Windows service (asking for administrator rights once): the VPN and device network will come up when the computer turns on, before anyone logs in — you can RDP into it straight from the password screen. At login the window opens as a tray icon. A shortcut in the Startup folder is no longer needed — delete it.',
     boot_ready:'Enabled: the tunnel will come up on its own at boot.',
@@ -2995,7 +2995,7 @@ const I18N = {
     netupd_stage_ready:'update {v} downloaded: {p} — install it by hand',
     import_ok_with_key:'server imported along with its key — you can hit "Connect"',
     import_ok_no_key:'server imported without a key — point it at your own private key before connecting',
-    import_bad_file:'this file doesn\'t look like an ssh_tunnel export',
+    import_bad_file:'this file doesn\'t look like a Tarnegis export',
     exported:'file saved',
     export_apps:'Export list', import_apps:'Import list',
     apps_imported:'app list imported',
@@ -3036,7 +3036,7 @@ const I18N = {
     paste_failed:'couldn\'t read the clipboard',
     paste_manual_title:'Paste here (Ctrl+V)',
     paste_manual_hint:'The browser does not let this page read the clipboard over http:// — paste the copied text yourself.',
-    paste_not_config:'this doesn\'t look like ssh_tunnel settings',
+    paste_not_config:'this doesn\'t look like Tarnegis settings',
   },
 };
 /* ---------- ТЗ 37 (a): строки, которые раньше были написаны прямо в коде ---------- */
@@ -3418,7 +3418,7 @@ $('exportAppsBtn').onclick = async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'ssh_tunnel-apps.json';
+  a.download = 'tarnegis-apps.json';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -4864,7 +4864,7 @@ $('directHosts').addEventListener('input', () => renderDirectGroups());
 $('domExportBtn').onclick = async () => {
   const text = JSON.stringify({sshTunnelDomains: 1,
     direct: splitEntries($('directHosts').value), tunnel: splitEntries($('tunnelHosts').value)}, null, 2);
-  const note = await exportText(text, 'ssh_tunnel-domains.json');
+  const note = await exportText(text, 'tarnegis-domains.json');
   $('domNote').textContent = note;
   setTimeout(() => $('domNote').textContent = '', 6000);
 };
@@ -5741,7 +5741,7 @@ $('exportAllBtn').onclick = async () => {
 };
 
 // isServerExportDoc — тот же критерий, что и на сервере (config.Host==""):
-// без адреса это не экспорт ssh_tunnel, а что-то другое, случайно
+// без адреса это не экспорт Tarnegis, а что-то другое, случайно
 // оказавшееся в буфере обмена.
 function isServerExportDoc(doc){
   return !!doc && typeof doc.host === 'string' && doc.host !== '';
@@ -6586,7 +6586,7 @@ $('bundleExportBtn').onclick = async () => {
   if(r.error){ showError(r.error, 'setError'); return; }
   let copied, msg;
   if(xferMode === 'file'){
-    saveTextFile('ssh_tunnel-settings.json', r.data);
+    saveTextFile('tarnegis-settings.json', r.data);
     copied = true;
     msg = tr('bundle_saved').replace('{n}', r.servers);
   } else {
@@ -6903,7 +6903,7 @@ async function openQuick(id){
   // «Плагинов» (шапка и «Назад» на месте). Раньше уходил отдельным экраном
   // без кнопки «Назад».
   if(m && win && !ANDROID &&
-     await openWindow(id, addonName(m) + ' — ssh_tunnel', pageURL('apps.html', {open: id, solo: '1', key: id}))) return;
+     await openWindow(id, addonName(m) + ' — Tarnegis', pageURL('apps.html', {open: id, solo: '1', key: id}))) return;
   showAddons(id);
 }
 async function loadAddons(){
@@ -6995,7 +6995,7 @@ $('meddleOffer').onclick = async () => {
   showAddons('meddlers');
 };
 // Книга на ПК — отдельным окном, листается страницами.
-$('toBook').onclick = () => openWindow('book', tr('book_title') + ' — ssh_tunnel',
+$('toBook').onclick = () => openWindow('book', tr('book_title') + ' — Tarnegis',
   pageURL('book.html', {solo: '1', key: 'book'}));
 window.addEventListener('message', ev => {
   if(ev.source !== $('addonsFrame').contentWindow || !ev.data) return;
@@ -7150,7 +7150,7 @@ async function openServerPanel(id, adminUser, noteEl, cred){
   let url = pageURL('panelwin.html', {id, admin: adminUser || '', name: prof.name || prof.host || ''});
   if(cred && cred.pass) url += '#' + new URLSearchParams({l: cred.login || 'admin', p: cred.pass}).toString();
   noteEl.textContent = '';
-  const ok = await openWindow('serverpanel', tr('panel_open_btn') + ' — ssh_tunnel', url);
+  const ok = await openWindow('serverpanel', tr('panel_open_btn') + ' — Tarnegis', url);
   if(!ok && !ANDROID){
     // Окно не открылось — как раньше: проброс и полоска в этом окне.
     noteEl.textContent = tr('panel_opening');

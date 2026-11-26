@@ -327,7 +327,7 @@ func fatal(format string, args ...any) {
 }
 
 func usage(name string) {
-	fmt.Printf(strings.ReplaceAll(`ssh_tunnel — SSH-туннель до своего сервера
+	fmt.Printf(strings.ReplaceAll(`Tarnegis — SSH-туннель до своего сервера
 
 Первый запуск:
   NAME -host ТВОЙ_СЕРВЕР -user root -save

@@ -25,7 +25,7 @@ chmod +x /usr/local/bin/udprelay.new
 mv -f /usr/local/bin/udprelay.new /usr/local/bin/udprelay
 cat > /etc/systemd/system/%s <<'EOF_UNIT'
 [Unit]
-Description=ssh_tunnel - ретранслятор UDP (только 127.0.0.1)
+Description=Tarnegis - ретранслятор UDP (только 127.0.0.1)
 After=network.target
 
 [Service]

@@ -6,7 +6,7 @@ Debian, Fedora, Arch и даже на Alpine с musl.
 
 ```bash
 # скачать и сделать исполняемым
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 
 # задать сервер один раз
@@ -23,7 +23,7 @@ chmod +x ssh_tunnel_linux
 ```
 
 Сборка под ARM и контрольные суммы — на
-[странице релиза](https://github.com/VITAZGIO/ssh_tunnel/releases/latest).
+[странице релиза](https://github.com/VITAZGIO/Tarnegis/releases/latest).
 
 ---
 
@@ -52,22 +52,22 @@ B=ssh_tunnel_linux        # или: B=ssh_tunnel_vpn_linux
 F=$B; [ "$(uname -m)" = aarch64 ] && F=${B}_arm64
 # через /tmp: работающую программу поверх не записать («Text file busy»),
 # а install ставит новый файл на её место — так блок годится и для обновления
-curl -fL -o /tmp/$B https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/$B https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 sudo install -m 755 /tmp/$B /usr/local/bin/$B && rm -f /tmp/$B
 
-printf '%s\n' '[Unit]' 'Description=ssh_tunnel' 'After=network-online.target' 'Wants=network-online.target' '' \
+printf '%s\n' '[Unit]' 'Description=Tarnegis' 'After=network-online.target' 'Wants=network-online.target' '' \
   '[Service]' 'Environment=HOME=/root' "ExecStart=/usr/local/bin/$B -web -web-lan" 'Restart=always' 'RestartSec=5' '' \
   '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/ssh_tunnel.service >/dev/null
 sudo systemctl daemon-reload
-sudo systemctl enable ssh_tunnel
-sudo systemctl restart ssh_tunnel
+sudo systemctl enable Tarnegis
+sudo systemctl restart Tarnegis
 
 if sudo ufw status 2>/dev/null | grep -q "Status: active"; then
   sudo ufw allow from 192.168.0.0/16 to any port 47821 proto tcp
 fi
 
 sleep 3
-systemctl is-active ssh_tunnel
+systemctl is-active Tarnegis
 echo "Панель: http://$(hostname -I | awk '{print $1}'):47821"
 ```
 
@@ -92,7 +92,7 @@ echo "Панель: http://$(hostname -I | awk '{print $1}'):47821"
 <summary>Удалить всё</summary>
 
 ```bash
-sudo systemctl disable --now ssh_tunnel
+sudo systemctl disable --now Tarnegis
 sudo rm -f /etc/systemd/system/ssh_tunnel.service /usr/local/bin/ssh_tunnel_linux /usr/local/bin/ssh_tunnel_vpn_linux
 sudo systemctl daemon-reload
 sudo rm -rf /root/.config/ssh_tunnel
@@ -116,7 +116,7 @@ sudo ufw status 2>/dev/null | grep -q 47821 && sudo ufw delete allow from 192.16
 ```bash
 sudo apt update && sudo apt install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -147,7 +147,7 @@ Proxmox — это Debian, но работают там обычно под `roo
 ```bash
 apt update && apt install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -159,7 +159,7 @@ ssh_tunnel_linux -host ТВОЙ_СЕРВЕР -user root -save
 ```bash
 tee /etc/systemd/system/ssh_tunnel.service >/dev/null <<'EOF'
 [Unit]
-Description=ssh_tunnel
+Description=Tarnegis
 After=network-online.target
 Wants=network-online.target
 
@@ -191,7 +191,7 @@ Proxmox, — `ufw` в нём не участвует.
 ```bash
 sudo dnf install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -216,7 +216,7 @@ SELinux программе не мешает: она не лезет ни в с�
 ```bash
 sudo pacman -S --needed curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -234,7 +234,7 @@ Firewall по умолчанию не стоит вовсе — если пос�
 ```bash
 sudo zypper install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -259,7 +259,7 @@ sudo firewall-cmd --permanent --add-port=47821/tcp && sudo firewall-cmd --reload
 ```sh
 apk add curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -279,8 +279,8 @@ depend() { need net; }
 EOF
 
 chmod +x /etc/init.d/ssh_tunnel
-rc-update add ssh_tunnel default
-rc-service ssh_tunnel start
+rc-update add Tarnegis default
+rc-service Tarnegis start
 ```
 </details>
 
@@ -359,10 +359,10 @@ ssh_tunnel_linux docker set container=qbittorrent strict=true
 
 ---
 
-## Этот же сервер выходит через другой сервер ssh_tunnel
+## Этот же сервер выходит через другой сервер Tarnegis
 
 Если эта машина — сервер с панелью (`ssh_tunnel_panel`) и её собственный
-трафик (а не только клиентов) должен выходить через другой сервер ssh_tunnel
+трафик (а не только клиентов) должен выходить через другой сервер Tarnegis
 — это отдельная функция панели, настраивается там же: «Настройки → Выход
 сервера → через сервер Б», см.
 [PANEL_SETUP.md](PANEL_SETUP.md#выход-сервера-через-другой-сервер). Руками

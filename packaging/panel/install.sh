@@ -2,10 +2,10 @@
 # Ставит ssh_tunnel_panel как системную службу (root) на Debian/Ubuntu — одной
 # командой на чистом сервере, без похода в браузер за файлами:
 #
-#   curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
 #     | sudo bash
 #
-#   curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
 #     | sudo bash -s -- --domain=panel.example.com
 #
 # Скрипт сам скачивает бинарь под архитектуру сервера (amd64/arm64) со
@@ -38,7 +38,7 @@
 # остальное (см. install_unit() ниже).
 set -euo pipefail
 
-REPO="VITAZGIO/ssh_tunnel"
+REPO="VITAZGIO/Tarnegis"
 
 BIN=""
 MODE="local"   # local | lan | domain
@@ -71,15 +71,16 @@ if [ -n "$BIN" ]; then
   fi
 else
   case "$(uname -m)" in
-    x86_64)          ASSET="ssh_tunnel_panel" ;;
-    aarch64|arm64)   ASSET="ssh_tunnel_panel_arm64" ;;
+    x86_64)          ASSET="tarnegis_panel" ;;
+    aarch64|arm64)   ASSET="tarnegis_panel_arm64" ;;
     *) echo "Нет готовой сборки под $(uname -m) — собери бинарь сам и укажи путь первым аргументом." >&2
        exit 1 ;;
   esac
   command -v curl >/dev/null || { echo "Нужен curl." >&2; exit 1; }
   echo "Скачиваю $ASSET..."
   BIN="$(mktemp)"
-  curl -fsSL -o "$BIN" "https://github.com/$REPO/releases/latest/download/$ASSET"
+  curl -fsSL -o "$BIN" "https://github.com/$REPO/releases/latest/download/$ASSET" || \
+    curl -fsSL -o "$BIN" "https://github.com/$REPO/releases/latest/download/ssh_tunnel${ASSET#tarnegis}"
   chmod +x "$BIN"
 fi
 
@@ -108,7 +109,7 @@ install_unit() {
 cat > "$UNIT" <<'UNITEOF'
 [Unit]
 Description=ssh_tunnel_panel — веб-панель управления сервером и клиентами
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target
 Wants=network-online.target
 

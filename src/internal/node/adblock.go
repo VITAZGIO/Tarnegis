@@ -365,7 +365,7 @@ func (h *Host) rebuildAd(names []string) error {
 	}
 	sort.Strings(list)
 	var b strings.Builder
-	b.WriteString("# ssh_tunnel: общий список блокировки сервера\n")
+	b.WriteString("# Tarnegis: общий список блокировки сервера\n")
 	for _, a := range own.Allow {
 		b.WriteString("@@" + a + "\n")
 	}

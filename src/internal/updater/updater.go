@@ -32,7 +32,7 @@ var Version = "dev"
 
 // releasesURL — публичная ручка GitHub: последний НЕ черновой и не
 // предрелизный выпуск репозитория.
-const releasesURL = "https://api.github.com/repos/VITAZGIO/ssh_tunnel/releases/latest"
+const releasesURL = "https://api.github.com/repos/VITAZGIO/Tarnegis/releases/latest"
 
 // releasesURLFor — тот же адрес, но переменной: тесты подставляют сюда свой
 // httptest-сервер, чтобы не ходить в настоящую сеть и не тратить лимит
@@ -138,7 +138,7 @@ func latest(ctx context.Context) (*Release, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "ssh_tunnel/"+Version+" ("+runtime.GOOS+")")
+	req.Header.Set("User-Agent", "Tarnegis/"+Version+" ("+runtime.GOOS+")")
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось связаться с GitHub: %w", err)
@@ -216,33 +216,55 @@ var VPN bool
 // свой. Проставляет main панели.
 var Panel bool
 
-// AssetFor выбирает файл релиза для этой системы: на Windows — .exe (архив
-// нужен браузеру, а мы качаем сами), на Linux — файл под свою архитектуру.
-func AssetFor(rel Release, goos, goarch string) (Asset, bool) {
+// NewPrefix и OldPrefix — начало имён файлов релиза. С ТЗ 53 программа
+// зовётся Tarnegis и файлы — tarnegis*; релиз кладёт рядом и прежние
+// ssh_tunnel* (их точное имя ищут версии до 1.10.27 включительно).
+const (
+	NewPrefix = "tarnegis"
+	OldPrefix = "ssh_tunnel"
+)
+
+// AssetName — имя файла релиза для системы без начала: ".exe", "_vpn.exe",
+// "_linux_arm64", "_panel", ".apk"… "" — для этой системы файла нет.
+func AssetName(goos, goarch string) string {
 	want := ""
 	switch goos {
 	case "windows":
-		want = "ssh_tunnel.exe"
+		want = ".exe"
 		if VPN {
-			want = "ssh_tunnel_vpn.exe"
+			want = "_vpn.exe"
 		}
 	case "linux":
-		want = "ssh_tunnel_linux"
+		want = "_linux"
 		if VPN {
-			want = "ssh_tunnel_vpn_linux"
+			want = "_vpn_linux"
 		}
 		if Panel {
-			want = "ssh_tunnel_panel"
+			want = "_panel"
 		}
 		if goarch == "arm64" {
 			want += "_arm64"
 		}
 	case "android":
-		want = "ssh_tunnel.apk"
+		want = ".apk"
 	}
-	for _, a := range rel.Assets {
-		if a.Name == want {
-			return a, true
+	return want
+}
+
+// AssetFor выбирает файл релиза для этой системы: на Windows — .exe (архив
+// нужен браузеру, а мы качаем сами), на Linux — файл под свою архитектуру.
+// Сначала новое имя (tarnegis…), если его нет — прежнее (ssh_tunnel…): так
+// находится и релиз, собранный до переименования.
+func AssetFor(rel Release, goos, goarch string) (Asset, bool) {
+	tail := AssetName(goos, goarch)
+	if tail == "" {
+		return Asset{}, false
+	}
+	for _, want := range []string{NewPrefix + tail, OldPrefix + tail} {
+		for _, a := range rel.Assets {
+			if a.Name == want {
+				return a, true
+			}
 		}
 	}
 	return Asset{}, false
@@ -263,7 +285,7 @@ func Download(ctx context.Context, url, filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "ssh_tunnel/"+Version+" ("+runtime.GOOS+")")
+	req.Header.Set("User-Agent", "Tarnegis/"+Version+" ("+runtime.GOOS+")")
 	client := &http.Client{Timeout: 10 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {

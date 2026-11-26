@@ -27,7 +27,7 @@ Object.assign(I18N.ru, {
   mon_host:'Имя машины',
   mon_kernel:'Ядро Linux',
   mon_uptime:'Работает без перезагрузки',
-  mon_services:'Службы ssh_tunnel',
+  mon_services:'Службы Tarnegis',
   mon_svc_panel:'Панель',
   mon_svc_meshd:'Сеть устройств (meshd)',
   mon_svc_udprelay:'Ретранслятор UDP',

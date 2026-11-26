@@ -6,7 +6,7 @@ Debian, Fedora, Arch, and even on Alpine with musl.
 
 ```bash
 # download and make executable
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 
 # set the server once
@@ -23,7 +23,7 @@ chmod +x ssh_tunnel_linux
 ```
 
 The ARM build and the checksums are on the
-[release page](https://github.com/VITAZGIO/ssh_tunnel/releases/latest).
+[release page](https://github.com/VITAZGIO/Tarnegis/releases/latest).
 
 ---
 
@@ -39,7 +39,7 @@ your system:
 ```bash
 sudo apt update && sudo apt install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -71,7 +71,7 @@ the autostart checkbox in the panel will not help here — it targets
 ```bash
 apt update && apt install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -83,7 +83,7 @@ The system service (starts at host boot, before any login):
 ```bash
 tee /etc/systemd/system/ssh_tunnel.service >/dev/null <<'EOF'
 [Unit]
-Description=ssh_tunnel
+Description=Tarnegis
 After=network-online.target
 Wants=network-online.target
 
@@ -112,7 +112,7 @@ UI — `ufw` plays no part in it.
 ```bash
 sudo dnf install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -137,7 +137,7 @@ nor other people's ports — everything of its own stays in the user's home.
 ```bash
 sudo pacman -S --needed curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -155,7 +155,7 @@ there. Everything else is as on Ubuntu, same systemd.
 ```bash
 sudo zypper install -y curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 sudo install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -180,7 +180,7 @@ differently, and the checkbox in the panel will not do it.
 ```sh
 apk add curl
 
-curl -LO https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_linux
+curl -L -o ssh_tunnel_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_linux
 chmod +x ssh_tunnel_linux
 install -m 755 ssh_tunnel_linux /usr/local/bin/ssh_tunnel_linux
 
@@ -200,8 +200,8 @@ depend() { need net; }
 EOF
 
 chmod +x /etc/init.d/ssh_tunnel
-rc-update add ssh_tunnel default
-rc-service ssh_tunnel start
+rc-update add Tarnegis default
+rc-service Tarnegis start
 ```
 </details>
 
@@ -283,10 +283,10 @@ ssh_tunnel_linux docker set container=qbittorrent strict=true
 
 ---
 
-## This server exiting through another ssh_tunnel server
+## This server exiting through another Tarnegis server
 
 If this machine is a panel server (`ssh_tunnel_panel`) and its own traffic
-(not just clients') should exit through another ssh_tunnel server, that's a
+(not just clients') should exit through another Tarnegis server, that's a
 separate panel feature, set up there: "Settings → Server egress → through
 server B", see
 [PANEL_SETUP.en.md](PANEL_SETUP.en.md#server-egress-through-another-server).

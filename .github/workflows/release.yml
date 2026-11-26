@@ -226,6 +226,17 @@ jobs:
           cp releases/linux/ssh_tunnel_node dist/
           cp releases/linux/ssh_tunnel_node_arm64 dist/
           cp releases/ssh_tunnel.apk dist/
+          # Программа теперь Tarnegis (ТЗ 53): каждый файл ssh_tunnel* лежит и
+          # под новым именем tarnegis*. Прежние имена оставляем — их точно
+          # ищет обновление версий до 1.10.27 включительно (Windows, Linux,
+          # Android, панель). Убирать их можно, только когда таких не останется.
+          for f in dist/ssh_tunnel*; do
+            b=$(basename "$f")
+            cp "$f" "dist/tarnegis${b#ssh_tunnel}"
+          done
+          # В новом архиве и exe по-новому.
+          rm dist/tarnegis_windows.zip
+          ( cd dist && python3 -m zipfile -c tarnegis_windows.zip tarnegis.exe )
           ( cd dist && sha256sum * > SHA256SUMS.txt )
           ls -lh dist
 

@@ -90,7 +90,7 @@ func exportFilename(name string) string {
 	if slug == "" {
 		slug = "server"
 	}
-	return "ssh_tunnel-" + slug + ".json"
+	return "tarnegis-" + slug + ".json"
 }
 
 // handleProfileImport создаёт новый сервер из экспортированного файла и сразу

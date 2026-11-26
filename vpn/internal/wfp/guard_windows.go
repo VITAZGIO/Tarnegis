@@ -99,10 +99,10 @@ func permitOwnApp(session uintptr, base *baseObjects, weight uint8) error {
 		name string
 		key  windows.GUID
 	}{
-		{"Permit ssh_tunnel outbound (IPv4)", cFWPM_LAYER_ALE_AUTH_CONNECT_V4},
-		{"Permit ssh_tunnel inbound (IPv4)", cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4},
-		{"Permit ssh_tunnel outbound (IPv6)", cFWPM_LAYER_ALE_AUTH_CONNECT_V6},
-		{"Permit ssh_tunnel inbound (IPv6)", cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6},
+		{"Permit Tarnegis outbound (IPv4)", cFWPM_LAYER_ALE_AUTH_CONNECT_V4},
+		{"Permit Tarnegis inbound (IPv4)", cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4},
+		{"Permit Tarnegis outbound (IPv6)", cFWPM_LAYER_ALE_AUTH_CONNECT_V6},
+		{"Permit Tarnegis inbound (IPv6)", cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6},
 	}
 	for _, l := range layers {
 		displayData, err := createWtFwpmDisplayData0(l.name, "")

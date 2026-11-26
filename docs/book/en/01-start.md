@@ -1,6 +1,6 @@
 # Getting started
 
-ssh_tunnel routes your internet through your own server over SSH. Your ISP sees
+Tarnegis routes your internet through your own server over SSH. Your ISP sees
 a single encrypted connection to the server — just like an admin logging into
 their own machine. SSH is not blocked: half of the internet depends on it.
 

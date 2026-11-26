@@ -110,7 +110,7 @@ func (d *demoBackend) updateRoutes(h func(string, func(http.ResponseWriter, *htt
 	h("/api/update", func(w http.ResponseWriter, r *http.Request) {
 		next := demoNextVersion(d.version)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "result": updater.Result{Installed: d.version,
-			Latest: next, Newer: true, URL: "https://github.com/VITAZGIO/ssh_tunnel/releases"}})
+			Latest: next, Newer: true, URL: "https://github.com/VITAZGIO/Tarnegis/releases"}})
 	})
 	h("/api/update/all", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {

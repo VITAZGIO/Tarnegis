@@ -9,7 +9,7 @@ Runs in the background while the switch on its tile is on.
   colours. The sum over apps equals the sum over paths.
 - On the phone you see apps (icons and names) and can pick the network:
   all, Wi-Fi or mobile.
-- Only what goes through ssh_tunnel is counted. Apps excluded on the phone
+- Only what goes through Tarnegis is counted. Apps excluded on the phone
   bypass it and are not counted; other devices' traffic is not shown.
 - Daily totals are kept for **3 months**, older ones are deleted
   automatically.

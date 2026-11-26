@@ -493,7 +493,7 @@ func replaceResolvConf() error {
 		return err
 	}
 	os.Remove(path) // ссылку — убрать, а не писать сквозь неё в чужой файл
-	content := "# ssh_tunnel VPN: вернётся как было при выключении\nnameserver " + dnsAddr.String() + "\n"
+	content := "# Tarnegis VPN: вернётся как было при выключении\nnameserver " + dnsAddr.String() + "\n"
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 

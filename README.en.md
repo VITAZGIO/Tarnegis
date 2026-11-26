@@ -1,6 +1,6 @@
 <div align="center">
 
-# ssh_tunnel
+# Tarnegis
 
 **Routes application traffic through your own Linux server over plain SSH.**
 
@@ -9,10 +9,10 @@ rights) and **VPN** (all system traffic). An educational project: it shows how a
 standard SSH mechanism.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-4c8dff)](LICENSE)
-[![Version](https://img.shields.io/github/v/release/VITAZGIO/ssh_tunnel?label=version&color=4c8dff)](https://github.com/VITAZGIO/ssh_tunnel/releases)
-[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
-[![Linux](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
-[![Android](https://img.shields.io/badge/Android-8.0+-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
+[![Version](https://img.shields.io/github/v/release/VITAZGIO/Tarnegis?label=version&color=4c8dff)](https://github.com/VITAZGIO/Tarnegis/releases)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
+[![Linux](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
+[![Android](https://img.shields.io/badge/Android-8.0+-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.22+-2de2ff)](src)
 
 [🇷🇺 Русский](README.md) · 🇬🇧 English
@@ -31,14 +31,14 @@ standard SSH mechanism.
   <tr>
     <td rowspan="2">🪟 <b>Windows</b></td>
     <td><b>Proxy</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe">⬇ ssh_tunnel.exe</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe">⬇ tarnegis.exe</a></td>
     <td>Browsers and apps that use the system proxy go through the server (<a href="#what-goes-through-the-proxy-and-what-does-not">which ones</a>)</td>
     <td>not needed</td>
     <td align="center">via the proxy</td>
   </tr>
   <tr>
     <td><b>VPN</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_vpn.exe">⬇ ssh_tunnel_vpn.exe</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_vpn.exe">⬇ tarnegis_vpn.exe</a></td>
     <td><b>All</b> of the computer's internet goes through the server</td>
     <td>⚠️ administrator</td>
     <td align="center">✅</td>
@@ -61,7 +61,7 @@ standard SSH mechanism.
   <tr>
     <td>🤖 <b>Android</b></td>
     <td><b>App</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.apk">⬇ ssh_tunnel.apk</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.apk">⬇ tarnegis.apk</a></td>
     <td>The phone's internet goes through the server, per-app choice</td>
     <td>not needed</td>
     <td align="center">✅</td>
@@ -87,7 +87,7 @@ names like `laptop.mesh`, wherever they are.
 [More](docs/MESH.md) (in Russian)
 
 The ARM build and the checksums are on the
-[release page](https://github.com/VITAZGIO/ssh_tunnel/releases/latest).
+[release page](https://github.com/VITAZGIO/Tarnegis/releases/latest).
 
 <img src="docs/screenshot.png" width="300" alt="main screen">
 <img src="docs/screenshot_filter.png" width="300" alt="per-app filter">
@@ -99,7 +99,7 @@ The ARM build and the checksums are on the
 ## What this is
 
 SSH has a standard feature — forwarding TCP connections (`direct-tcpip`, the
-same thing `ssh -D` does). `ssh_tunnel` opens an SSH connection to **your** server
+same thing `ssh -D` does). Tarnegis opens an SSH connection to **your** server
 and runs a local proxy on top of it: an application talks to a proxy on its own
 machine, and the connection to the destination is opened by the server.
 
@@ -186,11 +186,11 @@ Your own plugin is an HTML page with access to the program's API:
   application
       │  SOCKS4/4a/5 (1080)   HTTP CONNECT (1081)
       ▼
-  ssh_tunnel  ──── encrypted SSH (22) ────►  your server  ──►  network
+  Tarnegis  ──── encrypted SSH (22) ────►  your server  ──►  network
 ```
 
 1. The application thinks it is talking to an ordinary proxy on its own machine.
-2. `ssh_tunnel` parses the request, learns the destination and opens a
+2. Tarnegis parses the request, learns the destination and opens a
    `direct-tcpip` channel to it over SSH.
 3. Host names are resolved by the server, not by your computer: the connection
    leaves from the server's address in full, DNS lookup included.
@@ -216,8 +216,8 @@ firewall on first — a ready-to-paste block of commands is in
 
 ## Windows
 
-1. Download [**ssh_tunnel.exe**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe)
-   (proxy) or [**ssh_tunnel_vpn.exe**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_vpn.exe)
+1. Download [**ssh_tunnel.exe**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe)
+   (proxy) or [**ssh_tunnel_vpn.exe**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_vpn.exe)
    (VPN, see [below](#vpn-mode)) and put it in a permanent folder.
 2. Run it. Windows will warn about an unknown publisher — «More info» → «Run
    anyway» (the binary is not signed with a certificate: that costs money and
@@ -265,7 +265,7 @@ raw IP packets out of it, parses them with its own network stack, and sends
 them out over the same SSH connection. Apps have nothing to configure — they
 just go online, and the system hands their traffic to us.
 
-1. Download [**ssh_tunnel.apk**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.apk).
+1. Download [**ssh_tunnel.apk**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.apk).
 2. Open the file. Android will ask for permission to install from this
    source — needed once.
 3. Gear icon → server address, user `tunnel`, private key. Paste the key in
@@ -480,7 +480,7 @@ It is built on GitHub's servers — the `android` workflow on every push, and
 [docs/ANDROID_SIGNING.md](docs/ANDROID_SIGNING.md) (in Russian).
 
 Binaries are not kept in the repository — they are published in
-[releases](https://github.com/VITAZGIO/ssh_tunnel/releases) so the history does
+[releases](https://github.com/VITAZGIO/Tarnegis/releases) so the history does
 not swell with megabytes.
 
 ---

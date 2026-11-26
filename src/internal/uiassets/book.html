@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ssh_tunnel</title>
+<title>Tarnegis</title>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="pages.css">
 <style>
@@ -265,7 +265,7 @@ $('q').placeholder = L('Поиск', 'Search');
 let qTimer = null;
 $('q').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(search, 200); };
 $('q').onkeydown = ev => { if(ev.key === 'Escape'){ $('q').value = ''; search(); } };
-document.title = L('Книга', 'Book') + ' — ssh_tunnel';
+document.title = L('Книга', 'Book') + ' — Tarnegis';
 document.addEventListener('keydown', ev => {
   if(!PAGED || ev.target === $('q')) return;
   if(['ArrowRight', 'PageDown', ' '].includes(ev.key)){ ev.preventDefault(); go(page + spread); }

@@ -33,8 +33,8 @@ default.
 
 ## Widget
 
-- **Phone:** long-press the home screen → Widgets → ssh_tunnel →
-  "ssh_tunnel calendar". Shows this week's upcoming events; tap to open.
+- **Phone:** long-press the home screen → Widgets → Tarnegis →
+  "Tarnegis calendar". Shows this week's upcoming events; tap to open.
 - **PC:** gear → "Desktop widget". A small borderless window sits on the
   wallpaper below other windows, without a taskbar button. Drag it by the
   header; it remembers its place.
@@ -45,8 +45,8 @@ default.
   the app password was revoked or mistyped.
 - "Device network is off" — `.mesh` addresses need the device network
   (the small button on the main screen).
-- Phone: Settings → Accounts → "ssh_tunnel calendar" → sync must be on.
-  Battery saving for ssh_tunnel — "unrestricted".
+- Phone: Settings → Accounts → "Tarnegis calendar" → sync must be on.
+  Battery saving for Tarnegis — "unrestricted".
 
 ## Which service
 

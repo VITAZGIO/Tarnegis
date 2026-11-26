@@ -27,7 +27,7 @@ for this.
 6. Press **Turn on**.
 
 The panel checks everything step by step: it installs the Linux client of
-ssh_tunnel of the same version as the panel itself, checks that B does not go to
+Tarnegis of the same version as the panel itself, checks that B does not go to
 the internet through this same server, and applies the routes. The phases are
 shown in the card: "checking and installing the client…", "applied, waiting for
 confirmation", "working through server B".

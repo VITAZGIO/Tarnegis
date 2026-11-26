@@ -30,7 +30,7 @@ import (
 const confirmNote = "ОПАСНО — перед вызовом спроси человека и дождись явного «да»: "
 
 // errMCPOff — галочка выключена.
-var errMCPOff = errors.New("управление нейросетью выключено: включи галочку «Управление нейросетью (MCP)» в настройках ssh_tunnel на этом устройстве")
+var errMCPOff = errors.New("управление нейросетью выключено: включи галочку «Управление нейросетью (MCP)» в настройках Tarnegis на этом устройстве")
 
 type rpcReq struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -127,8 +127,8 @@ func (m *mcp) dispatch(req rpcReq) (any, *rpcErr) {
 		return map[string]any{
 			"protocolVersion": v,
 			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]any{"name": "ssh_tunnel", "version": updater.Version},
-			"instructions": "ssh_tunnel — обход блокировок через свой SSH-сервер и сеть устройств. " +
+			"serverInfo":      map[string]any{"name": "Tarnegis", "version": updater.Version},
+			"instructions": "Tarnegis — обход блокировок через свой SSH-сервер и сеть устройств. " +
 				"Две независимые кнопки: туннель («Обход») и сеть устройств. Инструменты с пометкой ОПАСНО " +
 				"вызывай только после явного согласия человека.",
 		}, nil

@@ -11,7 +11,7 @@
 # /run/ssh_tunnel_node/control.sock.
 
 [Unit]
-Description=ssh_tunnel - плагины сервера (зеркальные папки, файлы, буфер, копии, машины, блокировка, проверка сайта)
+Description=Tarnegis - плагины сервера (зеркальные папки, файлы, буфер, копии, машины, блокировка, проверка сайта)
 After=network.target meshd.service
 Wants=meshd.service
 

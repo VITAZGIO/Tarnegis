@@ -149,15 +149,23 @@ func (s *Server) runSelfUpdate() {
 	u.target = strings.TrimPrefix(rel.Tag, "v")
 	u.mu.Unlock()
 
+	// Сначала новое имя файла (tarnegis_panel…), потом прежнее — релиз до
+	// переименования (ТЗ 53) знает только его.
 	name := panelAssetName(runtime.GOARCH)
-	var bin, sums updater.Asset
+	oldName := updater.OldPrefix + strings.TrimPrefix(name, updater.NewPrefix)
+	var bin, oldBin, sums updater.Asset
 	for _, a := range rel.Assets {
 		switch a.Name {
 		case name:
 			bin = a
+		case oldName:
+			oldBin = a
 		case "SHA256SUMS.txt":
 			sums = a
 		}
+	}
+	if bin.URL == "" && oldBin.URL != "" {
+		bin, name = oldBin, oldName
 	}
 	if bin.URL == "" || sums.URL == "" {
 		u.fail(fmt.Errorf("в релизе %s нет файла %s или контрольных сумм — обнови вручную", rel.Tag, name))
@@ -212,9 +220,9 @@ func (s *Server) runSelfUpdate() {
 // panelAssetName — файл панели в релизе под эту архитектуру.
 func panelAssetName(goarch string) string {
 	if goarch == "arm64" {
-		return "ssh_tunnel_panel_arm64"
+		return updater.NewPrefix + "_panel_arm64"
 	}
-	return "ssh_tunnel_panel"
+	return updater.NewPrefix + "_panel"
 }
 
 // downloadFile качает url в dst и возвращает SHA-256 скачанного.

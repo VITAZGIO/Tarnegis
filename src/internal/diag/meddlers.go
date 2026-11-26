@@ -102,7 +102,7 @@ var kindText = map[string][3][2]string{
 	},
 	"proxy": {
 		{"Системный прокси или PAC-файл: %s.", "System proxy or PAC file: %s."},
-		{"Браузеры идут через чужой прокси, а не через ssh_tunnel.", "Browsers go through someone else's proxy, not ssh_tunnel."},
+		{"Браузеры идут через чужой прокси, а не через Tarnegis.", "Browsers go through someone else's proxy, not Tarnegis."},
 		{"Отключить на время проверки (вернуть можно одной кнопкой).", "Turn it off for the check (one button brings it back)."},
 	},
 	"dns": {
@@ -131,9 +131,9 @@ var kindText = map[string][3][2]string{
 		{"Найди программу, которая ставит правила (zapret, прокси), и выключи её.", "Find the program that sets the rules (zapret, a proxy) and turn it off."},
 	},
 	"battery": {
-		{"Экономия батареи для ssh_tunnel включена.", "Battery optimization for ssh_tunnel is on."},
+		{"Экономия батареи для Tarnegis включена.", "Battery optimization for Tarnegis is on."},
 		{"Система может усыпить VPN в фоне.", "The system may put the VPN to sleep in the background."},
-		{"Отключи оптимизацию батареи для ssh_tunnel.", "Turn off battery optimization for ssh_tunnel."},
+		{"Отключи оптимизацию батареи для Tarnegis.", "Turn off battery optimization for Tarnegis."},
 	},
 }
 

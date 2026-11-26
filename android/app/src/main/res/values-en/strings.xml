@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ssh_tunnel</string>
+    <string name="app_name">Tarnegis</string>
 
     <string name="state_stopped">Disconnected</string>
     <string name="state_connecting">Connecting…</string>
@@ -32,10 +32,10 @@
     <string name="camera_denied">can\'t scan a code without camera access</string>
 
     <!-- App list export and import -->
-    <string name="import_bad_apps">this doesn\'t look like an ssh_tunnel app list</string>
+    <string name="import_bad_apps">this doesn\'t look like a Tarnegis app list</string>
 
     <!-- Moving all settings and updating the app -->
-    <string name="bundle_bad">the clipboard does not hold an ssh_tunnel settings export</string>
+    <string name="bundle_bad">the clipboard does not hold a Tarnegis settings export</string>
 
     <string name="server_switched_reconnecting">Server switched — connecting to it</string>
 
@@ -54,11 +54,11 @@
     <string name="phonelink_ring">Someone is looking for this phone</string>
     <string name="phonelink_ring_stop">Stop</string>
     <string name="phonelink_ring_stop_hint">Tap to stop (or just turn the screen on)</string>
-    <string name="vault_locked">🔒 ssh_tunnel passwords — unlock</string>
+    <string name="vault_locked">🔒 Tarnegis passwords — unlock</string>
     <string name="vault_unlock_title">Unlock passwords</string>
     <string name="vault_master">Master password</string>
     <string name="vault_unlock">Unlock</string>
-    <string name="calendar_account">ssh_tunnel calendar</string>
+    <string name="calendar_account">Tarnegis calendar</string>
     <string name="calendar_widget_desc">Upcoming Nextcloud events</string>
     <string name="calendar_widget_empty">No events this week</string>
     <string name="calendar_month_widget_desc">Month calendar: events in cells, flip months, new event</string>
@@ -81,14 +81,14 @@
     <string name="files_transfer_many">Transfers: %1$d</string>
     <!-- ТЗ 5: трафик, сканер, буфер -->
     <string name="tools_channel">App warnings</string>
-    <string name="clip_share">ssh_tunnel shared clipboard</string>
+    <string name="clip_share">Tarnegis shared clipboard</string>
     <string name="clip_tile">Shared clipboard</string>
     <string name="clip_sent">Sent to devices: %1$d</string>
     <string name="clip_sent_multi">Files sent: %1$d of %2$d</string>
     <string name="clip_too_big">Over 50 MB — use Device files</string>
     <string name="clip_empty">Nothing to send in the clipboard</string>
     <string name="clip_send_now">Send clipboard</string>
-    <string name="clip_access_label">ssh_tunnel shared clipboard</string>
+    <string name="clip_access_label">Tarnegis shared clipboard</string>
     <string name="clip_access_desc">Notices a tap on “Copy” in other apps and sends the clipboard to your devices. It does not read the screen content and sends nothing from it.</string>
 
     <!-- ТЗ 37: тексты, которые раньше были написаны прямо в Kotlin -->

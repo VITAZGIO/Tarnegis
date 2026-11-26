@@ -33,7 +33,7 @@ SSH-соединение с сервером.
   любая программа
         │  обычные IP-пакеты
         ▼
-  адаптер «ssh_tunnel» (Wintun)       маршруты 0.0.0.0/1 и 128.0.0.0/1
+  адаптер «Tarnegis» (Wintun)       маршруты 0.0.0.0/1 и 128.0.0.0/1
         │
         ▼
   сетевой стек gvisor                 пакеты → снова TCP-соединения
@@ -177,7 +177,7 @@ Windows** — программу, которую система запускае
 ```
   при включении компьютера                     при входе пользователя
   ┌──────────────────────────────┐             ┌───────────────────────────┐
-  │ служба ssh_tunnel_vpn        │  127.0.0.1  │ окно ssh_tunnel VPN (трей)│
+  │ служба ssh_tunnel_vpn        │  127.0.0.1  │ окно Tarnegis VPN (трей)│
   │ (SYSTEM): туннель, адаптер,  │◄────────────│ без прав администратора   │
   │ сеть устройств, веб-интерфейс│ service.json│                           │
   └──────────────────────────────┘             └───────────────────────────┘
@@ -260,7 +260,7 @@ $S apt update && $S apt install -y curl
 
 # скачать (на Raspberry Pi и других ARM возьмётся сборка _arm64) и поставить
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 $S install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 # запустить с панелью: http://АДРЕС_ЭТОЙ_МАШИНЫ:47821 (Ctrl+C — выключить)
@@ -289,7 +289,7 @@ Proxmox — это Debian, но работают там под `root`, поэт�
 apt update && apt install -y curl
 
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 # запустить с панелью: http://АДРЕС_ХОСТА:47821 (Ctrl+C — выключить)
@@ -324,7 +324,7 @@ S=sudo; [ "$(id -u)" = 0 ] && S=   # под root (Proxmox и т.п.) sudo не �
 $S dnf install -y curl
 
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 $S install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 # запустить с панелью: http://АДРЕС_ЭТОЙ_МАШИНЫ:47821 (Ctrl+C — выключить)
@@ -347,7 +347,7 @@ S=sudo; [ "$(id -u)" = 0 ] && S=   # под root (Proxmox и т.п.) sudo не �
 $S pacman -S --needed curl
 
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 $S install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 # запустить с панелью: http://АДРЕС_ЭТОЙ_МАШИНЫ:47821 (Ctrl+C — выключить)
@@ -366,7 +366,7 @@ S=sudo; [ "$(id -u)" = 0 ] && S=   # под root (Proxmox и т.п.) sudo не �
 $S zypper install -y curl
 
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 $S install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 # запустить с панелью: http://АДРЕС_ЭТОЙ_МАШИНЫ:47821 (Ctrl+C — выключить)
@@ -392,7 +392,7 @@ apk add curl
 modprobe tun   # устройство TUN; на большинстве ядер уже есть
 
 F=ssh_tunnel_vpn_linux; [ "$(uname -m)" = aarch64 ] && F=${F}_arm64
-curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$F
+curl -fL -o /tmp/ssh_tunnel_vpn_linux https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$F
 install -m 755 /tmp/ssh_tunnel_vpn_linux /usr/local/bin/ssh_tunnel_vpn_linux && rm -f /tmp/ssh_tunnel_vpn_linux
 
 cat > /etc/init.d/ssh_tunnel_vpn <<'EOF'
@@ -438,7 +438,7 @@ DNS без systemd-resolved: на время работы подменяется
 
 ```bash
 S=sudo; [ "$(id -u)" = 0 ] && S=   # под root (Proxmox) sudo не нужен — его там и нет
-printf '%s\n' '[Unit]' 'Description=ssh_tunnel VPN' \
+printf '%s\n' '[Unit]' 'Description=Tarnegis VPN' \
   'After=network-online.target systemd-resolved.service' 'Wants=network-online.target' '' \
   '[Service]' "Environment=XDG_CONFIG_HOME=$HOME/.config" \
   'ExecStart=/usr/local/bin/ssh_tunnel_vpn_linux -web -web-lan' \
@@ -459,7 +459,7 @@ echo "Панель: http://$(hostname -I | awk '{print $1}'):47821"
 умолчанию). Журнал службы — `journalctl -u ssh_tunnel_vpn -f`.
 
 Обычную версию (`ssh_tunnel.service`) одновременно с VPN не запускай — хватит
-одной: `sudo systemctl disable --now ssh_tunnel`, а если она стояла как
+одной: `sudo systemctl disable --now Tarnegis`, а если она стояла как
 пользовательская — `systemctl --user disable --now ssh_tunnel`.
 
 <details>
@@ -541,7 +541,7 @@ cd vpn
 проверить — только на живой системе.
 
 1. Запуск: окно UAC, затем обычное окно программы с заголовком
-   «ssh_tunnel VPN».
+   «Tarnegis VPN».
 2. «Подключить» → в «Сетевых подключениях» появился адаптер `ssh_tunnel`.
 3. https://2ip.ru (или любая проверка IP) показывает адрес сервера — в
    браузере **без** настроенного прокси.
@@ -556,7 +556,7 @@ cd vpn
 9. Закрыть программу через диспетчер задач («Снять задачу») — интернет после
    этого должен работать сам, без перезагрузки.
 10. Галочка «Запускать при старте системы» → окно UAC → в `services.msc`
-    служба «ssh_tunnel VPN» (автоматически, выполняется), окно перезапустилось
+    служба «Tarnegis VPN» (автоматически, выполняется), окно перезапустилось
     без прав администратора. Перезагрузить компьютер и **не входить** в
     систему: с другого устройства сети `ping имя.mesh` и RDP на него
     работают.

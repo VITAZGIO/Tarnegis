@@ -139,7 +139,7 @@ func open() bool {
 
 // busyWatch — сторож: буфер не открывается дольше busyLimit подряд — пишем,
 // какая программа его держит (GetOpenClipboardWindow → процесс). Если
-// виноват кто-то другой, это видно в журнале, а не «опять ssh_tunnel».
+// виноват кто-то другой, это видно в журнале, а не «опять Tarnegis».
 type busyWatch struct {
 	mu     sync.Mutex
 	since  time.Time // первая неудача подряд; ноль — буфер открывался
@@ -189,7 +189,7 @@ func clipboardHolder() string {
 	}
 	name := processName(pid)
 	if pid == uint32(os.Getpid()) {
-		return fmt.Sprintf("сам ssh_tunnel (%s, PID %d) — это ошибка программы", name, pid)
+		return fmt.Sprintf("сам Tarnegis (%s, PID %d) — это ошибка программы", name, pid)
 	}
 	return fmt.Sprintf("программа %s (PID %d)", name, pid)
 }

@@ -1,6 +1,6 @@
 <div align="center">
 
-# ssh_tunnel
+# Tarnegis
 
 **Пропускает трафик приложений через твой собственный Linux-сервер по обычному SSH.**
 
@@ -9,10 +9,10 @@
 локальный прокси.
 
 [![Лицензия: MIT](https://img.shields.io/badge/лицензия-MIT-4c8dff)](LICENSE)
-[![Версия](https://img.shields.io/github/v/release/VITAZGIO/ssh_tunnel?label=версия&color=4c8dff)](https://github.com/VITAZGIO/ssh_tunnel/releases)
-[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
-[![Linux](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
-[![Android](https://img.shields.io/badge/Android-8.0+-2de2ff)](https://github.com/VITAZGIO/ssh_tunnel/releases/latest)
+[![Версия](https://img.shields.io/github/v/release/VITAZGIO/Tarnegis?label=версия&color=4c8dff)](https://github.com/VITAZGIO/Tarnegis/releases)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
+[![Linux](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
+[![Android](https://img.shields.io/badge/Android-8.0+-2de2ff)](https://github.com/VITAZGIO/Tarnegis/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.22+-2de2ff)](src)
 
 🇷🇺 Русский · [🇬🇧 English](README.en.md)
@@ -31,14 +31,14 @@
   <tr>
     <td rowspan="2">🪟 <b>Windows</b></td>
     <td><b>Прокси</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe">⬇ ssh_tunnel.exe</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe">⬇ tarnegis.exe</a></td>
     <td>Через сервер идут браузеры и программы, которые берут системный прокси (<a href="#что-идёт-через-прокси-а-что-нет">какие</a>)</td>
     <td>не нужны</td>
     <td align="center">через прокси</td>
   </tr>
   <tr>
     <td><b>VPN</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_vpn.exe">⬇ ssh_tunnel_vpn.exe</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_vpn.exe">⬇ tarnegis_vpn.exe</a></td>
     <td>Через сервер идёт <b>весь</b> интернет компьютера</td>
     <td>⚠️ администратор</td>
     <td align="center">✅</td>
@@ -61,7 +61,7 @@
   <tr>
     <td>🤖 <b>Android</b></td>
     <td><b>Приложение</b></td>
-    <td><a href="https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.apk">⬇ ssh_tunnel.apk</a></td>
+    <td><a href="https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.apk">⬇ tarnegis.apk</a></td>
     <td>Через сервер идёт интернет телефона, можно выбрать приложения</td>
     <td>не нужны</td>
     <td align="center">✅</td>
@@ -87,7 +87,7 @@
 [Подробнее](docs/MESH.md)
 
 Сборка под ARM и контрольные суммы — на
-[странице релиза](https://github.com/VITAZGIO/ssh_tunnel/releases/latest).
+[странице релиза](https://github.com/VITAZGIO/Tarnegis/releases/latest).
 
 <img src="docs/screenshot.png" width="300" alt="главный экран">
 <img src="docs/screenshot_filter.png" width="300" alt="выбор программ">
@@ -99,7 +99,7 @@
 ## Что это
 
 У SSH есть штатная возможность — проброс TCP-соединений (`direct-tcpip`, то же
-самое, что делает `ssh -D`). `ssh_tunnel` поднимает SSH-соединение с **твоим**
+самое, что делает `ssh -D`). Tarnegis поднимает SSH-соединение с **твоим**
 сервером и разворачивает поверх него локальный прокси: приложение обращается к
 прокси на своей же машине, а соединение до нужного адреса открывает сервер.
 
@@ -180,7 +180,7 @@ HTTP CONNECT, каналы SSH и определение процесса по �
   приложение
       │  SOCKS4/4a/5 (1080)   HTTP CONNECT (1081)
       ▼
-  ssh_tunnel  ──── зашифрованный SSH (22) ────►  твой сервер  ──►  сеть
+  Tarnegis  ──── зашифрованный SSH (22) ────►  твой сервер  ──►  сеть
 ```
 
 1. Приложение думает, что говорит с обычным прокси на своей же машине.
@@ -210,8 +210,8 @@ HTTP CONNECT, каналы SSH и определение процесса по �
 
 ## Windows
 
-1. Скачай [**ssh_tunnel.exe**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe)
-   (прокси) или [**ssh_tunnel_vpn.exe**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel_vpn.exe)
+1. Скачай [**ssh_tunnel.exe**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe)
+   (прокси) или [**ssh_tunnel_vpn.exe**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis_vpn.exe)
    (VPN, см. [ниже](#режим-vpn)) и положи в постоянную папку. Дальше всё
    одинаково, в командах ниже для VPN замени имя файла.
 
@@ -221,7 +221,7 @@ HTTP CONNECT, каналы SSH и определение процесса по �
    PowerShell — заодно файл не получит метку «загружено из интернета»:
 
    ```powershell
-   curl.exe -fL --ssl-no-revoke -o "$env:USERPROFILE\Desktop\ssh_tunnel.exe" https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe
+   curl.exe -fL --ssl-no-revoke -o "$env:USERPROFILE\Desktop\ssh_tunnel.exe" https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe
    Get-FileHash "$env:USERPROFILE\Desktop\ssh_tunnel.exe" -Algorithm SHA256
    ```
 
@@ -276,7 +276,7 @@ Android 8.0 и новее. Устроено иначе, чем на компью
 всё тем же SSH-соединением. Приложениям настраивать нечего — они просто ходят
 в интернет, а система отдаёт их трафик нам.
 
-1. Скачай [**ssh_tunnel.apk**](https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.apk).
+1. Скачай [**ssh_tunnel.apk**](https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.apk).
 2. Открой файл. Android спросит разрешение ставить приложения из этого
    источника — оно нужно один раз.
 3. Шестерёнка → адрес сервера, пользователь `tunnel`, закрытый ключ. Ключ
@@ -491,7 +491,7 @@ docs/         архитектура, безопасность, диагност
 [docs/ANDROID_SIGNING.md](docs/ANDROID_SIGNING.md).
 
 Готовые файлы в репозитории не лежат — они публикуются в
-[релизах](https://github.com/VITAZGIO/ssh_tunnel/releases), чтобы история не
+[релизах](https://github.com/VITAZGIO/Tarnegis/releases), чтобы история не
 пухла от бинарников.
 
 ---

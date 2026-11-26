@@ -71,7 +71,7 @@ func runClient(tray, noWindow bool) {
 	if noWindow {
 		ep, err := c.waitEndpoint(30 * time.Second)
 		if err != nil {
-			fatal("Служба ssh_tunnel VPN не отвечает.\n\n" +
+			fatal("Служба Tarnegis VPN не отвечает.\n\n" +
 				"Проверь её в «Службах» Windows (services.msc) и журнал службы:\n" +
 				filepath.Join(dir, "service.log") + "\n\n" + err.Error())
 		}
@@ -436,7 +436,7 @@ func (c *client) offerServiceUpdate(ep winsvc.Endpoint) {
 	if updater.Version == "dev" || ep.Version == updater.Version {
 		return
 	}
-	msg := fmt.Sprintf("Служба ssh_tunnel VPN работает на версии %s, а этот файл — версии %s.\n\n"+
+	msg := fmt.Sprintf("Служба Tarnegis VPN работает на версии %s, а этот файл — версии %s.\n\n"+
 		"Обновить службу? Windows попросит права администратора; VPN на несколько секунд переподключится.",
 		ep.Version, updater.Version)
 	if showMessage(msg, mbYesNo|mbIconQuestion) != idYes {

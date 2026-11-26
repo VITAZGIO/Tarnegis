@@ -208,7 +208,7 @@ sshtun0 освободился не сразу»). Если и после это
 кем: «интерфейс sshtun0 занят другим процессом (PID …)».
 
 - Это вторая копия программы (например, служба и запуск руками с `-web`):
-  оставь одну — `systemctl status ssh_tunnel*`, `ps aux | grep ssh_tunnel`.
+  оставь одну — `systemctl status Tarnegis*`, `ps aux | grep Tarnegis`.
 - PID не назван, а интерфейс остался (`ip link show sshtun0`) — его держит
   ядро или упавший процесс: `sudo ip link delete sshtun0` и запусти снова.
 - Раньше неудачный запуск VPN мог оставить устройство открытым,
@@ -385,7 +385,7 @@ Defender придираются по умолчанию — это не приз
 (из-за которой потом ругается SmartScreen) файл тоже не получает:
 
 ```powershell
-curl.exe -fL --ssl-no-revoke -o "$env:USERPROFILE\Desktop\ssh_tunnel.exe" https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe
+curl.exe -fL --ssl-no-revoke -o "$env:USERPROFILE\Desktop\ssh_tunnel.exe" https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe
 Get-FileHash "$env:USERPROFILE\Desktop\ssh_tunnel.exe" -Algorithm SHA256
 ```
 
@@ -412,7 +412,7 @@ Get-FileHash "$env:USERPROFILE\Desktop\ssh_tunnel.exe" -Algorithm SHA256
 ```powershell
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
-Invoke-WebRequest -Uri https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/ssh_tunnel.exe -OutFile "$env:USERPROFILE\Desktop\ssh_tunnel.exe"
+Invoke-WebRequest -Uri https://github.com/VITAZGIO/Tarnegis/releases/latest/download/tarnegis.exe -OutFile "$env:USERPROFILE\Desktop\ssh_tunnel.exe"
 ```
 
 Обе первые строки нужны, это не украшательство:

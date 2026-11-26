@@ -46,7 +46,7 @@
 2. Подключи программу к нейросети.
 
 **Claude Code** — одна команда в терминале:
-`claude mcp add ssh_tunnel -- "C:\путь\к\ssh_tunnel.exe" mcp`
+`claude mcp add Tarnegis -- "C:\путь\к\ssh_tunnel.exe" mcp`
 
 **Claude Desktop** — Настройки → Разработчик → «Изменить конфигурацию».
 В файле `claude_desktop_config.json` внутри `mcpServers` добавь:
@@ -71,7 +71,7 @@
 
 ```
 ssh_tunnel_vpn_linux -reset-password
-systemctl restart ssh_tunnel
+systemctl restart Tarnegis
 ```
 
 (имя программы и службы — твои; точную команду показывает «Забыли пароль?» на экране входа).

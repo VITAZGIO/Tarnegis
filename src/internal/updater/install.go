@@ -62,7 +62,7 @@ func fetch(ctx context.Context, url, dst string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "ssh_tunnel/"+Version+" ("+runtime.GOOS+")")
+	req.Header.Set("User-Agent", "Tarnegis/"+Version+" ("+runtime.GOOS+")")
 	resp, err := (&http.Client{Timeout: 10 * time.Minute}).Do(req)
 	if err != nil {
 		return "", fmt.Errorf("не удалось скачать файл: %w", err)

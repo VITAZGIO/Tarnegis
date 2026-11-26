@@ -1,4 +1,4 @@
-// Команда meshd — «сеть устройств» для ssh_tunnel: сервис на сервере,
+// Команда meshd — «сеть устройств» для Tarnegis: сервис на сервере,
 // который связывает твои устройства (ноутбук, телефон, домашний сервер) в одну
 // сеть, как NetBird или Tailscale, — только через твой собственный сервер.
 //
@@ -205,7 +205,7 @@ type msg struct {
 	// Что устройство рассказывает о себе в hello (всё необязательное).
 	Platform string `json:"platform,omitempty"` // windows, linux, android
 	OS       string `json:"os,omitempty"`       // версия системы, если известна
-	App      string `json:"app,omitempty"`      // версия ssh_tunnel
+	App      string `json:"app,omitempty"`      // версия Tarnegis
 	Mode     string `json:"mode,omitempty"`     // proxy или vpn
 	Via      string `json:"via,omitempty"`      // через какой сервер пришло
 	Hostname string `json:"hostname,omitempty"` // имя компьютера

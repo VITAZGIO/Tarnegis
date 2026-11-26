@@ -792,7 +792,7 @@ object AndroidApi : mobile.API {
         Thread({
             val dir = java.io.File(app.cacheDir, "updates").apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() }
-            val file = java.io.File(dir, "ssh_tunnel-${u.latest}.apk")
+            val file = java.io.File(dir, "tarnegis-${u.latest}.apk")
             val part = java.io.File(dir, file.name + ".part")
             try {
                 val conn = java.net.URL(u.apkUrl).openConnection() as java.net.HttpURLConnection

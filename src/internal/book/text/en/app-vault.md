@@ -13,7 +13,7 @@ The vault is encrypted (AES-256).
   this one by themselves on their next sync and then open with this vault's
   master password.
 
-- **Phone**: choose ssh_tunnel as the autofill service — your logins appear in
+- **Phone**: choose Tarnegis as the autofill service — your logins appear in
   any app's login fields; new passwords are offered for saving.
 - **PC browser**: «Install extension» → load it unpacked in
   browser://extensions (developer mode) → paste the pairing key.

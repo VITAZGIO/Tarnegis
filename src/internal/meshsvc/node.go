@@ -24,7 +24,7 @@ const NodeUnitName = nodeapi.Unit
 // — набор обычной службы (ТЗ 13).
 func NodeUnit() string {
 	return `[Unit]
-Description=ssh_tunnel - плагины сервера (зеркальные папки, файлы, буфер, копии, машины, блокировка, проверка сайта)
+Description=Tarnegis - плагины сервера (зеркальные папки, файлы, буфер, копии, машины, блокировка, проверка сайта)
 After=network.target meshd.service
 Wants=meshd.service
 
@@ -62,10 +62,11 @@ WantedBy=multi-user.target
 // остальной программой, на сервере не компилируется).
 func NodeInstallScript(version string) string {
 	return fmt.Sprintf(`set -euo pipefail
+# Файл в релизе — tarnegis_node (ТЗ 53); прежнее имя ssh_tunnel_node — запасное.
 BIN=""
 case "$(uname -m)" in
-  x86_64)        BIN=ssh_tunnel_node ;;
-  aarch64|arm64) BIN=ssh_tunnel_node_arm64 ;;
+  x86_64)        BIN=tarnegis_node ;;
+  aarch64|arm64) BIN=tarnegis_node_arm64 ;;
 esac
 if [ -z "$BIN" ]; then
   echo "неизвестная архитектура $(uname -m) — для неё готового файла нет" >&2
@@ -75,7 +76,7 @@ if ! command -v curl >/dev/null; then
   echo "нужен curl" >&2
   exit 1
 fi
-curl -fsSL -o %s.new "%s"
+curl -fsSL -o %s.new "%s" || { BIN="ssh_tunnel${BIN#tarnegis}"; curl -fsSL -o %s.new "%s"; }
 chmod +x %s.new
 mv %s.new %s
 cat > /etc/systemd/system/%s <<'EOF_UNIT'
@@ -85,7 +86,7 @@ systemctl daemon-reload
 systemctl enable %s
 systemctl restart %s
 echo "ssh_tunnel_node запущен"
-`, nodeapi.Binary, downloadURL(version), nodeapi.Binary, nodeapi.Binary, nodeapi.Binary,
+`, nodeapi.Binary, downloadURL(version), nodeapi.Binary, downloadURL(version), nodeapi.Binary, nodeapi.Binary, nodeapi.Binary,
 		NodeUnitName, strings.TrimRight(NodeUnit(), "\n"), NodeUnitName, NodeUnitName)
 }
 

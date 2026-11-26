@@ -32,7 +32,7 @@ type Client struct {
 // errNotRunning — api.json нет: программа не запущена (или запущена другим
 // пользователем).
 var errNotRunning = errors.New("программа не запущена: нет " + discoveryPath() +
-	" (запусти ssh_tunnel — окно или службу)")
+	" (запусти Tarnegis — окно или службу)")
 
 func discoveryPath() string { return filepath.Join(config.Dir(), "api.json") }
 

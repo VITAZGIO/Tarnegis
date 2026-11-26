@@ -125,7 +125,7 @@ async function load(){
   drawSrv();
   const vpn = !!(st && st.adBlock);
   $('noVpn').hidden = vpn;
-  $('noVpn').textContent = L('Блокировка работает в режиме VPN: на телефоне и в VPN-версии ssh_tunnel на Windows и Linux. В обычной версии имена разрешают сами программы — перехватить нечего.',
+  $('noVpn').textContent = L('Блокировка работает в режиме VPN: на телефоне и в VPN-версии Tarnegis на Windows и Linux. В обычной версии имена разрешают сами программы — перехватить нечего.',
     'Blocking works in VPN mode: on the phone and in the VPN build on Windows and Linux. In the regular build programs resolve names themselves.');
   $('on').checked = !!CFG.adBlockEnabled; $('on').disabled = !vpn;
   $('onS').textContent = CFG.adBlockEnabled ? L('работает', 'on') : L('выключена', 'off');

@@ -81,13 +81,13 @@ function seg(id, items, cur, set){
 
 function progName(n){
   if(!n) return L('Без программы (система)', 'No app (system)');
-  if(n === 'ssh_tunnel') return L('ssh_tunnel (календарь, SSH, файлы)', 'ssh_tunnel (calendar, SSH, files)');
+  if(n === 'ssh_tunnel') return L('Tarnegis (календарь, SSH, файлы)', 'Tarnegis (calendar, SSH, files)');
   return LABELS[n] || n;
 }
 // Что за системные программы — чтобы было понятно, кто «жрёт».
 const KNOWN = {
   'svchost.exe': L('службы Windows: обновления, Microsoft Store, синхронизация, время', 'Windows services: updates, Microsoft Store, sync, time'),
-  'msedgewebview2.exe': L('встроенный браузер: окна программ, в т.ч. окна ssh_tunnel', 'built-in browser: app windows, incl. ssh_tunnel windows'),
+  'msedgewebview2.exe': L('встроенный браузер: окна программ, в т.ч. окна Tarnegis', 'built-in browser: app windows, incl. Tarnegis windows'),
   'system': L('ядро Windows', 'Windows kernel'),
   'lsass.exe': L('вход и сертификаты Windows', 'Windows sign-in and certificates'),
   'backgroundtaskhost.exe': L('фоновые задачи приложений Windows', 'Windows app background tasks'),
@@ -178,8 +178,8 @@ function render(){
       <span class="line">${COLORS.map(k => `<i class="c-${k}" style="width:${w(k)}%" title="${esc(NAMES[k])}: ${esc(human(p[k]))}"></i>`).join('')}</span></div>`;
   }).join('') : `<div class="hint">${L('Пока ничего не прошло.', 'Nothing yet.')}</div>`;
   drawLimit(r.limit, r.hasNet);
-  $('note').textContent = L('Считается то, что проходит через ssh_tunnel; хранятся 3 месяца. Исключённые приложения на телефоне идут мимо и не считаются.',
-    'Counts what goes through ssh_tunnel; kept for 3 months. Apps excluded on the phone bypass it and are not counted.');
+  $('note').textContent = L('Считается то, что проходит через Tarnegis; хранятся 3 месяца. Исключённые приложения на телефоне идут мимо и не считаются.',
+    'Counts what goes through Tarnegis; kept for 3 months. Apps excluded on the phone bypass it and are not counted.');
 }
 
 function drawLimit(l, hasNet){

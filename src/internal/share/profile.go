@@ -90,7 +90,7 @@ func Build(doc Doc) ([]byte, error) {
 
 // Parse разбирает файл обмена (версии 1 или 2) в Doc. Отдельно проверяет,
 // что во входных данных вообще есть что разбирать и что результат похож на
-// настоящий экспорт ssh_tunnel, а не случайный JSON. Ссылку импорта
+// настоящий экспорт Tarnegis, а не случайный JSON. Ссылку импорта
 // sshtunnel://… (QR из панели) тоже понимает — так её читают все места,
 // где уже читается файл: сканер и буфер на Android, «Вставить» на ПК.
 func Parse(data []byte) (Doc, error) {
@@ -105,7 +105,7 @@ func Parse(data []byte) (Doc, error) {
 		return Doc{}, fmt.Errorf("не удалось разобрать файл: %w", err)
 	}
 	if doc.Host == "" {
-		return Doc{}, errors.New("в файле нет адреса сервера — это не экспорт из ssh_tunnel")
+		return Doc{}, errors.New("в файле нет адреса сервера — это не экспорт из Tarnegis")
 	}
 	return doc, nil
 }

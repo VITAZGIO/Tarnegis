@@ -108,7 +108,7 @@ Object.assign(I18N.en, {
   egress_phase_rollback:'no confirmation — reverting',
   egress_phase_on:'running through server B',
   egress_phase_down:'server B is unreachable',
-  hint_egress:'<p>Installs a Linux ssh_tunnel VPN client on this server, pointed at server B, and routes this server\'s own traffic there.</p><p>Inbound access (SSH, this panel, tunnel users, meshd) keeps answering the way it came in — separate routing rules bypass this client for it.</p><p>After turning it on there are 60 seconds to confirm the panel still answers. Without confirmation, a systemd timer independent of the panel and the network reverts everything (across reboots too).</p>',
+  hint_egress:'<p>Installs a Linux Tarnegis VPN client on this server, pointed at server B, and routes this server\'s own traffic there.</p><p>Inbound access (SSH, this panel, tunnel users, meshd) keeps answering the way it came in — separate routing rules bypass this client for it.</p><p>After turning it on there are 60 seconds to confirm the panel still answers. Without confirmation, a systemd timer independent of the panel and the network reverts everything (across reboots too).</p>',
   svc_active:'running',
   svc_stopped:'stopped',
   svc_missing:'not installed',

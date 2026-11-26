@@ -19,7 +19,7 @@ import (
 var text embed.FS
 
 // GitHub — ссылка внизу Книги.
-const GitHub = "https://github.com/VITAZGIO/ssh_tunnel"
+const GitHub = "https://github.com/VITAZGIO/Tarnegis"
 
 // Chapter — глава.
 type Chapter struct {

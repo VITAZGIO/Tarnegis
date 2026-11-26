@@ -67,7 +67,7 @@ func encodeDevInvite(d inviteDoc) string {
 func parseDevInvite(s string) (inviteDoc, error) {
 	s = strings.TrimSpace(s)
 	if !strings.HasPrefix(s, devInvitePrefix) {
-		return inviteDoc{}, errors.New("это не приглашение ssh_tunnel")
+		return inviteDoc{}, errors.New("это не приглашение Tarnegis")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(s, devInvitePrefix))
 	if err != nil {

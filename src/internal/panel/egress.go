@@ -64,7 +64,7 @@ type egressSysState struct {
 	ClientActive bool
 	// RoutesUp — клиент поставил маршруты в свою таблицу: связь с B есть.
 	RoutesUp bool
-	// Conflict — на сервере уже есть другой клиент VPN ssh_tunnel.
+	// Conflict — на сервере уже есть другой клиент VPN Tarnegis.
 	Conflict string
 	// Version — версия своего клиента ("" — не стоит).
 	Version string

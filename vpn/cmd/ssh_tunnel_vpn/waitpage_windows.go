@@ -27,9 +27,9 @@ func waitPage(lang, token string) string {
 
 var waitText = map[string][9]string{
 	"ru": {
-		"ssh_tunnel VPN",
+		"Tarnegis VPN",
 		"Служба запускается…",
-		"Служба ssh_tunnel VPN не отвечает",
+		"Служба Tarnegis VPN не отвечает",
 		"Окно продолжает ждать: как только служба ответит, программа откроется сама.",
 		"Перезапустить службу",
 		"Перезапускаю службу — подтверди запрос Windows…",
@@ -38,9 +38,9 @@ var waitText = map[string][9]string{
 		"Перезапуск не удался:",
 	},
 	"en": {
-		"ssh_tunnel VPN",
+		"Tarnegis VPN",
 		"Starting the service…",
-		"The ssh_tunnel VPN service does not answer",
+		"The Tarnegis VPN service does not answer",
 		"The window keeps waiting: the program opens by itself as soon as the service answers.",
 		"Restart the service",
 		"Restarting the service — confirm the Windows prompt…",

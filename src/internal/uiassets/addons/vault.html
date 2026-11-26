@@ -169,7 +169,7 @@ function drawFill(){
     const on = window.SSHTunnelAndroid.autofillOn && SSHTunnelAndroid.autofillOn();
     c.innerHTML = `<b>${esc(L('Автозаполнение на телефоне', 'Autofill on the phone'))}</b>
       <div class="hint" style="margin:6px 0">${esc(L('В поле логина или пароля любого приложения появится подсказка с твоими логинами. Пароли закрыты — подсказка «открыть» спросит главный пароль. Новый пароль программа предложит запомнить.', 'Your logins appear in login and password fields of any app.'))}</div>
-      ${on ? `<span class="hint ok">✓ ${esc(L('Включено (если выбрана служба ssh_tunnel)', 'On (if ssh_tunnel is the selected service)'))}</span> ` : ''}<button class="btn primary" id="af">${esc(L('Выбрать ssh_tunnel для автозаполнения', 'Choose ssh_tunnel for autofill'))}</button>`;
+      ${on ? `<span class="hint ok">✓ ${esc(L('Включено (если выбрана служба Tarnegis)', 'On (if Tarnegis is the selected service)'))}</span> ` : ''}<button class="btn primary" id="af">${esc(L('Выбрать Tarnegis для автозаполнения', 'Choose Tarnegis for autofill'))}</button>`;
     $('af').onclick = () => SSHTunnelAndroid.openAutofill();
     return;
   }

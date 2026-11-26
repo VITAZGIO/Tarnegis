@@ -16,7 +16,7 @@ import (
 )
 
 // Показания сервера для раздела «Мониторинг» (ТЗ 25): процессор, память,
-// диски, сеть, процессы и службы ssh_tunnel. Всё читается из /proc и statfs
+// диски, сеть, процессы и службы Tarnegis. Всё читается из /proc и statfs
 // самой панелью — без нового процесса и без оболочки. Раз в 10 с снимается
 // замер, последний час (360 замеров) лежит в памяти, на диск ничего не
 // пишется.
@@ -88,7 +88,7 @@ type StatsProc struct {
 	RSS  uint64  `json:"rss"` // байт
 }
 
-// StatsService — служба ssh_tunnel на этом сервере.
+// StatsService — служба Tarnegis на этом сервере.
 type StatsService struct {
 	ID        string `json:"id"` // panel, meshd, udprelay, node
 	Unit      string `json:"unit"`
@@ -617,7 +617,7 @@ func (s *Server) handleServerStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, st)
 }
 
-// serviceStates — службы ssh_tunnel: работает ли, с какого момента, версия.
+// serviceStates — службы Tarnegis: работает ли, с какого момента, версия.
 func (s *Server) serviceStates(ctx context.Context) []StatsService {
 	units := []struct{ id, unit string }{
 		{"panel", "ssh_tunnel_panel.service"},

@@ -100,7 +100,7 @@ func ParseBundle(data []byte) (Bundle, error) {
 			return Bundle{}, errors.New("это настройки одного сервера, а не всех: " +
 				"вставь их кнопкой «Вставить сервер из буфера»")
 		}
-		return Bundle{}, errors.New("это не выгрузка настроек ssh_tunnel")
+		return Bundle{}, errors.New("это не выгрузка настроек Tarnegis")
 	}
 	if len(b.Servers) == 0 {
 		return Bundle{}, errors.New("в выгрузке нет ни одного сервера")

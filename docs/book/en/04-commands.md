@@ -45,7 +45,7 @@ printed after the `PS>` prompt. To wait for it —
 2. Connect the app to the AI.
 
 **Claude Code** — one command in a terminal:
-`claude mcp add ssh_tunnel -- "C:\path\to\ssh_tunnel.exe" mcp`
+`claude mcp add Tarnegis -- "C:\path\to\ssh_tunnel.exe" mcp`
 
 **Claude Desktop** — Settings → Developer → “Edit Config”. In
 `claude_desktop_config.json` inside `mcpServers` add:
@@ -66,7 +66,7 @@ human” for the AI. A good AI asks you first.
 
 The Linux panel opened to the local network (`-web-lan`) can ask for a password: App settings → Advanced → «Password sign-in», then «Set password». Until a password is set, it does not ask.
 
-Forgot it — on the server as root: `ssh_tunnel_vpn_linux -reset-password`, then `systemctl restart ssh_tunnel` (the sign-in screen shows the exact command).
+Forgot it — on the server as root: `ssh_tunnel_vpn_linux -reset-password`, then `systemctl restart Tarnegis` (the sign-in screen shows the exact command).
 
 ## Updates
 
