@@ -44,7 +44,7 @@ type Invite struct {
 
 // Ошибки разбора — человеку.
 var (
-	ErrNotInvite = errors.New("это не приглашение ssh_tunnel: текст должен начинаться с «sshtun1:»")
+	ErrNotInvite = errors.New("это не приглашение Tarnegis: текст должен начинаться с «sshtun1:»")
 	ErrBroken    = errors.New("приглашение повреждено — скопируй его из панели целиком")
 	ErrExpired   = errors.New("приглашение истекло — попроси в панели новое")
 )

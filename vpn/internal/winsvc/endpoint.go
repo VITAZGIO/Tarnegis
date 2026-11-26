@@ -31,9 +31,9 @@ const (
 	// Name — имя службы в «Службах» Windows (services.msc) и для sc.exe.
 	Name = "ssh_tunnel_vpn"
 	// DisplayName — как служба называется в списке.
-	DisplayName = "ssh_tunnel VPN"
+	DisplayName = "Tarnegis VPN"
 	// Description — пояснение в свойствах службы.
-	Description = "VPN и сеть устройств ssh_tunnel. Поднимается при включении компьютера, до входа в систему."
+	Description = "VPN и сеть устройств Tarnegis. Поднимается при включении компьютера, до входа в систему."
 )
 
 // Endpoint — где служба слушает свой веб-интерфейс и с каким ключом.

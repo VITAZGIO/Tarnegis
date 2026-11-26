@@ -20,6 +20,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
+
+	"sshtunnel/internal/updater"
 )
 
 // systemEgress — egressSystem поверх ip, nft, systemd и сети. Нужен root.
@@ -60,12 +62,12 @@ func (s systemEgress) State() egressSysState {
 	return st
 }
 
-// egressConflict — есть ли на сервере чужой клиент VPN ssh_tunnel. Оба
+// egressConflict — есть ли на сервере чужой клиент VPN Tarnegis. Оба
 // создают адаптер sshtun0, вместе они не уживутся.
 func egressConflict(userUnitActive, tunExists, ourClientActive bool) string {
 	switch {
 	case userUnitActive:
-		return "на сервере уже работает свой клиент VPN ssh_tunnel (служба ssh_tunnel_vpn) — два клиента рядом не уживутся: оба создают адаптер sshtun0. Выключи его, если хочешь выход сервера отсюда"
+		return "на сервере уже работает свой клиент VPN Tarnegis (служба ssh_tunnel_vpn) — два клиента рядом не уживутся: оба создают адаптер sshtun0. Выключи его, если хочешь выход сервера отсюда"
 	case tunExists && !ourClientActive:
 		return "адаптер sshtun0 уже занят: на сервере запущен ssh_tunnel_vpn_linux вручную — выключи его, если хочешь выход сервера отсюда"
 	}
@@ -210,15 +212,15 @@ var releaseTagRe = regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
 func egressAssetName(goarch string) (string, error) {
 	switch goarch {
 	case "amd64":
-		return "ssh_tunnel_vpn_linux", nil
+		return "tarnegis_vpn_linux", nil
 	case "arm64":
-		return "ssh_tunnel_vpn_linux_arm64", nil
+		return "tarnegis_vpn_linux_arm64", nil
 	}
 	return "", fmt.Errorf("для архитектуры %s готового клиента VPN нет", goarch)
 }
 
 func egressReleaseURL(version, file string) string {
-	return "https://github.com/VITAZGIO/ssh_tunnel/releases/download/" + version + "/" + file
+	return "https://github.com/VITAZGIO/Tarnegis/releases/download/" + version + "/" + file
 }
 
 func (systemEgress) Download(ctx context.Context, version, dst string) error {
@@ -230,6 +232,13 @@ func (systemEgress) Download(ctx context.Context, version, dst string) error {
 		return err
 	}
 	got, err := downloadFile(ctx, egressReleaseURL(version, name), dst)
+	if err != nil {
+		// Прежнее имя файла (до ТЗ 53) — на случай релиза без нового.
+		old := updater.OldPrefix + strings.TrimPrefix(name, updater.NewPrefix)
+		if g, e := downloadFile(ctx, egressReleaseURL(version, old), dst); e == nil {
+			got, name, err = g, old, nil
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("клиент не скачался: %w", err)
 	}

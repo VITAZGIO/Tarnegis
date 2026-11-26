@@ -28,7 +28,7 @@ type baseObjects struct {
 }
 
 func createWfpSession() (uintptr, error) {
-	sessionDisplayData, err := createWtFwpmDisplayData0("ssh_tunnel", "ssh_tunnel VPN dynamic session")
+	sessionDisplayData, err := createWtFwpmDisplayData0("Tarnegis", "Tarnegis VPN dynamic session")
 	if err != nil {
 		return 0, wrapErr(err)
 	}
@@ -65,7 +65,7 @@ func registerBaseObjects(session uintptr) (*baseObjects, error) {
 	// Register provider.
 	//
 	{
-		displayData, err := createWtFwpmDisplayData0("ssh_tunnel", "ssh_tunnel VPN provider")
+		displayData, err := createWtFwpmDisplayData0("Tarnegis", "Tarnegis VPN provider")
 		if err != nil {
 			return nil, wrapErr(err)
 		}
@@ -84,7 +84,7 @@ func registerBaseObjects(session uintptr) (*baseObjects, error) {
 	// Register filters sublayer.
 	//
 	{
-		displayData, err := createWtFwpmDisplayData0("ssh_tunnel filters", "Permissive and blocking filters")
+		displayData, err := createWtFwpmDisplayData0("Tarnegis filters", "Permissive and blocking filters")
 		if err != nil {
 			return nil, wrapErr(err)
 		}

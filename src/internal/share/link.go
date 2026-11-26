@@ -71,11 +71,11 @@ func IsLink(text string) bool {
 func ParseLink(text string) (Doc, error) {
 	u, err := url.Parse(strings.TrimSpace(text))
 	if err != nil || !strings.EqualFold(u.Scheme, "sshtunnel") || !strings.EqualFold(u.Host, "import") {
-		return Doc{}, errors.New("это не ссылка импорта ssh_tunnel")
+		return Doc{}, errors.New("это не ссылка импорта Tarnegis")
 	}
 	q := u.Query()
 	if v := q.Get("v"); v != "" && v != fmt.Sprint(linkVersion) {
-		return Doc{}, errors.New("ссылка из более новой версии ssh_tunnel — обнови программу")
+		return Doc{}, errors.New("ссылка из более новой версии Tarnegis — обнови программу")
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(q.Get("d"), "="))
 	if err != nil || len(raw) == 0 {

@@ -151,7 +151,7 @@ func ExportCSV(pass string) (string, int, error) {
 		}
 		dir = filepath.Join(h, "Downloads")
 	}
-	p := filepath.Join(dir, "ssh_tunnel-пароли-"+time.Now().Format("2006-01-02")+".csv")
+	p := filepath.Join(dir, "tarnegis-пароли-"+time.Now().Format("2006-01-02")+".csv")
 	if err := os.WriteFile(p, buf.Bytes(), 0o600); err != nil {
 		return "", 0, err
 	}

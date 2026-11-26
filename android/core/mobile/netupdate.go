@@ -81,7 +81,7 @@ func (u *netUpd) download(ctx context.Context, ver string) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "ssh_tunnel-"+ver+".apk")
+	path := filepath.Join(dir, "tarnegis-"+ver+".apk")
 	if err := updater.DownloadVersionTo(ctx, ver, path); err != nil {
 		return "", err
 	}

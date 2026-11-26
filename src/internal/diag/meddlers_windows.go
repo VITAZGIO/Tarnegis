@@ -327,7 +327,7 @@ func notifyProxy() {
 	p.Call(0, refresh, 0, 0)
 }
 
-// ourProxy — прокси свой (ssh_tunnel ставит 127.0.0.1:порт).
+// ourProxy — прокси свой (Tarnegis ставит 127.0.0.1:порт).
 func ourProxy(s string) bool {
 	s = strings.ToLower(s)
 	return strings.Contains(s, "127.0.0.1") || strings.Contains(s, "localhost")

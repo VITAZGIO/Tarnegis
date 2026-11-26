@@ -53,7 +53,7 @@ systemd сужает ей всё остальное (`PrivateTmp`, `ProtectSyste
 домен и nginx/Caddy позже (см. «Домен и TLS» ниже):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --lan --ssh-host=АДРЕС_ЭТОГО_СЕРВЕРА
 ```
 
@@ -62,7 +62,7 @@ curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/
 доступна по HTTPS сразу:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --domain=panel.example.com
 ```
 
@@ -79,7 +79,7 @@ journalctl -u ssh_tunnel_panel -n 50
 `--domain` (это режим по умолчанию, подробнее — «Домен и TLS» ниже):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VITAZGIO/ssh_tunnel/main/packaging/panel/install.sh \
+curl -fsSL https://raw.githubusercontent.com/VITAZGIO/Tarnegis/main/packaging/panel/install.sh \
   | sudo bash -s -- --ssh-host=АДРЕС_ЭТОГО_СЕРВЕРА
 ```
 
@@ -300,7 +300,7 @@ API панели для этого (вход по сессии, ошибка —
   температура, в сети ли). Сервер сам машины не читает: их адреса, пароли и
   токены остаются на устройствах, а первым звонить устройству сервер не
   может. Поэтому история без дыр будет у машин, которые читает устройство,
-  включённое всегда (домашний сервер или сама машина с ssh_tunnel и
+  включённое всегда (домашний сервер или сама машина с Tarnegis и
   источником «это устройство»); ноутбук, который выключали, увидит её с
   сервера. Хранится «Хранить историю машин» дней (30 по умолчанию) и
   считается в общей квоте. У сети видно, кто присылает какие машины,
@@ -354,7 +354,7 @@ API панели для этого (вход по сессии, ошибка —
 
 **Настройки → «Выход сервера → через сервер Б»**: собственный трафик этого
 сервера (обновления пакетов, контейнеры, пользователи туннеля, выходящие
-здесь) уходит через другой сервер ssh_tunnel. Вход снаружи (SSH на этот
+здесь) уходит через другой сервер Tarnegis. Вход снаружи (SSH на этот
 сервер, эта панель, устройства, сеть устройств) не затрагивается — отвечает
 тем же путём, каким пришёл.
 
@@ -392,7 +392,7 @@ meshd.
 root, дальше можно из настроек:
 
 ```bash
-case $(uname -m) in aarch64|arm64) f=ssh_tunnel_panel_arm64;; *) f=ssh_tunnel_panel;; esac; curl -fsSL -o /tmp/ssh_tunnel_panel "https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$f" && install -m 755 /tmp/ssh_tunnel_panel /usr/local/bin/ssh_tunnel_panel && systemctl restart ssh_tunnel_panel
+case $(uname -m) in aarch64|arm64) f=ssh_tunnel_panel_arm64;; *) f=ssh_tunnel_panel;; esac; curl -fsSL -o /tmp/ssh_tunnel_panel "https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$f" && install -m 755 /tmp/ssh_tunnel_panel /usr/local/bin/ssh_tunnel_panel && systemctl restart ssh_tunnel_panel
 ```
 
 ## Как снять панель

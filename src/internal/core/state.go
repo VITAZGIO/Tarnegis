@@ -1,4 +1,4 @@
-// Package core — ядро ssh_tunnel 2.0, общее для Windows, Linux и Android.
+// Package core — ядро Tarnegis 2.0, общее для Windows, Linux и Android.
 //
 // Здесь живут три вещи, и больше нигде их быть не должно:
 //

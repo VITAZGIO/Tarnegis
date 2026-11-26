@@ -27,7 +27,7 @@ Object.assign(I18N.en, {
   mon_host:'Host name',
   mon_kernel:'Linux kernel',
   mon_uptime:'Up since last reboot',
-  mon_services:'ssh_tunnel services',
+  mon_services:'Tarnegis services',
   mon_svc_panel:'Panel',
   mon_svc_meshd:'Device network (meshd)',
   mon_svc_udprelay:'UDP relay',

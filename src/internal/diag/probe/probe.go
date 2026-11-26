@@ -132,7 +132,7 @@ func (p Path) Connect(ctx context.Context, t Target, dial func(context.Context) 
 	t0 = time.Now()
 	_ = c.SetDeadline(time.Now().Add(StepTimeout))
 	req := "GET " + t.Path + " HTTP/1.1\r\nHost: " + t.Host +
-		"\r\nUser-Agent: Mozilla/5.0 (ssh_tunnel check)\r\nAccept: text/html\r\nConnection: close\r\n\r\n"
+		"\r\nUser-Agent: Mozilla/5.0 (Tarnegis check)\r\nAccept: text/html\r\nConnection: close\r\n\r\n"
 	st = Step{ID: "http"}
 	if _, err := io.WriteString(tc, req); err != nil {
 		st.Ms, st.Kind, st.Note = ms(t0), TLSKind(err), ShortErr(err)

@@ -24,9 +24,9 @@ func shQuote(s string) string {
 var egressUnitNames = []string{egressUnit, egressRulesUnit, egressRollbackUnit, egressRollbackTmr}
 
 func egressRulesUnitText() string {
-	return `# ssh_tunnel: правила выхода сервера через другой сервер. Создано панелью.
+	return `# Tarnegis: правила выхода сервера через другой сервер. Создано панелью.
 [Unit]
-Description=ssh_tunnel - правила выхода сервера через другой сервер
+Description=Tarnegis - правила выхода сервера через другой сервер
 After=network-online.target
 Wants=network-online.target
 Before=` + egressUnit + `
@@ -43,9 +43,9 @@ WantedBy=multi-user.target
 }
 
 func egressClientUnitText() string {
-	return fmt.Sprintf(`# ssh_tunnel: выход сервера через другой сервер (клиент VPN). Создано панелью.
+	return fmt.Sprintf(`# Tarnegis: выход сервера через другой сервер (клиент VPN). Создано панелью.
 [Unit]
-Description=ssh_tunnel - выход этого сервера через другой сервер
+Description=Tarnegis - выход этого сервера через другой сервер
 Requires=%[1]s
 After=%[1]s network-online.target
 Wants=network-online.target
@@ -66,9 +66,9 @@ WantedBy=multi-user.target
 }
 
 func egressRollbackUnitText() string {
-	return `# ssh_tunnel: откат выхода сервера, если его не подтвердили. Создано панелью.
+	return `# Tarnegis: откат выхода сервера, если его не подтвердили. Создано панелью.
 [Unit]
-Description=ssh_tunnel - откат выхода сервера без подтверждения
+Description=Tarnegis - откат выхода сервера без подтверждения
 
 [Service]
 Type=oneshot
@@ -83,9 +83,9 @@ ExecStart=/bin/sh ` + egressVarDir + `/rollback.sh
 // посреди окна покрывает и так: таймер включён (timers.target), при загрузке
 // он активируется заново и срабатывает через OnActiveSec после неё.
 func egressRollbackTimerText() string {
-	return fmt.Sprintf(`# ssh_tunnel: окно подтверждения выхода сервера. Создано панелью.
+	return fmt.Sprintf(`# Tarnegis: окно подтверждения выхода сервера. Создано панелью.
 [Unit]
-Description=ssh_tunnel - окно подтверждения выхода сервера
+Description=Tarnegis - окно подтверждения выхода сервера
 
 [Timer]
 OnActiveSec=%[1]d
@@ -100,7 +100,7 @@ WantedBy=timers.target
 // sysctl, файлы. Годится в любом состоянии, в том числе после падения.
 func egressOffScript() string {
 	var b strings.Builder
-	b.WriteString("#!/bin/sh\n# ssh_tunnel: выключить выход сервера и убрать всё. Пишет панель.\nset -u\n")
+	b.WriteString("#!/bin/sh\n# Tarnegis: выключить выход сервера и убрать всё. Пишет панель.\nset -u\n")
 	fmt.Fprintf(&b, "systemctl disable --now %s %s %s 2>/dev/null || true\n", egressUnit, egressRulesUnit, egressRollbackTmr)
 	b.WriteString(rulesDownScript())
 	fmt.Fprintf(&b, `ip -4 route flush table %[1]d 2>/dev/null || true
@@ -127,7 +127,7 @@ resolvectl revert sshtun0 2>/dev/null || true
 // записать, что был откат (страница это покажет).
 func egressRollbackScript(markDir string) string {
 	return fmt.Sprintf(`#!/bin/sh
-# ssh_tunnel: откат выхода сервера, если его не подтвердили. Пишет панель.
+# Tarnegis: откат выхода сервера, если его не подтвердили. Пишет панель.
 [ -f %[1]s/pending ] || exit 0
 echo "подтверждения не было — возвращаю как было"
 mkdir -p %[2]s && date +%%s > %[2]s/rolled-back

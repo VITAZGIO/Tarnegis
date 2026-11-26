@@ -9,7 +9,7 @@ network**, encrypted like the network; turn on «Device network».
 - **PC and Linux → others** — automatically: copy, and a second later the
   others have it. What arrives goes straight to the clipboard (a file — as a
   link to a copy in the temp folder).
-- **Phone → others** — Share → «ssh_tunnel shared clipboard» (text,
+- **Phone → others** — Share → «Tarnegis shared clipboard» (text,
   screenshot, file) or the **«Shared clipboard»** quick tile: it sends what
   is in the phone's clipboard now. Android does not let apps read the
   clipboard in the background.
@@ -22,7 +22,7 @@ network**, encrypted like the network; turn on «Device network».
 - **Screenshots straight to the shared clipboard** (phone, a checkbox on the
   plugin page, off by default): take a screenshot and it goes to the other
   devices as an image right away — on the PC, Ctrl+V into a chat. Works in
-  the background while ssh_tunnel runs. Needs photo access (“Allow all”:
+  the background while Tarnegis runs. Needs photo access (“Allow all”:
   with “Selected photos only” new screenshots are not visible). Only new
   screenshots from the screenshots folder, taken after you turn it on, are
   sent; over 8 MB they are scaled down.

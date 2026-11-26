@@ -482,11 +482,11 @@ SSH-пользователя. `meshd` отвечает только про со�
 ```bash
 # на сервере под root; для arm64 — meshd_arm64
 curl -fsSL -o /usr/local/bin/meshd \
-  https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/meshd
+  https://github.com/VITAZGIO/Tarnegis/releases/latest/download/meshd
 chmod +x /usr/local/bin/meshd
 cat > /etc/systemd/system/meshd.service <<'UNIT'
 [Unit]
-Description=ssh_tunnel - сеть устройств (только 127.0.0.1)
+Description=Tarnegis - сеть устройств (только 127.0.0.1)
 After=network.target
 
 [Service]

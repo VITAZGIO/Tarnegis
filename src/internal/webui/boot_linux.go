@@ -95,12 +95,12 @@ func unitText(exe string, flags []string) string {
 	for _, f := range flags {
 		cmd += " " + quoteIfNeeded(f)
 	}
-	return `# Служба ssh_tunnel. Файл создан самой программой по галочке
+	return `# Служба Tarnegis. Файл создан самой программой по галочке
 # «Запускать при старте системы» — его можно править руками, второй раз
 # программа его не перезапишет.
 [Unit]
-Description=ssh_tunnel — SSH-туннель до собственного сервера
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Description=Tarnegis — SSH-туннель до собственного сервера
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target
 Wants=network-online.target
 

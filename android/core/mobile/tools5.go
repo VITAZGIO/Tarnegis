@@ -121,7 +121,7 @@ func (d devnetSrc) Warn(text string) {
 // кнопка «Отправить буфер» в уведомлении и служба спецвозможностей.
 func ClipActive() bool { return clipshare.Active() }
 
-// ClipPush — «Поделиться → ssh_tunnel» и плитка: отправить всем устройствам.
+// ClipPush — «Поделиться → Tarnegis» и плитка: отправить всем устройствам.
 // Ответ — JSON {"sent":N} или {"error","tooBig"}.
 func ClipPush(kind, name, mime string, data []byte) string {
 	n, err := clipshare.Push(kind, name, mime, data)

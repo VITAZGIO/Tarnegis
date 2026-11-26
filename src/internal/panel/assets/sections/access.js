@@ -242,7 +242,7 @@ $('jrSave').addEventListener('click', () => {
   const p = n => String(n).padStart(2, '0'), d = new Date();
   const a = el('a');
   a.href = URL.createObjectURL(new Blob([txt + '\n'], {type: 'text/plain;charset=utf-8'}));
-  a.download = 'ssh_tunnel-journal-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.txt';
+  a.download = 'tarnegis-journal-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.txt';
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);

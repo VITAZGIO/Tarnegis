@@ -24,7 +24,8 @@ func PathByName(name string) string {
 	if key == "" || key == "." {
 		return ""
 	}
-	if key == "ssh_tunnel" || key == "ssh_tunnel.exe" || key == "ssh_tunnel_vpn.exe" {
+	switch key {
+	case "ssh_tunnel", "ssh_tunnel.exe", "ssh_tunnel_vpn.exe", "tarnegis.exe", "tarnegis_vpn.exe":
 		if exe, err := os.Executable(); err == nil {
 			return exe
 		}

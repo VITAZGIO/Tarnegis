@@ -205,8 +205,8 @@ function render(){
   }).join('');
   $('list').querySelectorAll('[data-ssh]').forEach(b => b.onclick = () => goApp('ssh', {add: b.dataset.ssh, name: b.dataset.nm || b.dataset.ssh}));
   $('list').querySelectorAll('[data-web]').forEach(b => b.onclick = () => openExternal(b.dataset.web));
-  $('note').textContent = r.hosts.length ? L('Ничего не запоминается: каждый раз свежий список. Тип устройства угадывается по открытым портам.' + (ANDROID ? ' MAC-адреса чужих устройств Android приложениям не даёт (с Android 10) — их покажет ssh_tunnel на компьютере.' : ''),
-    'Nothing is remembered: a fresh list every time. The device type is guessed from open ports.' + (ANDROID ? ' Android does not give apps the MAC addresses of other devices (since Android 10) — ssh_tunnel on a computer shows them.' : '')) : '';
+  $('note').textContent = r.hosts.length ? L('Ничего не запоминается: каждый раз свежий список. Тип устройства угадывается по открытым портам.' + (ANDROID ? ' MAC-адреса чужих устройств Android приложениям не даёт (с Android 10) — их покажет Tarnegis на компьютере.' : ''),
+    'Nothing is remembered: a fresh list every time. The device type is guessed from open ports.' + (ANDROID ? ' Android does not give apps the MAC addresses of other devices (since Android 10) — Tarnegis on a computer shows them.' : '')) : '';
   clearTimeout(timer);
   if(r.running) timer = setTimeout(poll, 700);
 }

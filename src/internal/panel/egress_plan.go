@@ -2,7 +2,7 @@ package panel
 
 // Выход самого сервера через другой сервер (ТЗ 10): план маршрутов.
 //
-// Сервер A ставит у себя Linux-клиент ssh_tunnel в режиме VPN, а тот кладёт
+// Сервер A ставит у себя Linux-клиент Tarnegis в режиме VPN, а тот кладёт
 // маршруты всего интернета (0/1, 128/1, ::/1, 8000::/1 в sshtun0) не в main,
 // а в свою таблицу egressTable (переменная SSH_TUNNEL_ROUTE_TABLE, см.
 // vpn/vpnlayer/sys_linux.go). Куда пойдёт пакет, решают правила ip rule
@@ -126,7 +126,7 @@ func planEgress(f egressFacts, block bool) (egressPlan, error) {
 			return egressPlan{}, fmt.Errorf("странное имя сетевой карты %q", u)
 		}
 		if u == "sshtun0" {
-			return egressPlan{}, errors.New("маршрут по умолчанию уже идёт в sshtun0 — на сервере работает другой клиент ssh_tunnel")
+			return egressPlan{}, errors.New("маршрут по умолчанию уже идёт в sshtun0 — на сервере работает другой клиент Tarnegis")
 		}
 	}
 	p := egressPlan{Uplinks: ups, Block: block}
@@ -226,7 +226,7 @@ fi
 // можно звать повторно (смена режима, перезапуск службы правил).
 func (p egressPlan) upScript() string {
 	var b strings.Builder
-	b.WriteString("#!/bin/sh\n# ssh_tunnel: правила выхода сервера через другой сервер. Пишет панель — руками не править.\nset -eu\n")
+	b.WriteString("#!/bin/sh\n# Tarnegis: правила выхода сервера через другой сервер. Пишет панель — руками не править.\nset -eu\n")
 	b.WriteString(rulesDownScript())
 	fmt.Fprintf(&b, `mkdir -p %[1]s
 [ -f %[1]s/src_valid_mark.saved ] || cat /proc/sys/net/ipv4/conf/all/src_valid_mark > %[1]s/src_valid_mark.saved

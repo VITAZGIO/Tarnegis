@@ -13,7 +13,7 @@ func TestNodeInstallScriptParses(t *testing.T) {
 		t.Skip("нет bash")
 	}
 	script := NodeInstallScript("v1.9.0")
-	for _, want := range []string{"ssh_tunnel_node_arm64", nodeapi.Binary, "RuntimeDirectory=" + nodeapi.User,
+	for _, want := range []string{"tarnegis_node_arm64", `BIN="ssh_tunnel${BIN#tarnegis}"`, nodeapi.Binary, "RuntimeDirectory=" + nodeapi.User,
 		"StateDirectory=" + nodeapi.User, "DynamicUser=yes", NodeUnitName} {
 		if !strings.Contains(script, want) {
 			t.Errorf("в скрипте нет %q", want)

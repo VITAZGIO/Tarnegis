@@ -49,7 +49,7 @@ func NewProxy(dir string, local map[string]http.HandlerFunc) *Proxy {
 			p.Forget()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(map[string]string{"error": "служба ssh_tunnel VPN не отвечает: " + err.Error()})
+			json.NewEncoder(w).Encode(map[string]string{"error": "служба Tarnegis VPN не отвечает: " + err.Error()})
 		},
 	}
 	return p

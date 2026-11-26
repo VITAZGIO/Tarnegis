@@ -721,7 +721,7 @@ func migrateOldDir() {
 	if _, err := os.Stat(newDir); err == nil {
 		return // уже переехали
 	}
-	// Программа успела дважды сменить имя: vpstunnel -> ssh_tunel -> ssh_tunnel.
+	// Программа успела дважды сменить имя: vpstunnel -> ssh_tunel -> ssh_tunnel (папка; видимое имя с ТЗ 53 — Tarnegis).
 	// Настройки надо подобрать от любого из прежних, начиная с самого свежего.
 	for _, old := range []string{"ssh_tunel", "vpstunnel"} {
 		oldDir := filepath.Join(baseDir(), old)

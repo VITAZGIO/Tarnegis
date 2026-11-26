@@ -46,7 +46,7 @@ func Call(dial Dial, op string, body any) (map[string]any, error) {
 	data, _ := json.Marshal(body)
 	resp, err := client.Post("http://"+Addr+"/v1/"+op, "application/json", bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("сервер не ответил: на нём нет панели ssh_tunnel свежей версии "+
+		return nil, fmt.Errorf("сервер не ответил: на нём нет панели Tarnegis свежей версии "+
 			"или её вход закрыт (%v)", shortErr(err))
 	}
 	defer resp.Body.Close()

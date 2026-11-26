@@ -56,7 +56,7 @@ type Config struct {
 	// Всё необязательное.
 	Platform   string // windows, linux, android
 	OS         string // версия системы, если известна
-	AppVersion string // версия ssh_tunnel
+	AppVersion string // версия Tarnegis
 	Mode       string // proxy или vpn
 	Via        string // через какой сервер подключено устройство
 	Hostname   string // имя компьютера

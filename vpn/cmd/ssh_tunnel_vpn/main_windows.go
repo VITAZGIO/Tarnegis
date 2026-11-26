@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -31,7 +32,7 @@ import (
 	"sshtunnel/vpn/internal/winsvc"
 )
 
-const windowTitle = "ssh_tunnel VPN"
+const windowTitle = "Tarnegis VPN"
 
 func main() {
 	// Команда работающей программе (`ssh_tunnel_vpn.exe tunnel off`, `… mcp`).
@@ -39,7 +40,7 @@ func main() {
 		if os.Args[1] != "mcp" {
 			apicli.AttachConsole()
 		}
-		os.Exit(apicli.Main("ssh_tunnel_vpn.exe", os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+		os.Exit(apicli.Main(filepath.Base(os.Args[0]), os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	noWindow := flag.Bool("nowindow", false, "не открывать окно, только напечатать адрес")
 	tray := flag.Bool("tray", false, "запуститься свёрнутым в трей (так окно стартует при входе в систему)")

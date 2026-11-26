@@ -1,4 +1,4 @@
-# Служба ssh_tunnel для systemd.
+# Служба Tarnegis для systemd.
 #
 # Ставится для пользователя, а не для всей системы: программе не нужны права
 # администратора, и настройки с ключами лежат в домашней папке.
@@ -13,8 +13,8 @@
 # Путь поправь под себя, если положил программу не в /usr/local/bin.
 
 [Unit]
-Description=ssh_tunnel — SSH-туннель до собственного сервера
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Description=Tarnegis — SSH-туннель до собственного сервера
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target
 Wants=network-online.target
 

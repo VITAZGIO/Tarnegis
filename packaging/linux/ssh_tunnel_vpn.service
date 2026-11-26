@@ -15,8 +15,8 @@
 # Одновременно с ssh_tunnel.service запускать не стоит: хватит одного.
 
 [Unit]
-Description=ssh_tunnel VPN — весь трафик через собственный сервер
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Description=Tarnegis VPN — весь трафик через собственный сервер
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target systemd-resolved.service
 Wants=network-online.target
 

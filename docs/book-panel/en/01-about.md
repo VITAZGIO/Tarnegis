@@ -11,7 +11,7 @@ lost, you delete it in one click, and its key stops working.
 
 ## How the panel differs from the program on a device
 
-The ssh_tunnel program on your computer or phone manages only its own
+The Tarnegis program on your computer or phone manages only its own
 connection. The panel manages all connections to the server. The program on a
 computer knows nothing about other devices; the panel sees all of them.
 
@@ -36,7 +36,7 @@ The panel has five main sections, plus "Plugins" and "Monitoring":
   backups and the rest.
 - **Monitoring** — at the bottom of the side menu: how the server itself is
   doing. CPU, memory, disks, network, graphs for the last hour, the five
-  hungriest processes and the ssh_tunnel services (panel, meshd, UDP relay,
+  hungriest processes and the Tarnegis services (panel, meshd, UDP relay,
   plugin host) — running or not, version, since when. Refreshes every 10
   seconds. Green is fine, yellow is from 70 %, red is from 90 %.
 

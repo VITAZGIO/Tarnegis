@@ -185,7 +185,7 @@ func trim(s string, n int) string {
 }
 
 func usage() {
-	fmt.Print(`ssh_tunnel — SSH-туннель до своего сервера (SOCKS4/5 + HTTP-прокси)
+	fmt.Print(`Tarnegis — SSH-туннель до своего сервера (SOCKS4/5 + HTTP-прокси)
 
 Использование:
   ssh_tunnel_cli -host <IP сервера> [-user root] [-key путь-к-ключу]

@@ -146,7 +146,7 @@ function openBook(chapter){
   // Настройки; теперь «Назад» закрывает Книгу — и ты там же, где был.
   if(ANDROID && window.SSHTunnelAndroid && SSHTunnelAndroid.openPage){ SSHTunnelAndroid.openPage(url); return; }
   if(ANDROID){ location.href = pageURL('book.html', chapter ? {ch: chapter} : {}); return; }
-  openWindow('book', L('Книга', 'Book') + ' — ssh_tunnel', url);
+  openWindow('book', L('Книга', 'Book') + ' — Tarnegis', url);
 }
 
 // Телефон: поле ввода под клавиатурой — прокрутить его на середину, когда

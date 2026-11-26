@@ -41,7 +41,7 @@ winget install --id EclipseAdoptium.Temurin.21.JDK -e
 добавляют, а перепутать их легко):
 
 ```powershell
-keytool -genkeypair -v -keystore "$env:USERPROFILE\ssh_tunnel-release.jks" -alias ssh_tunnel -keyalg RSA -keysize 4096 -validity 10000 -storepass ПАРОЛЬ -keypass ПАРОЛЬ -dname "CN=ssh_tunnel, O=VITAZGIO, C=RU"
+keytool -genkeypair -v -keystore "$env:USERPROFILE\ssh_tunnel-release.jks" -alias Tarnegis -keyalg RSA -keysize 4096 -validity 10000 -storepass ПАРОЛЬ -keypass ПАРОЛЬ -dname "CN=Tarnegis, O=VITAZGIO, C=RU"
 ```
 
 `validity 10000` — это ~27 лет. Срок берётся с запасом намеренно: когда ключ

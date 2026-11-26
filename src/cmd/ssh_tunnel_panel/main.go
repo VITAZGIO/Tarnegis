@@ -295,7 +295,7 @@ func fatal(format string, args ...any) {
 
 // serveSelfService — вход для создания пользователей из программы клиента
 // (panel/selfservice.go). Брандмауэр туннеля пускает клиентов на 127.0.0.1
-// только на свои порты ssh_tunnel — открываем там и этот.
+// только на свои порты Tarnegis — открываем там и этот.
 func serveSelfService(srv *panel.Server, addr string) {
 	if runtime.GOOS == "linux" {
 		if out, err := exec.Command("sh", "-c", meshsvc.FirewallExemption).CombinedOutput(); err != nil {

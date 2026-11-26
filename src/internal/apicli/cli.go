@@ -614,7 +614,7 @@ func scalar(v any) string {
 }
 
 func help(name string, w io.Writer) int {
-	fmt.Fprintf(w, `Управление работающей программой ssh_tunnel из командной строки.
+	fmt.Fprintf(w, `Управление работающей программой Tarnegis из командной строки.
 
   %[1]s state                      что сейчас: туннель, сеть устройств, режим
   %[1]s tunnel on|off              круглая кнопка «Обход» (сеть устройств не трогается)

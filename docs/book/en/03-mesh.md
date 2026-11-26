@@ -111,11 +111,11 @@ still) Android wakes apps only now and then — the neighbour is found at one
 of those wake-ups or as soon as you turn the screen on. So that Android does
 not put the app to sleep entirely, allow it:
 
-- **Battery → Unrestricted** (Settings → Apps → ssh_tunnel → Battery).
+- **Battery → Unrestricted** (Settings → Apps → Tarnegis → Battery).
   Otherwise the system may stop it after a while.
 - **Autostart** — on Tecno/Infinix (HiOS), Xiaomi (MIUI/HyperOS) and similar
   phones this is a separate switch in the "Phone Master" or the app
   settings. Without it the app does not come up by itself after a reboot.
-- **Always-on VPN** (Settings → Network → VPN → ssh_tunnel → "Always-on
+- **Always-on VPN** (Settings → Network → VPN → Tarnegis → "Always-on
   VPN") — then the app turns on by itself after a reboot, even if the server
   is unreachable.

@@ -140,7 +140,7 @@
             поднимает туннель с теми же настройками, что были в последний раз.
         -->
         <!-- «Пароли»: автозаполнение логинов и паролей в приложениях. Включает
-             человек сам: Настройки → Пароли и автозаполнение → ssh_tunnel. -->
+             человек сам: Настройки → Пароли и автозаполнение → Tarnegis. -->
         <service
             android:name=".VaultFill"
             android:exported="true"
@@ -246,7 +246,7 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/calendar_month_widget_info" />
         </receiver>
-        <!-- Общий буфер (ТЗ 5): «Поделиться → ssh_tunnel», плитка в шторке и
+        <!-- Общий буфер (ТЗ 5): «Поделиться → Tarnegis», плитка в шторке и
              прозрачное окно, которое читает буфер (в фоне Android не даёт). -->
         <activity
             android:name=".ClipShareActivity"
@@ -265,7 +265,7 @@
             </intent-filter>
             <!-- Несколько файлов за раз (галерея: выделил и «Поделиться») —
                  без этого отдельного фильтра система даже не предлагает
-                 ssh_tunnel как получателя при множественном выборе. -->
+                 Tarnegis как получателя при множественном выборе. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />

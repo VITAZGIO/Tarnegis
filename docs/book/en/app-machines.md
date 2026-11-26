@@ -9,7 +9,7 @@ memory, disk, temperature, load, uptime.
   sees them under «From the network».
 - Optional: a **MAC** gives «Wake» (sent from here and from all your devices in
   the network), **«Shut down as»** gives «Shut down» (the machine runs
-  ssh_tunnel with this plugin and allows it).
+  Tarnegis with this plugin and allows it).
 - **History on the server**: if the network server has the **«Machines:
   history»** plugin on, readings go there every 30 s too and the CPU graph
   shows a day — blue from the server, green the last minutes from this device.

@@ -39,7 +39,7 @@ const (
 // Unit — юнит systemd для meshd.
 func Unit() string {
 	return `[Unit]
-Description=ssh_tunnel - сеть устройств (только 127.0.0.1)
+Description=Tarnegis - сеть устройств (только 127.0.0.1)
 After=network.target
 
 [Service]
@@ -60,7 +60,7 @@ WantedBy=multi-user.target
 
 // FirewallExemption дописывается в конец установки ретранслятора UDP и meshd.
 // Брандмауэр пользователя туннеля (tunnel-user.sh, «закрыть доступ к самому
-// серверу») запрещает ему соединения с 127.0.0.1 — а службы ssh_tunnel
+// серверу») запрещает ему соединения с 127.0.0.1 — а службы Tarnegis
 // (ретранслятор UDP, meshd, создание пользователей панели) слушают как
 // раз там. В свежем tunnel-user.sh исключение уже есть; на серверах,
 // настроенных раньше, его добавляем и в действующие правила, и в сам скрипт,
@@ -73,7 +73,7 @@ fi
 if [ -f /usr/local/sbin/tunnel-fw.sh ] && ! grep -q 47832 /usr/local/sbin/tunnel-fw.sh; then
   grep -q 47830:47831 /usr/local/sbin/tunnel-fw.sh && sed -i 's|47830:47831|47830:47832|' /usr/local/sbin/tunnel-fw.sh || \
   sed -i 's|^for N in 127.0.0.0/8|iptables -A SSHTUNNEL -p tcp -d 127.0.0.1 --dport 47830:47832 -j RETURN\nfor N in 127.0.0.0/8|' /usr/local/sbin/tunnel-fw.sh
-  echo "брандмауэр: службам ssh_tunnel на 127.0.0.1 открыт доступ через туннель"
+  echo "брандмауэр: службам Tarnegis на 127.0.0.1 открыт доступ через туннель"
 fi
 `
 
@@ -87,9 +87,9 @@ var releaseTag = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$`
 // downloadURL — откуда качать meshd для этой версии ($BIN подставит скрипт).
 func downloadURL(version string) string {
 	if releaseTag.MatchString(version) {
-		return "https://github.com/VITAZGIO/ssh_tunnel/releases/download/" + version + "/$BIN"
+		return "https://github.com/VITAZGIO/Tarnegis/releases/download/" + version + "/$BIN"
 	}
-	return "https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$BIN"
+	return "https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$BIN"
 }
 
 // InstallScript — установка или обновление meshd версии version (версия
@@ -155,7 +155,7 @@ echo "meshd запущен"
 # Проверка NAT (сможет ли устройство соединяться с другими напрямую) —
 # UDP 3478-3479. Открываем, только если брандмауэр ufw включён.
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-  ufw allow 3478:3479/udp comment 'ssh_tunnel meshd: проверка NAT' >/dev/null && echo "брандмауэр: открыт UDP 3478-3479 для проверки NAT"
+  ufw allow 3478:3479/udp comment 'Tarnegis meshd: проверка NAT' >/dev/null && echo "брандмауэр: открыт UDP 3478-3479 для проверки NAT"
 fi
 `, downloadURL(version), marker, Source, marker, UplinkUnitName, strings.TrimRight(Unit(), "\n")) + FirewallExemption
 }
@@ -175,7 +175,7 @@ func UplinkUnit(mainHost string, mainPort int, keyPath, knownHosts string, stric
 		check = "yes"
 	}
 	return `[Unit]
-Description=ssh_tunnel - сеть устройств: проброс к главному серверу ` + mainHost + `
+Description=Tarnegis - сеть устройств: проброс к главному серверу ` + mainHost + `
 After=network-online.target
 Wants=network-online.target
 

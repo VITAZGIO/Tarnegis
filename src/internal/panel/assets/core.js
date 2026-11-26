@@ -204,7 +204,7 @@ function renderPageHead(){
   const help = $('pageHelp');
   help.dataset.hint = h.help[0];
   help.dataset.hints = h.help.join(' ');
-  document.title = box.textContent + ' — ssh_tunnel panel';
+  document.title = box.textContent + ' — Tarnegis panel';
 }
 function showTab(name){
   if (!TABS.includes(name)) name = 'Home';

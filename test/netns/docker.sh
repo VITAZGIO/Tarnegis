@@ -141,7 +141,7 @@ timeout 120 docker save "$IMG" | D load >/dev/null
 ns c "$LAB/labd" -http 0.0.0.0:9090 > "$LAB/labd-c.log" 2>&1 &
 hang_point dockerd
 
-section "клиент ssh_tunnel в c"
+section "клиент Tarnegis в c"
 rm -rf "$CFG"
 prepare_etc_c
 in_c env XDG_CONFIG_HOME="$CFG" "$BIN" -host 203.0.113.20 -user tunlab -key "$LAB/key" -filter all \

@@ -563,7 +563,7 @@ esac
 GOT=0
 if [ -n "$BIN" ] && command -v curl >/dev/null; then
   if curl -fsSL -o /usr/local/bin/udprelay \
-      "https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$BIN"; then
+      "https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$BIN"; then
     chmod +x /usr/local/bin/udprelay
     GOT=1
     echo "ретранслятор скачан"
@@ -584,7 +584,7 @@ fi
 
 cat > /etc/systemd/system/udprelay.service <<'EOF_UNIT'
 [Unit]
-Description=ssh_tunnel - ретранслятор UDP (только 127.0.0.1)
+Description=Tarnegis - ретранслятор UDP (только 127.0.0.1)
 After=network.target
 
 [Service]
@@ -649,13 +649,15 @@ fi
 	return fmt.Sprintf(`set -euo pipefail
 command -v curl >/dev/null || { echo "нужен curl" >&2; exit 1; }
 case "$(uname -m)" in
-  x86_64)          BIN=ssh_tunnel_panel ;;
-  aarch64|arm64)   BIN=ssh_tunnel_panel_arm64 ;;
+  x86_64)          BIN=tarnegis_panel ;;
+  aarch64|arm64)   BIN=tarnegis_panel_arm64 ;;
   *) echo "нет сборки панели для $(uname -m)" >&2; exit 1 ;;
 esac
 echo "скачиваю панель ($BIN)"
 curl -fsSL -o /usr/local/bin/ssh_tunnel_panel \
-  "https://github.com/VITAZGIO/ssh_tunnel/releases/latest/download/$BIN"
+  "https://github.com/VITAZGIO/Tarnegis/releases/latest/download/$BIN" || \
+curl -fsSL -o /usr/local/bin/ssh_tunnel_panel \
+  "https://github.com/VITAZGIO/Tarnegis/releases/latest/download/ssh_tunnel${BIN#tarnegis}"
 chmod +x /usr/local/bin/ssh_tunnel_panel
 install -d -m 700 /etc/ssh_tunnel_panel
 
@@ -680,7 +682,7 @@ func panelUnit(host string, sshPort, publicPort int) string {
 	}
 	return `[Unit]
 Description=ssh_tunnel_panel — веб-панель управления сервером и клиентами
-Documentation=https://github.com/VITAZGIO/ssh_tunnel
+Documentation=https://github.com/VITAZGIO/Tarnegis
 After=network-online.target
 Wants=network-online.target
 

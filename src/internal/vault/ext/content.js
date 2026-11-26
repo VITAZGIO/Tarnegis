@@ -23,7 +23,7 @@
     box.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom + 4}px;z-index:2147483647;min-width:${Math.max(220, rect.width)}px;
       background:#151a24;color:#e8ebf2;border:1px solid #2a3142;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font:13px system-ui,sans-serif;padding:4px`;
     if(r.locked){
-      box.textContent = '🔒 Пароли ssh_tunnel закрыты — открой их в программе';
+      box.textContent = '🔒 Пароли Tarnegis закрыты — открой их в программе';
       box.style.padding = '10px 12px';
     } else for(const it of r.items){
       const b = document.createElement('button');
@@ -47,7 +47,7 @@
     const r = await chrome.runtime.sendMessage({type: 'fill', origin: location.origin});
     if(!r || r.locked || r.error) return;
     if((r.items || []).some(it => it.login === login && it.pass === pass.value)) return;
-    if(confirm(`ssh_tunnel: запомнить пароль${login ? ' для ' + login : ''} на ${location.hostname}?`))
+    if(confirm(`Tarnegis: запомнить пароль${login ? ' для ' + login : ''} на ${location.hostname}?`))
       chrome.runtime.sendMessage({type: 'save', origin: location.origin, login, pass: pass.value});
   }, true);
 })();

@@ -16,7 +16,7 @@ import java.net.URL
 object UpdateCheck {
 
     private const val API =
-        "https://api.github.com/repos/VITAZGIO/ssh_tunnel/releases/latest"
+        "https://api.github.com/repos/VITAZGIO/Tarnegis/releases/latest"
 
     /** Что показать человеку после нажатия кнопки. */
     data class Result(
@@ -37,7 +37,7 @@ object UpdateCheck {
             connectTimeout = 10_000
             readTimeout = 10_000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "ssh_tunnel/$installed (android)")
+            setRequestProperty("User-Agent", "Tarnegis/$installed (android)")
         }
         try {
             val code = conn.responseCode
@@ -49,16 +49,20 @@ object UpdateCheck {
             val tag = root.optString("tag_name")
             if (tag.isBlank()) throw Exception("GitHub did not name a version")
 
+            // Сначала новое имя файла (tarnegis.apk, ТЗ 53), потом прежнее.
             var apk = ""
+            var oldApk = ""
             val assets = root.optJSONArray("assets")
             if (assets != null) {
                 for (i in 0 until assets.length()) {
                     val a = assets.getJSONObject(i)
-                    if (a.optString("name") == "ssh_tunnel.apk") {
-                        apk = a.optString("browser_download_url"); break
+                    when (a.optString("name")) {
+                        "tarnegis.apk" -> apk = a.optString("browser_download_url")
+                        "ssh_tunnel.apk" -> oldApk = a.optString("browser_download_url")
                     }
                 }
             }
+            if (apk.isEmpty()) apk = oldApk
             val cmp = compare(installed, tag)
             return Result(
                 installed = installed,

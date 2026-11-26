@@ -458,7 +458,7 @@ $('createClientBtn').addEventListener('click', async () => {
 });
 
 /* ---------- настройки клиента: QR / буфер / файл ---------- */
-let currentConfigFilename = 'ssh_tunnel.json';
+let currentConfigFilename = 'tarnegis.json';
 let currentConfigJSON = '';
 let currentConfigLink = '';
 
@@ -488,7 +488,7 @@ function renderClientConfig(cfg, justCreated){
   $('clientConfigPort').value = cfg.sshPort;
   $('clientConfigUser').value = cfg.user;
   $('clientConfigKey').value = cfg.privateKey;
-  currentConfigFilename = 'ssh_tunnel-' + cfg.user + '.json';
+  currentConfigFilename = 'tarnegis-' + cfg.user + '.json';
   currentConfigJSON = cfg.json;
   $('clientConfigCard').hidden = false;
   openDevPane(false);

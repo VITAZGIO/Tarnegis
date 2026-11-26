@@ -1,4 +1,4 @@
-// ssh_tunnel — приложение с окном. Запускается двойным щелчком, никаких команд
+// Tarnegis — приложение с окном. Запускается двойным щелчком, никаких команд
 // и флагов: всё настраивается в окне и запоминается.
 //
 // Собирается с -H windowsgui, поэтому чёрного окна консоли за ним не
@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -27,7 +28,7 @@ import (
 	"sshtunnel/internal/webui"
 )
 
-const windowTitle = "ssh_tunnel"
+const windowTitle = "Tarnegis"
 
 func main() {
 	// Команда работающей программе (`ssh_tunnel.exe tunnel off`, `… mcp`):
@@ -36,7 +37,7 @@ func main() {
 		if os.Args[1] != "mcp" {
 			apicli.AttachConsole()
 		}
-		os.Exit(apicli.Main("ssh_tunnel.exe", os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+		os.Exit(apicli.Main(filepath.Base(os.Args[0]), os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
 
 	// Единственный флаг — на случай, если окно почему-то не открывается:
