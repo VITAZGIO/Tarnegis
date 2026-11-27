@@ -74,21 +74,30 @@
       <!-- приглашение устройства (ТЗ 47): строка один раз, QR, куда ведёт -->
       <div class="card" id="inviteCard" hidden>
         <h1 data-i18n="inv_title">Приглашение готово</h1>
-        <p class="note" data-i18n="inv_note">Вставь эту строку в программу на устройстве (или отсканируй
-          QR-код телефоном). Действует 24 часа и только один раз; второй раз панель её не покажет.</p>
+        <p class="note" data-i18n="inv_note">Введи этот код в программе на устройстве (или отсканируй
+          QR-код телефоном). Действует 24 часа и только один раз; второй раз панель его не покажет.</p>
         <div id="inviteMsg"></div>
         <p class="note" id="inviteTarget"></p>
         <div style="text-align:center;margin-bottom:14px">
           <img id="inviteQR" class="invqr" alt="QR">
         </div>
-        <div class="field">
-          <textarea id="inviteText" readonly rows="3"
-            style="font-family:var(--mono);font-size:11.5px;resize:vertical;width:100%"></textarea>
+        <!-- короткий код (ТЗ 54); длинная строка — для старых версий программы -->
+        <div class="field" id="inviteCodeBox">
+          <input id="inviteCode" readonly
+            style="font-family:var(--mono);font-size:20px;letter-spacing:1px;text-align:center;width:100%">
         </div>
         <div class="row-inline">
-          <button class="btn" id="copyInviteBtn" data-i18n="copy_config">Скопировать</button>
+          <button class="btn" id="copyCodeBtn" data-i18n="copy_config">Скопировать</button>
           <button class="btn ghost" id="closeInviteBtn" data-i18n="close">Закрыть</button>
         </div>
+        <details id="inviteLongBox" style="margin-top:12px">
+          <summary class="note" data-i18n="inv_long">Длинная строка — для старых версий программы</summary>
+          <div class="field">
+            <textarea id="inviteText" readonly rows="3"
+              style="font-family:var(--mono);font-size:11.5px;resize:vertical;width:100%"></textarea>
+          </div>
+          <button class="btn" id="copyInviteBtn" data-i18n="copy_config">Скопировать</button>
+        </details>
       </div>
 
       <!-- серверы, сеть устройств и ключи одного устройства (ТЗ 47) -->

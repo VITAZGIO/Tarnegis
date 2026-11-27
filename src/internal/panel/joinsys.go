@@ -227,33 +227,51 @@ func RunJoin(in io.Reader, out io.Writer, getenv func(string) string, post func(
 	if strings.TrimSpace(getenv("SSH_ORIGINAL_COMMAND")) != "join" {
 		return reply(joinResp{Err: joinUnknown})
 	}
-	line, err := bufio.NewReader(io.LimitReader(in, 8<<10)).ReadBytes('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return reply(joinResp{Err: joinUnknown})
-	}
-	var req joinReq
-	if json.Unmarshal(bytes.TrimSpace(line), &req) != nil {
-		return reply(joinResp{Err: joinUnknown})
-	}
+	rd := bufio.NewReader(io.LimitReader(in, 16<<10))
 	// Ключ и адрес — только от sshd, не со слов программы.
-	req.Key, req.From = "", ""
+	authKey, from := "", ""
 	if path := getenv("SSH_USER_AUTH"); path != "" {
 		if data, err := os.ReadFile(path); err == nil {
-			req.Key = userAuthKey(string(data))
+			authKey = userAuthKey(string(data))
 		}
 	}
 	if f := strings.Fields(getenv("SSH_CONNECTION")); len(f) > 0 {
-		req.From = f[0]
+		from = f[0]
 	}
-	body, _ := json.Marshal(req)
-	resp, err := post(body)
-	if err != nil {
-		return reply(joinResp{Err: joinUnknown})
+	ask := func(sid string) (joinResp, bool) {
+		line, err := rd.ReadBytes('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return joinResp{Err: joinUnknown}, false
+		}
+		var req joinReq
+		if json.Unmarshal(bytes.TrimSpace(line), &req) != nil {
+			return joinResp{Err: joinUnknown}, false
+		}
+		req.Key, req.From, req.Sid = authKey, from, sid
+		body, _ := json.Marshal(req)
+		resp, err := post(body)
+		if err != nil {
+			return joinResp{Err: joinUnknown}, false
+		}
+		var r joinResp
+		if json.Unmarshal(resp, &r) != nil || (!r.OK && r.Err == "") {
+			return joinResp{Err: joinUnknown}, false
+		}
+		return r, true
 	}
-	var r joinResp
-	if json.Unmarshal(resp, &r) != nil || (!r.OK && r.Err == "") {
-		return reply(joinResp{Err: joinUnknown})
+	r, ok := ask("")
+	if !ok || r.Sid == "" {
+		r.Sid = ""
+		return reply(r)
 	}
+	// Короткий код (ТЗ 54): ответ PAKE программе, вторая строка — её
+	// подтверждение; сеанс (sid) программа не видит, его держим мы.
+	sid := r.Sid
+	r.Sid = ""
+	data, _ := json.Marshal(r)
+	out.Write(append(data, '\n'))
+	r, _ = ask(sid)
+	r.Sid = ""
 	return reply(r)
 }
 
@@ -261,7 +279,9 @@ func RunJoin(in io.Reader, out io.Writer, getenv func(string) string, post func(
 func PostJoin(body []byte) ([]byte, error) {
 	// С запасом: заведение пользователя (useradd, поиск uid через NSS) на
 	// медленной машине занимает десятки секунд — на стенде CI до 28 с.
-	cl := &http.Client{Timeout: 90 * time.Second}
+	// Первое заведение пользователя на свежем раннере CI шло 86 с при
+	// пределе 90 (TestJoinLabReinstall, 27.11) — запас вдвое.
+	cl := &http.Client{Timeout: 180 * time.Second}
 	resp, err := cl.Post("http://"+SelfServiceAddr+"/v1/join", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err

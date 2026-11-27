@@ -336,3 +336,88 @@ type statusRec struct {
 }
 
 func (r *statusRec) WriteHeader(c int) { r.code = c; r.ResponseWriter.WriteHeader(c) }
+
+// TestJoinLabShortCode — ТЗ 54 на настоящем sshd: короткий код (20
+// символов) входит целиком — PAKE через команду join в два раунда, ключ
+// хоста из /etc/ssh подтверждён и записан, профиль читается; второй раз
+// тот же код не входит, код с опечаткой не уходит на сервер.
+func TestJoinLabShortCode(t *testing.T) {
+	if os.Getenv("JOIN_LAB") == "" {
+		t.Skip("только на стенде (JOIN_LAB=1, root, sshd)")
+	}
+	if err := EnsureJoinAccess(22); err != nil {
+		t.Fatalf("EnsureJoinAccess: %v", err)
+	}
+	dir := t.TempDir()
+	users, _ := OpenStore(filepath.Join(dir, "users.json"))
+	cs, _ := OpenClientStore(filepath.Join(dir, "clients.json"))
+	s := NewServer(users, NewClientManager(cs, NewSystemProvisioner())).WithDataDir(dir)
+	s.WithClientDefaults("127.0.0.1", 22, "")
+	ln, err := net.Listen("tcp", SelfServiceAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: s.SelfServiceHandler()}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	res, err := s.createInvite(inviteReq{Name: "Код", DeviceType: "linux"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := invite.NormalizeCode(res.Code); len(n) != 20 {
+		t.Fatalf("код %q", res.Code)
+	}
+	cdir := t.TempDir()
+	kh := filepath.Join(cdir, "known_hosts")
+	r, err := invite.Redeem(context.Background(), "tarnegis:"+strings.ToLower(strings.ReplaceAll(res.Code, "-", "")),
+		invite.Options{KeyDir: cdir, KnownHosts: kh, Name: "Код", Type: "pc"})
+	if err != nil {
+		t.Fatalf("вход по коду: %v", err)
+	}
+	defer s.clients.DeleteClient(r.Device.ID)
+	if r.ProfileErr != nil || len(r.Profile.Servers) != 1 {
+		t.Fatalf("профиль после входа: %v %+v", r.ProfileErr, r.Profile)
+	}
+	// В known_hosts — один из настоящих ключей хоста.
+	known := hostkey.Known(kh, "127.0.0.1", 22)
+	ok := false
+	for _, line := range (systemMesh{}).HostKeys() {
+		k, _, _, _, err := ssh.ParseAuthorizedKey([]byte(line))
+		for _, kn := range known {
+			if err == nil && kn.Fingerprint == ssh.FingerprintSHA256(k) {
+				ok = true
+			}
+		}
+	}
+	if !ok {
+		t.Fatalf("known_hosts: %+v", known)
+	}
+	// Дальше — строго по known_hosts, как раньше.
+	signer, _ := invite.LoadKey(r.Device.KeyPath)
+	if p, err := invite.Fetch(context.Background(), invite.Target{Host: "127.0.0.1", Port: 22, User: r.Device.ID, Signer: signer,
+		HostKey: hostkey.Callback(kh, nil), KnownHosts: kh}); err != nil || p.ID != r.Device.ID {
+		t.Fatalf("сверка по known_hosts: %v", err)
+	}
+	// Второй раз — нет.
+	if _, err := invite.Redeem(context.Background(), res.Code, invite.Options{KeyDir: cdir, KnownHosts: kh, Type: "pc"}); err == nil {
+		t.Fatal("код вошёл второй раз")
+	}
+	// Неверный секрет (то же приглашение по метке нельзя подобрать —
+	// берём новое и портим секрет с сохранением метки): PAKE не сходится.
+	res2, _ := s.createInvite(inviteReq{Name: "Код 2", DeviceType: "linux"})
+	c2, _ := invite.ParseCode(res2.Code)
+	wrong := c2.Secret
+	tag := invite.CodeTag(wrong)
+	for i := 0; ; i++ {
+		wrong[0], wrong[1] = byte(i), byte(i>>8)
+		if wrong != c2.Secret && invite.CodeTag(wrong) == tag {
+			break
+		}
+	}
+	bad, _ := invite.EncodeCode("127.0.0.1", 22, wrong)
+	if _, err := invite.Redeem(context.Background(), bad, invite.Options{KeyDir: cdir, KnownHosts: filepath.Join(cdir, "kh2"), Type: "pc"}); err == nil ||
+		!strings.Contains(err.Error(), "не подтвердил") {
+		t.Fatalf("неверный секрет: %v", err)
+	}
+}

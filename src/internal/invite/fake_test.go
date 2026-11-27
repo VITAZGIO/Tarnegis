@@ -28,8 +28,10 @@ type fakeServer struct {
 	extra []ssh.Signer
 
 	mu       sync.Mutex
-	tokens   map[string]string // токен → "" (свободен) | "used" | "expired" | "frozen"
-	accounts map[string]string // id → открытый ключ (Marshal)
+	tokens   map[string]string          // токен → "" (свободен) | "used" | "expired" | "frozen"
+	codes    map[string][SecretLen]byte // метка → секрет короткого кода (ТЗ 54)
+	shownHK  ssh.PublicKey              // какой ключ хоста считать своим в PAKE (nil — hostKey)
+	accounts map[string]string          // id → открытый ключ (Marshal)
 	profile  func(id string) (int, string)
 	joins    int
 	lastReq  JoinRequest
@@ -43,7 +45,7 @@ func newFakeServer(t *testing.T) *fakeServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeServer{t: t, ln: ln, hostKey: hk, tokens: map[string]string{}, accounts: map[string]string{}}
+	f := &fakeServer{t: t, ln: ln, hostKey: hk, tokens: map[string]string{}, codes: map[string][SecretLen]byte{}, accounts: map[string]string{}}
 	f.profile = func(id string) (int, string) {
 		return 200, fmt.Sprintf(`{"v":1,"id":%q,"name":"Телефон","rev":3,"servers":[{"name":"А","host":"127.0.0.1","port":%d,"hk":%q,"flag":"de"},{"name":"Б","host":"198.51.100.7","port":22,"hk":%q}],"mesh":true,"frozen":false,"future":{"x":1}}`,
 			id, f.port(), f.hkLine(), f.hkLine())
@@ -133,7 +135,12 @@ func (f *fakeServer) join(ch ssh.Channel, reqs <-chan *ssh.Request, key string) 
 		if cmd != "join" {
 			return
 		}
-		line, _ := bufio.NewReader(ch).ReadBytes('\n')
+		rd := bufio.NewReader(ch)
+		line, _ := rd.ReadBytes('\n')
+		if f.joinV2(ch, rd, line, key) {
+			ch.SendRequest("exit-status", false, []byte{0, 0, 0, 0})
+			return
+		}
 		var req JoinRequest
 		json.Unmarshal(line, &req)
 		f.mu.Lock()

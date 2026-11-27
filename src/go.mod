@@ -3,6 +3,7 @@ module sshtunnel
 go 1.22
 
 require (
+	filippo.io/cpace v0.0.0-20210101143347-24d601e2e469
 	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/quic-go/quic-go v0.49.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -13,6 +14,7 @@ require (
 require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
+	github.com/gtank/ristretto255 v0.1.2 // indirect
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	go.uber.org/mock v0.5.0 // indirect

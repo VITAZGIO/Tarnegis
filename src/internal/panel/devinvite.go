@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"sshtunnel/internal/invite"
 )
 
 const (
@@ -44,7 +46,13 @@ const (
 	joinUnknown = "unknown"
 	joinFrozen  = "frozen"
 	joinLimit   = "limit"
+	joinLocked  = "locked"  // короткий код заблокирован (ТЗ 54)
+	joinConfirm = "confirm" // PAKE не сошёлся
 )
+
+// maxCodeFails — сколько неподтверждённых входов по короткому коду до
+// блокировки приглашения (у 56-битного секрета это 5 попыток из 2^56).
+const maxCodeFails = 5
 
 // inviteDoc — то, что внутри строки приглашения (контракт, раздел A).
 type inviteDoc struct {
@@ -98,6 +106,13 @@ type devInvite struct {
 	Expires int64  `json:"expires"`
 	Used    int64  `json:"used,omitempty"`
 	UsedBy  string `json:"usedBy,omitempty"`
+	// Короткий код (ТЗ 54): секрет (hex, 56 бит) нужен панели целиком —
+	// CPace симметричный; файл только root (0600). Tag — его метка, у
+	// открытых приглашений разная. Fails — начатые и не подтверждённые
+	// входы по коду; после maxCodeFails код заблокирован.
+	Secret string `json:"secret,omitempty"`
+	Tag    string `json:"tag,omitempty"`
+	Fails  int    `json:"fails,omitempty"`
 }
 
 // inviteView — приглашение для страницы (без хеша).
@@ -110,11 +125,12 @@ type inviteView struct {
 	User       string     `json:"user,omitempty"`
 	Created    int64      `json:"created"`
 	Expires    int64      `json:"expires"`
+	Locked     bool       `json:"locked,omitempty"` // код заблокирован после неудач (ТЗ 54)
 }
 
 func (d devInvite) view() inviteView {
 	return inviteView{ID: d.ID, Name: d.Name, DeviceType: d.Type, Servers: d.Servers, Mesh: !d.NoMesh,
-		User: d.User, Created: d.Created, Expires: d.Expires}
+		User: d.User, Created: d.Created, Expires: d.Expires, Locked: d.Fails >= maxCodeFails}
 }
 
 // inviteStore — device-invites.json рядом с остальными файлами панели.
@@ -187,6 +203,18 @@ func (st *inviteStore) add(d devInvite) (string, devInvite, error) {
 	now := st.now()
 	d.ID = randomHex(6)
 	d.Hash = tokenHash(tok)
+	// Секрет короткого кода — с меткой, которой нет у других открытых.
+	for {
+		var sec [invite.SecretLen]byte
+		if _, err := rand.Read(sec[:]); err != nil {
+			return "", devInvite{}, err
+		}
+		tag := invite.CodeTag(sec)
+		if !slices.ContainsFunc(st.list, func(x devInvite) bool { return x.Used == 0 && x.Tag == tag }) {
+			d.Secret, d.Tag = hex.EncodeToString(sec[:]), tag
+			break
+		}
+	}
 	d.Created = now.Unix()
 	d.Expires = now.Add(devInviteTTL).Unix()
 	st.list = append(st.list, d)
@@ -242,6 +270,53 @@ func (st *inviteStore) take(tok string) (devInvite, string) {
 			return devInvite{}, joinExpired
 		}
 		d.Used = now
+		st.saveLocked()
+		return *d, ""
+	}
+	return devInvite{}, joinUnknown
+}
+
+// byTag — открытое приглашение по метке короткого кода; ещё одна попытка
+// входа по нему считается неудачей, пока её не подтвердит PAKE (takeID).
+func (st *inviteStore) attemptByTag(tag string) (devInvite, string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	now := st.now().Unix()
+	for i := range st.list {
+		d := &st.list[i]
+		if d.Tag == "" || subtle.ConstantTimeCompare([]byte(d.Tag), []byte(tag)) != 1 || d.Used != 0 {
+			continue
+		}
+		switch {
+		case d.Expires <= now:
+			return devInvite{}, joinExpired
+		case d.Fails >= maxCodeFails:
+			return devInvite{}, joinLocked
+		}
+		d.Fails++
+		st.saveLocked()
+		return *d, ""
+	}
+	return devInvite{}, joinUnknown
+}
+
+// takeID — PAKE подтвердил код: пометить использованным (как take).
+func (st *inviteStore) takeID(id string) (devInvite, string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	now := st.now().Unix()
+	for i := range st.list {
+		d := &st.list[i]
+		if d.ID != id {
+			continue
+		}
+		switch {
+		case d.Used != 0:
+			return devInvite{}, joinUsed
+		case d.Expires <= now:
+			return devInvite{}, joinExpired
+		}
+		d.Used, d.Fails = now, 0
 		st.saveLocked()
 		return *d, ""
 	}

@@ -300,7 +300,8 @@ to TCP within a fraction of a second.
 
 If your server runs the panel (`ssh_tunnel_panel`), you no longer hand out
 keys yourself. In the panel: **Devices → “Add device”** — it issues a one-time
-invite, a single line like `sshtun1:…` (plus a QR code), valid for 24 hours.
+invite — a short code like `K7HQ-3MVX-9KPL-2WR8-NZC4` (plus a QR code), valid
+for 24 hours. The old long `sshtun1:…` line is still issued and accepted.
 
 In the app (PC or phone): **Servers → “By invite”** (or just “Paste”, or “QR
 code” on the phone), paste the line, check the device name — **“Add”**. The

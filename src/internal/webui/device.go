@@ -60,13 +60,15 @@ func (s *Server) handleDevice(w http.ResponseWriter, r *http.Request) {
 	}
 	switch req.Op {
 	case "parse":
-		inv, err := invite.Parse(req.Invite)
+		// Короткий код (ТЗ 54) — ещё short, have, need, partial: поле
+		// показывает, сколько символов осталось.
+		info, err := invite.Inspect(req.Invite, time.Now())
 		if err != nil {
 			fail(err)
 			return
 		}
-		writeJSON(w, map[string]any{"ok": true, "host": inv.Host, "port": inv.Port, "name": inv.Name,
-			"exp": inv.Exp, "expired": inv.Expired(time.Now())})
+		info["ok"] = true
+		writeJSON(w, info)
 	case "join":
 		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 		defer cancel()

@@ -37,9 +37,21 @@ type JoinResponse struct {
 
 // JoinError — сервер отказал (код из контракта: expired, used, unknown,
 // frozen, limit).
-type JoinError struct{ Code string }
+type JoinError struct {
+	Code  string
+	Short bool // вход по короткому коду (ТЗ 54)
+}
 
 func (e *JoinError) Error() string {
+	switch {
+	case e.Code == "unknown" && e.Short:
+		return "сервер не знает этого кода: его отозвали, он с другого сервера или панель на сервере старая " +
+			"(тогда возьми в панели длинную строку «sshtun1:…»)"
+	case e.Code == "locked":
+		return "код заблокирован после неудачных попыток — попроси в панели новое приглашение"
+	case e.Code == "confirm":
+		return "код не подошёл — проверь его или попроси в панели новое приглашение"
+	}
 	switch e.Code {
 	case "expired":
 		return ErrExpired.Error()

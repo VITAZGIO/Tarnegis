@@ -75,8 +75,9 @@ func (d *demoBackend) registryRoutes(h func(string, func(http.ResponseWriter, *h
 		text := encodeDevInvite(inviteDoc{V: 1, Host: "203.0.113.5", Port: 22,
 			HK: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoDemoDemoDemoDemoDemoDemoDemoDemoDemo", Tok: randomHex(32),
 			Exp: v.Expires, Name: name})
-		res := inviteResult{Invite: v, Text: text, Host: "203.0.113.5", Port: 22}
-		if png, err := qrcode.Encode(text, qrcode.Low, 512); err == nil {
+		res := inviteResult{Invite: v, Text: text, Host: "203.0.113.5", Port: 22,
+			Code: inviteCode("203.0.113.5", 22, devInvite{Secret: randomHex(7)})}
+		if png, err := qrcode.Encode("tarnegis:"+res.Code, qrcode.Low, 512); err == nil {
 			res.QR = base64.StdEncoding.EncodeToString(png)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "result": res})

@@ -806,6 +806,10 @@ function checkedServers(box){
 function renderInvite(res){
   showMsg($('inviteMsg'), '', '');
   $('inviteText').value = res.text;
+  // Короткий код (ТЗ 54); нет — адрес не помещается, тогда только строка.
+  $('inviteCode').value = res.code || '';
+  $('inviteCodeBox').hidden = $('copyCodeBtn').hidden = !res.code;
+  $('inviteLongBox').open = !res.code;
   $('inviteTarget').textContent = t('inv_target')
     .replace('{h}', res.host + (res.port && res.port !== 22 ? ':' + res.port : ''))
     .replace('{n}', res.invite.name).replace('{t}', fmtClock(res.invite.expires));
@@ -820,11 +824,13 @@ function renderInvite(res){
 }
 function closeInvite(){
   $('inviteText').value = '';
+  $('inviteCode').value = '';
   $('inviteQR').removeAttribute('src');
   $('inviteCard').hidden = true;
 }
 $('inviteQR').addEventListener('click', () => { if ($('inviteQR').src) $('qrOverlay').hidden = false; });
 $('copyInviteBtn').addEventListener('click', async () => copyFlash($('copyInviteBtn'), await copyText($('inviteText').value)));
+$('copyCodeBtn').addEventListener('click', async () => copyFlash($('copyCodeBtn'), await copyText($('inviteCode').value)));
 $('closeInviteBtn').addEventListener('click', () => { closeInvite(); devPaneCheck(); });
 
 // newInvite — «Новое приглашение»: устройство потеряло ключ; старые ключи

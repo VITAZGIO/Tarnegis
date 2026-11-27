@@ -74,6 +74,7 @@ type Server struct {
 	// uid пользователя tun_join и ключи этого сервера — подменяются в тестах.
 	invMu      sync.Mutex
 	invites    *inviteStore
+	pake       pakeSessions // сеансы входа по короткому коду (ТЗ 54)
 	joinUID    func() (int, bool)
 	hostKeysFn func() []string
 }
