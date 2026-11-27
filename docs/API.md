@@ -427,6 +427,10 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 Отвечают, только пока приложение добавлено и включено.
 
 - `GET /api/netmap` — карта: `{"state","self","nodes":[{name,host,ip,platform,os,online,lastSeen,direct,rttMs,server}]}`.
+  Серверы (ТЗ 57): в `nodes` и в списке устройств сети есть все серверы, с
+  которыми устройство держит связь (со своим `online`), даже если правила
+  доступа не дают видеть «@servers»; серверы сети серверов без связи — в
+  `nodes` без `ip`, `online: false` (в состоянии сети — `knownServers`).
 - `GET /api/ssh` — серверы этого устройства и открытый ключ программы;
   `POST /api/ssh` `{"op":"save","server":{…}}`, `{"op":"delete"|"forgethost","id"}`.
   `GET /api/ssh/devices` — устройства сети для анкеты.

@@ -642,7 +642,8 @@ function qColor(online, q){
 /* ---------- схема этого устройства ---------- */
 // ring — устройства карты: это, онлайн, офлайн (сервер отдельно).
 const isServerNode = n => !!n && (n.server || n.platform === 'server');
-const keyOf = n => n.ip || NO_SERVER;
+// Сервер без адреса в сети (знаем только из сети серверов, ТЗ 57) — по id.
+const keyOf = n => n.ip || (n.id && isServerNode(n) ? 'srv:' + n.id : NO_SERVER);
 function ring(){
   const others = (DATA.nodes || []).filter(n => !isServerNode(n));
   const byName = (a, b) => (a.name || '').localeCompare(b.name || '');

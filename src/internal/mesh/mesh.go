@@ -232,6 +232,10 @@ type Status struct {
 	// устройство».
 	NetVersion string `json:"netVersion,omitempty"`
 	Mine       bool   `json:"mine,omitempty"`
+	// KnownServers — серверы сети серверов, о которых устройство знает, но
+	// с которыми не держит связь и которых нет в Peers (ТЗ 57: карта рисует
+	// все серверы). Адреса в сети устройств у них нет, Online — false.
+	KnownServers []Peer `json:"knownServers,omitempty"`
 }
 
 // AdvertisedServer — сервер сети, который советует панель другого сервера.
@@ -1489,10 +1493,75 @@ func (c *Client) Status() Status {
 		st.State = "local"
 	}
 	st.NetVersion, st.Mine = c.netInfoLocked()
+	c.addKnownServersLocked(&st)
 	// Порядок для экрана (ТЗ 26): серверы, потом устройства; на связи первыми.
 	// Прямой путь выше мог сделать устройство «на связи» — сортируем после.
 	SortForList(st.Peers)
 	return st
+}
+
+// addKnownServersLocked дописывает серверы, которые устройство знает само,
+// а meshd в списке не прислал (ТЗ 57: правила доступа без «@servers» — так
+// было у клиентов Linux под отдельными пользователями — прятали серверы, и
+// в «Устройствах» и на карте был только чужой список). Серверы, с которыми
+// есть связь, идут в Peers со своим состоянием; серверы сети серверов без
+// связи — в KnownServers. Совпадение — по id (как у meshd: PeerID от
+// "server" + NUL + id) или по имени.
+func (c *Client) addKnownServersLocked(st *Status) {
+	have := map[string]bool{}
+	mark := func(p Peer) {
+		if p.ID != "" {
+			have["id:"+p.ID] = true
+		}
+		if p.Name != "" {
+			have["n:"+strings.ToLower(p.Name)] = true
+		}
+		if p.IP.IsValid() {
+			have["ip:"+p.IP.String()] = true
+		}
+	}
+	for _, p := range st.Peers {
+		if p.IsServer() {
+			mark(p)
+		}
+	}
+	known := func(p Peer) bool {
+		return (p.ID != "" && have["id:"+p.ID]) || (p.Name != "" && have["n:"+strings.ToLower(p.Name)]) ||
+			(p.IP.IsValid() && have["ip:"+p.IP.String()])
+	}
+	serverPeer := func(id, name string) Peer {
+		p := Peer{Name: name, Platform: "server"}
+		if id != "" {
+			p.ID = PeerID("server" + string(rune(0)) + id)
+		}
+		return p
+	}
+	for _, l := range c.links {
+		name := l.info.Name
+		if name == "" {
+			name = l.key
+		}
+		p := serverPeer(l.info.ID, name)
+		p.IP, _ = netip.ParseAddr(l.info.IP)
+		p.Online = l.ctrl != nil && l.state == "online"
+		if !p.IP.IsValid() || known(p) {
+			continue
+		}
+		mark(p)
+		st.Peers = append(st.Peers, p)
+	}
+	for _, ns := range c.netServersLocked().Servers {
+		name := ns.Name
+		if name == "" {
+			name = ns.Host
+		}
+		p := serverPeer(ns.ID, name)
+		if known(p) {
+			continue
+		}
+		mark(p)
+		st.KnownServers = append(st.KnownServers, p)
+	}
 }
 
 // holdNote — что сказать человеку, если сервер его не пускает (ТЗ 16).
