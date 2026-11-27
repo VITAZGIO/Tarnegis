@@ -360,7 +360,7 @@ function draw(r){
       row.querySelector('.jm').onchange = ev => { d.mode = ev.target.value; };
       // Кнопка «Подключить» — .primary: первая кнопка в строке — «Обзор».
       row.querySelector('button.primary').onclick = async () => {
-        if(await join({op: 'join', peer: f.peer, host: f.host, folder: x.id, name: x.name, path: d.path.trim(), mode: d.mode}))
+        if(await join({op: 'join', peer: f.peer, host: f.host, peerId: f.peerId || '', folder: x.id, name: x.name, path: d.path.trim(), mode: d.mode}))
           delete drafts[key];
       };
       c.appendChild(row);
