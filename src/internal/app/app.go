@@ -441,7 +441,8 @@ func (a *App) RemoveProfile(id string) (string, error) {
 // попадают: он всё равно ни к чему сейчас не подключён.
 func connectionSettingsChanged(a, b config.Config) bool {
 	newActive := b.Active()
-	oldActive, _ := a.ProfileByID(newActive.ID)
+	oldRaw, _ := a.ProfileByID(newActive.ID)
+	oldActive := a.Resolve(oldRaw) // сравнивать действующие значения с действующими
 	return oldActive.Host != newActive.Host || oldActive.SSHPort != newActive.SSHPort ||
 		oldActive.User != newActive.User || oldActive.KeyPath != newActive.KeyPath ||
 		oldActive.SocksPort != newActive.SocksPort || oldActive.HTTPPort != newActive.HTTPPort ||

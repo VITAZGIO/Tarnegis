@@ -231,6 +231,11 @@ func (a *App) buildTunnel(cfg config.Config, p config.Profile) (tun *tunnel.Tunn
 // (tunnel.Rebind), когда новый объект строить нельзя — локальные порты заняты
 // его же слушателями.
 func (a *App) tunnelConfig(cfg config.Config, p config.Profile) (_ tunnel.Config, socksAddr, httpAddr string) {
+	// Общие настройки программы поверх профиля (ТЗ 32). Часть вызовов
+	// приходит с профилем как он лежит в файле (cfg.ProfileByID), и без
+	// этого, например, сеть устройств поднималась с выключенными входящими,
+	// хотя галочка стояла: RDP к устройству получал отказ (ТЗ 55).
+	p = cfg.Resolve(p)
 	socksAddr = net.JoinHostPort("127.0.0.1", strconv.Itoa(p.SocksPort))
 	httpAddr = net.JoinHostPort("127.0.0.1", strconv.Itoa(p.HTTPPort))
 	a.mu.Lock()
