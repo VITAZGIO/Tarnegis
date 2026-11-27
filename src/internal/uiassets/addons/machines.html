@@ -94,7 +94,8 @@
   </div>
   <details id="pw"><summary id="pwT"></summary>
     <div class="f" style="margin-top:8px">
-      <label class="full"><span id="lMac"></span><input id="fMac" spellcheck="false"></label>
+      <label class="full" id="macRow"><span id="lMac"></span><input id="fMac" spellcheck="false"></label>
+      <div class="hint full" id="macMoved"></div>
       <label class="full"><span id="lPeer"></span><select id="fPeer"></select></label>
     </div>
   </details>
@@ -260,6 +261,7 @@ function edit(id){
   $('fSens').value = (m.sensors || []).join('\n'); $('fMac').value = m.mac || '';
   $('fPeer').innerHTML = `<option value="">${esc(L('— не выключать', '— no shutdown'))}</option>` + ST.peers.map(p => `<option value="${esc(p.ip)}"${p.ip === m.peer ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
   $('pw').open = !!(m.mac || m.peer);
+  $('macRow').hidden = !m.mac; // включение по сети переехало в «Удалённый стол»; старая запись — пока есть
   $('fPick').innerHTML = `<option value="">${esc(L('вручную', 'manually'))}</option>` + ST.peers.map(p => `<option value="${esc(p.ip)}" data-n="${esc(p.name)}">${esc(p.name + (p.online ? '' : L(' (не в сети)', ' (offline)')))}</option>`).join('');
   $('dDel').hidden = !id; $('dNote').textContent = '';
   showFields(); $('dlg').hidden = false;
@@ -304,7 +306,8 @@ $('lPass').textContent = L('Пароль', 'Password');
 $('lUrl').textContent = L('Адрес', 'URL');
 $('lTok').textContent = L('Токен Home Assistant', 'Home Assistant token');
 $('lSens').textContent = L('Датчики (entity_id, по одному в строке)', 'Sensors (entity_id, one per line)'); $('fSens').placeholder = 'sensor.processor_use\nsensor.memory_use_percent';
-$('pwT').textContent = L('Включение и выключение (по желанию)', 'Wake and shutdown (optional)');
+$('pwT').textContent = L('Выключение (по желанию)', 'Shutdown (optional)');
+$('macMoved').textContent = L('Включение по сети (Wake-on-LAN) — в плагине «Удалённый стол»: «Добавить устройство» → «Пробуждение».', 'Wake-on-LAN now lives in the «Remote desktop» plugin: «Add a device» → «Wake-on-LAN».');
 $('lMac').textContent = L('MAC для включения по сети', 'MAC for Wake-on-LAN'); $('fMac').placeholder = 'AA:BB:CC:DD:EE:FF';
 $('lPeer').textContent = L('Выключать как (машина в сети устройств)', 'Shut down as (device network)');
 $('dSave').textContent = L('Сохранить', 'Save'); $('dClose').textContent = L('Закрыть', 'Close'); $('dDel').textContent = L('Убрать', 'Remove');

@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,8 @@ import (
 
 	"sshtunnel/internal/addons"
 	"sshtunnel/internal/devnet"
+	"sshtunnel/internal/machines"
+	"sshtunnel/internal/mesh"
 )
 
 // ID — плагин в каталоге.
@@ -40,7 +43,7 @@ func init() {
 	addons.Register(ID, func() addons.Module { return module{} })
 	addons.RegisterRoutes(ID,
 		addons.Route{Path: "/api/rdp", Methods: "GET, POST",
-			Desc: "Удалённый стол: GET — ретранслятор и машины; POST {\"op\":\"relay|add|remove|check\",…} — задать ретранслятор (host:port guacd), добавить/убрать машину {name,host,port,user,pass,domain}, проверить ретранслятор.",
+			Desc: "Удалённый стол: GET — ретранслятор и машины; POST {\"op\":\"relay|add|remove|check|wake|net\",…} — задать ретранслятор (host:port guacd), добавить/убрать машину {name,host,port,user,pass,domain,mac,bcast,wport}, проверить ретранслятор, разбудить {id} или {mac,bcast,wport} со всех своих устройств → {sent,failed}, записи пробуждения с других устройств → {wol}.",
 			H:    handleConf},
 		addons.Route{Path: "/api/rdp/open", Methods: "POST", Desc: "Открыть сеанс: {id машины, w, h, dpi, quality, user?, pass?} → {sid}.", H: handleOpen},
 		addons.Route{Path: "/api/rdp/read", Methods: "GET", Desc: "Инструкции Guacamole сеанса ?sid (длинный опрос, до 20 с).", H: handleRead},
@@ -51,8 +54,98 @@ func init() {
 
 type module struct{}
 
-func (module) Start() error { return nil }
-func (module) Stop()        { closeAll() }
+// SharePort — порт в сети устройств: отдать свои записи пробуждения
+// (имя, MAC, адрес, порт — без адресов входа и паролей).
+const SharePort = 47848
+
+func (module) Start() error {
+	machines.ServeWol()
+	mesh.Serve(SharePort, serveShare)
+	return nil
+}
+func (module) Stop() {
+	closeAll()
+	mesh.Serve(SharePort, nil)
+	machines.StopWol()
+}
+
+// Wol — запись пробуждения для других устройств.
+type Wol struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	MAC    string `json:"mac"`
+	Bcast  string `json:"bcast,omitempty"`
+	WPort  int    `json:"wport,omitempty"`
+	Device string `json:"device,omitempty"` // чья запись (заполняет читатель)
+}
+
+func ownWol(c conf) []Wol {
+	out := []Wol{}
+	for _, h := range c.Hosts {
+		if h.MAC != "" {
+			out = append(out, Wol{ID: h.ID, Name: h.Name, MAC: h.MAC, Bcast: h.Bcast, WPort: h.WPort})
+		}
+	}
+	return out
+}
+
+func serveShare(c net.Conn, _ mesh.Caller) {
+	defer c.Close()
+	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
+	confMu.Lock()
+	list := ownWol(loadConf())
+	confMu.Unlock()
+	b, _ := json.Marshal(list)
+	_, _ = c.Write(b)
+}
+
+// netWol — записи пробуждения с других своих устройств, кроме тех, что
+// уже есть здесь (по MAC).
+func netWol(own []Wol) []Wol {
+	seen := map[string]bool{}
+	for _, w := range own {
+		seen[w.MAC] = true
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	out := []Wol{}
+	for _, p := range devnet.Status().Peers {
+		if p.Self || !p.Online || !p.IP.IsValid() {
+			continue
+		}
+		name := p.Name
+		if name == "" {
+			name = p.Host
+		}
+		wg.Add(1)
+		go func(ip, name string) {
+			defer wg.Done()
+			c, err := devnet.DialPeer(net.JoinHostPort(ip, strconv.Itoa(SharePort)))
+			if err != nil {
+				return
+			}
+			defer c.Close()
+			_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+			b, _ := io.ReadAll(io.LimitReader(c, 1<<18))
+			var ws []Wol
+			if json.Unmarshal(b, &ws) != nil {
+				return
+			}
+			mu.Lock()
+			for _, w := range ws {
+				if m, err := machines.NormMAC(w.MAC); err == nil && !seen[m] {
+					seen[m] = true
+					w.MAC, w.Device = m, name
+					out = append(out, w)
+				}
+			}
+			mu.Unlock()
+		}(p.IP.String(), name)
+	}
+	wg.Wait()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
 
 // Host — машина, к которой подключаться.
 type Host struct {
@@ -66,6 +159,12 @@ type Host struct {
 	// Security — any (сам договорится), nla, tls или rdp. «Server refused
 	// connection (wrong security type?)» — выбрать другой.
 	Security string `json:"security,omitempty"`
+	// Пробуждение (Wake-on-LAN): MAC и, по желанию, свой широковещательный
+	// адрес и порт. Видно всем своим устройствам сети (порт SharePort), будят
+	// все они разом.
+	MAC   string `json:"mac,omitempty"`
+	Bcast string `json:"bcast,omitempty"`
+	WPort int    `json:"wport,omitempty"`
 }
 
 // splitUser — «домен\пользователь», «домен/пользователь» → домен и имя:
@@ -196,6 +295,20 @@ func handleConf(w http.ResponseWriter, r *http.Request) {
 		if h.ID == "" {
 			h.ID = randID(4)
 		}
+		h.Bcast = strings.TrimSpace(h.Bcast)
+		if h.MAC = strings.TrimSpace(h.MAC); h.MAC != "" {
+			if h.MAC, err = machines.NormMAC(h.MAC); err != nil {
+				break
+			}
+		}
+		if h.Bcast != "" && net.ParseIP(h.Bcast).To4() == nil {
+			err = errors.New("широковещательный адрес — вида 192.168.1.255")
+			break
+		}
+		if h.WPort < 0 || h.WPort > 65535 {
+			err = errors.New("порт пробуждения — от 1 до 65535 (обычно 9)")
+			break
+		}
 		out := c.Hosts[:0]
 		for _, o := range c.Hosts {
 			if o.ID == h.ID {
@@ -218,8 +331,45 @@ func handleConf(w http.ResponseWriter, r *http.Request) {
 		}
 		c.Hosts = out
 		err = saveConf(c)
+	case "net":
+		// Пробуждение с других устройств — отдельно: опрос сети до 5 с.
+		own := ownWol(c)
+		confMu.Unlock()
+		list := netWol(own)
+		confMu.Lock()
+		writeJSON(w, map[string]any{"wol": list})
+		return
+	case "wake":
+		t := machines.Target{MAC: req.MAC, Bcast: req.Bcast, Port: req.WPort}
+		for _, h := range c.Hosts {
+			if req.ID != "" && h.ID == req.ID {
+				t = machines.Target{MAC: h.MAC, Bcast: h.Bcast, Port: h.WPort}
+			}
+		}
+		if t.MAC == "" {
+			err = errors.New("у машины не указан MAC — «Изменить» → «Пробуждение»")
+			break
+		}
+		confMu.Unlock()
+		sent, failed := machines.WakeAll(t)
+		confMu.Lock()
+		// «это устройство» — пустым: страница подпишет на своём языке.
+		for i, n := range sent {
+			if n == machines.SelfName {
+				sent[i] = ""
+			}
+		}
+		if len(sent) == 0 {
+			err = errors.New("никто не отправил пакет")
+			if len(failed) > 0 {
+				err = errors.New(strings.Join(failed, "; "))
+			}
+			break
+		}
+		writeJSON(w, map[string]any{"sent": sent, "failed": failed})
+		return
 	default:
-		err = errors.New("op: relay, check, add или remove")
+		err = errors.New("op: relay, check, add, remove, wake или net")
 	}
 	if err != nil {
 		writeJSON(w, map[string]string{"error": err.Error()})

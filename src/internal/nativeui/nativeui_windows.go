@@ -111,6 +111,7 @@ var (
 const (
 	wmClose      = 0x0010
 	wmTimer      = 0x0113
+	wmGetMinMax  = 0x0024
 	wmUser       = 0x0400
 	wmApp        = 0x8000
 	wmTrayCallby = wmApp + 1 // сообщение от значка в трее
@@ -535,14 +536,15 @@ func Run(opts Options) error {
 	return nil
 }
 
-// fixWindowStyle убирает возможность растягивать и разворачивать окно: у
-// приложения фиксированный вертикальный формат, и растянутое на весь экран
-// оно выглядит нелепо. Заодно приводит РАБОЧУЮ область к нужному размеру —
+// fixWindowStyle убирает возможность разворачивать окно: у приложения
+// вертикальный формат, и развёрнутое на весь экран оно выглядит нелепо.
+// Тянуть можно только по высоте (ТЗ 56: на ноутбуке окно сплющивают, чтобы
+// влезло) — ширину и пределы высоты держит minMaxInfo. Заодно приводит РАБОЧУЮ область к нужному размеру —
 // CreateWindow задаёт внешний размер вместе с рамками, из-за чего содержимое
 // оказалось бы меньше задуманного.
 func (u *ui) fixWindowStyle() {
 	style, _, _ := pGetWindowLongPtr.Call(u.hwnd, gwlStyle)
-	style &^= wsThickFrame | wsMaximizeBox
+	style = style&^wsMaximizeBox | wsThickFrame
 	pSetWindowLongPtr.Call(u.hwnd, gwlStyle, style)
 
 	// Масштаб экрана: на мониторе со 150% окно в физических пикселях должно
@@ -686,6 +688,11 @@ func (u *ui) hookWindowProc() {
 				u.showMenu()
 			}
 			return 0
+
+		case wmGetMinMax:
+			if u.minMaxInfo(lparam) {
+				return 0
+			}
 
 		case wmTimer:
 			if wparam == trayRetryTimer {
@@ -997,4 +1004,41 @@ func SetStatus(text string) {
 func WebView2Installed() bool {
 	v, err := webviewloader.GetInstalledVersion()
 	return err == nil && v != ""
+}
+
+// minWindowHeight — ниже окно не сжать (логические пиксели, содержимое):
+// шапка, кнопка и ряд нижних кнопок ещё видны, остальное прокручивается.
+const minWindowHeight = 420
+
+// minMaxInfo — пределы размера окна при перетаскивании рамки: ширина как
+// задумана, высота от minWindowHeight до рабочей области монитора.
+func (u *ui) minMaxInfo(lparam uintptr) bool {
+	if lparam == 0 || u.opts.Width <= 0 {
+		return false
+	}
+	type minMaxInfo struct{ Reserved, MaxSize, MaxPosition, MinTrack, MaxTrack point }
+	mmi := (*minMaxInfo)(unsafe.Pointer(lparam))
+	dpi := int32(96)
+	if pGetDpiForWindow.Find() == nil {
+		if d, _, _ := pGetDpiForWindow.Call(u.hwnd); d > 0 {
+			dpi = int32(d)
+		}
+	}
+	style, _, _ := pGetWindowLongPtr.Call(u.hwnd, gwlStyle)
+	r := rect{0, 0, int32(u.opts.Width) * dpi / 96, minWindowHeight * dpi / 96}
+	pAdjustWindowRect.Call(uintptr(unsafe.Pointer(&r)), style, 0, 0)
+	ow, minH := r.Right-r.Left, r.Bottom-r.Top
+	maxH := mmi.MaxTrack.Y
+	if wa, ok := u.workArea(); ok {
+		maxH = wa.Bottom - wa.Top
+		if ww := wa.Right - wa.Left; ow > ww {
+			ow = ww
+		}
+	}
+	if minH > maxH {
+		minH = maxH
+	}
+	mmi.MinTrack = point{ow, minH}
+	mmi.MaxTrack = point{ow, maxH}
+	return true
 }

@@ -149,6 +149,9 @@
   /* Низкое окно (ноутбук, ТЗ 49): главный экран не сжимается меньше своего
      содержимого — экран прокручивается, нижние кнопки достижимы. */
   .mainPage{height:100%;min-height:500px;display:flex;flex-direction:column;padding-bottom:16px}
+  /* ТЗ 56: окно сплющили ниже главного экрана — его можно листать руками,
+     нижние кнопки достаются прокруткой. */
+  #viewMain.on.short{overflow-y:auto}
   .devPage{height:100%;padding:4px 0 16px;display:flex;flex-direction:column}
   .devPage[hidden]{display:none}
   .devTable{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -203,8 +206,12 @@
      избранных плагинов на это время прячем. */
   .bar .hexwrap#devUpWrap{position:absolute;left:50%;top:11px;width:128px;margin:0 0 0 -64px}
   /* Крупнее стрелка и подпись: шестиугольник тот же, а пустого места внутри меньше. */
-  #devUp{gap:0;font-size:15px;font-weight:700;letter-spacing:.01em}
-  #devUp svg{width:26px;height:26px;stroke-width:2.4}
+  .hexbtn.up{gap:0;font-size:15px;font-weight:700;letter-spacing:.01em}
+  .hexbtn.up svg{width:26px;height:26px;stroke-width:2.4}
+  /* ТЗ 56: при прокрутке шестиугольник «Устройства» сам летит в шапку и
+     становится «Наверх» (и обратно): две копии кнопки летят вместе, подпись
+     одной гаснет, другой проявляется. */
+  .hexfly{position:fixed;margin:0;z-index:60;pointer-events:none;transform-origin:0 0;will-change:transform,opacity}
   body.devOpen #quickBtn,body.devOpen #quickPanel{display:none}
   .devHead{display:flex;align-items:baseline;gap:8px;margin:6px 2px 8px;font-size:11.5px;
            letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -464,6 +471,16 @@
   .l .why{flex:none;color:var(--dim);font-size:.92em}
   .l .adddir{flex:none;font:inherit;font-size:11px;padding:0 7px;margin-left:6px;border-radius:6px;
              border:1px solid var(--line);background:var(--card2);color:var(--text);cursor:pointer}
+  /* Соединение — две строки; адрес обрезается «…», по нажатию — целиком. */
+  .l.c{display:block;padding:3px 11px}
+  .l.c .r{display:flex;gap:8px;align-items:baseline;min-width:0}
+  .l.c .p{flex:1;width:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .l.c .r2{flex-wrap:wrap;column-gap:6px;row-gap:0;padding-left:2px}
+  .l.c .ah{display:flex;gap:6px;min-width:0;max-width:100%;flex:0 1 auto}
+  .l.c .h{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal;cursor:pointer}
+  .l.c.open .h{white-space:normal;overflow-wrap:anywhere}
+  .l.c .flag{white-space:nowrap}
+  .l.c .adddir{margin-left:0}
   .l.msg{color:var(--dim);white-space:normal}
   .l.msg.warn{color:var(--warn)} .l.msg.err{color:var(--err)}
 
@@ -807,7 +824,7 @@
       </svg>
     </div>
     <span class="hexwrap on" id="devUpWrap" hidden>
-      <button class="hexbtn on" id="devUp" title="Наверх" data-i18n-title="to_top">
+      <button class="hexbtn on up" id="devUp" title="Наверх" data-i18n-title="to_top">
         <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
         <span data-i18n="to_top">Наверх</span>
       </button>
@@ -3694,6 +3711,7 @@ function show(name){
   current = name;
   document.body.dataset.view = name;
   VIEWS.forEach(v => $(v).classList.toggle('on', v === name));
+  if(name === 'viewMain') fitMain();
   closeMenu();
   clearCopied();
   syncDevBar();
@@ -3712,7 +3730,10 @@ function devHexGone(){
   return w.getBoundingClientRect().bottom <= top + 0.5;
 }
 function syncDevBar(){
-  const on = current === 'viewMain' && !$('devPage').hidden && devHexGone();
+  if(hexFlying) return; // кнопка в полёте — покажем, когда долетит
+  const on = current === 'viewMain' && !$('devPage').hidden && (devHexGone() || (mainAtDev && !$('devWrap').hidden));
+  // Пока «Наверх» в шапке, шестиугольник внизу спрятан: он и есть эта кнопка.
+  $('devWrap').style.visibility = on && mainAtDev ? 'hidden' : '';
   $('devUpWrap').hidden = !on;
   document.body.classList.toggle('devOpen', on);
   if(on) closeQuick();
@@ -3736,17 +3757,74 @@ $('logo').parentElement.onclick = () => {
 // Главный листается только отсюда (см. #viewMain в стилях). mainAtDev
 // помнит, на какой странице стоим: при смене размера окна высота страниц
 // меняется, и без подгонки снизу выглядывала бы соседняя.
-let mainAtDev = false;
+let mainAtDev = false, hexFlying = false;
 function scrollMainTo(top){
-  mainAtDev = top > 0;
-  syncDevBar();
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  $('viewMain').scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
+  const was = mainAtDev;
+  mainAtDev = top > 0;
+  const vm = $('viewMain');
+  // Полёт — только когда страница и правда переключается и обе кнопки есть.
+  if(!reduce && was !== mainAtDev && current === 'viewMain' && !$('devWrap').hidden && !hexFlying && vm.animate){
+    flyHex(mainAtDev, vm.scrollTop);
+    vm.scrollTo({top, behavior: 'smooth'});
+    return;
+  }
+  syncDevBar();
+  vm.scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
+}
+// flyHex — шестиугольник летит снизу в шапку (down = к списку) или обратно.
+// Летят две одинаковые по форме копии: «Устройства» гаснет, «Наверх»
+// проявляется. Настоящие кнопки на это время спрятаны; в конце — обычный
+// syncDevBar, когда и полёт, и прокрутка закончились.
+function flyHex(down, scrollTop){
+  const low = $('devWrap'), up = $('devUpWrap');
+  // «Наверх» спрятан — меряем его место, не показывая.
+  up.style.visibility = 'hidden'; up.hidden = false;
+  const rUp = up.getBoundingClientRect();
+  up.hidden = true; up.style.visibility = '';
+  const rLow0 = low.getBoundingClientRect();
+  // Внизу — где шестиугольник будет при прокрутке в самый верх.
+  const rLow = {left: rLow0.left, top: rLow0.top + scrollTop, width: rLow0.width, height: rLow0.height};
+  const from = down ? rLow0 : rUp, to = down ? rUp : rLow;
+  const mk = (src, opacity) => {
+    const c = src.cloneNode(true);
+    c.removeAttribute('id'); c.hidden = false;
+    c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+    c.classList.add('hexfly');
+    c.style.cssText = `left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;visibility:visible;opacity:${opacity}`;
+    document.body.appendChild(c);
+    return c;
+  };
+  const a = mk(down ? low : up, 1), b = mk(down ? up : low, 0);
+  hexFlying = true;
+  low.style.visibility = 'hidden'; up.hidden = true;
+  const sx = to.width / from.width, sy = to.height / from.height;
+  const move = [{transform: 'translate(0,0) scale(1,1)'}, {transform: `translate(${to.left - from.left}px,${to.top - from.top}px) scale(${sx},${sy})`}];
+  const opt = {duration: 520, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards'};
+  const anims = [
+    a.animate(move.map((k, i) => Object.assign({opacity: 1 - i}, k)), opt),
+    b.animate(move.map((k, i) => Object.assign({opacity: i}, k)), opt)];
+  // Конец прокрутки: scrollend там, где он есть, иначе — запасной таймер.
+  const vm = $('viewMain');
+  const scrolled = new Promise(res => {
+    const done = () => { vm.removeEventListener('scrollend', done); res(); };
+    vm.addEventListener('scrollend', done);
+    setTimeout(done, 900);
+  });
+  Promise.all([...anims.map(x => x.finished.catch(() => {})), scrolled]).then(() => {
+    hexFlying = false;
+    low.style.visibility = '';
+    syncDevBar();
+    a.remove(); b.remove();
+  });
 }
 $('viewMain').addEventListener('scroll', syncDevBar, {passive: true});
+function fitMain(){ $('viewMain').classList.toggle('short', $('viewMain').clientHeight < 500); }
 window.addEventListener('resize', () => {
+  fitMain();
   $('viewMain').scrollTop = mainAtDev && !$('devPage').hidden ? $('devPage').offsetTop : 0;
 });
+fitMain();
 
 // Шестерёнка: из корня настроек — на главную, из подэкрана настроек — в
 // корень настроек, отовсюду ещё — в настройки.
@@ -3953,13 +4031,30 @@ function addConn(e){
   lastKey = key; lastCount = 1; lastAt = now;
 
   const d = document.createElement('div');
-  d.className = 'l' + (e.failed ? ' fail' : '');
-  d.innerHTML = '<span class="t"></span><span class="p"></span><span class="a"></span>'
-              + '<span class="h"></span><span class="flag"></span><span class="why"></span><span class="n"></span>';
+  // ТЗ 56: две строки — «время программа ×N», ниже «→ адрес · правило · путь».
+  d.className = 'l c' + (e.failed ? ' fail' : '');
+  d.innerHTML = '<div class="r"><span class="t"></span><span class="p"></span><span class="n"></span></div>'
+              + '<div class="r r2"><span class="ah"><span class="a"></span><span class="h"></span></span><span class="flag"></span><span class="why"></span></div>';
   d.querySelector('.t').textContent = new Date(e.time).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'ru-RU');
   d.querySelector('.p').textContent = e.process || tr('log_app');
   d.querySelector('.a').textContent = e.failed ? '✗' : '→';
-  d.querySelector('.h').textContent = e.target + (e.failed ? '  ' + (e.error||'') : '');
+  // Адрес в одну строку с «…»; полный — в подсказке и по нажатию (переносится
+  // по точкам).
+  const h = d.querySelector('.h'), full = e.target + (e.failed ? '  ' + (e.error||'') : '');
+  h.textContent = full;
+  h.title = full;
+  h.onclick = () => {
+    if(getSelection().toString()) return;
+    // Раскрытый — с местами переноса после точек; свёрнутый — одной строкой
+    // (Chrome переносит по <wbr> даже при nowrap).
+    const open = d.classList.toggle('open');
+    h.textContent = '';
+    if(!open){ h.textContent = full; return; }
+    full.split('.').forEach((part, i, all) => {
+      h.append(part + (i < all.length - 1 ? '.' : ''));
+      if(i < all.length - 1) h.append(document.createElement('wbr'));
+    });
+  };
   const flag = d.querySelector('.flag');
   if(e.direct){
     flag.textContent = ' ' + tr('log_bypass');
@@ -3982,7 +4077,7 @@ function addConn(e){
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'adddir'; b.textContent = tr('add_direct');
     b.onclick = () => addDirectHost(host, b);
-    d.insertBefore(b, d.querySelector('.n'));
+    d.querySelector('.r').appendChild(b);
   }
   push(d);
 }
@@ -4038,7 +4133,7 @@ $('clear').onclick = () => { logEl.innerHTML = ''; lastKey = null; };
 // «Копировать всё» — видимый журнал простым текстом, по строке на запись.
 $('logCopy').onclick = async () => {
   const lines = [...logEl.children].map(d => d.classList.contains('msg') ? d.textContent
-    : [...d.children].map(c => c.textContent.trim()).filter(Boolean).join(' '));
+    : [...(d.classList.contains('c') ? d.querySelectorAll('.t,.p,.n,.a,.h,.flag,.why') : d.children)].map(c => c.textContent.trim()).filter(Boolean).join(' '));
   if(lines.length && await copyToClipboard(lines.join('\n'))) flashCopied($('logCopy'));
 };
 

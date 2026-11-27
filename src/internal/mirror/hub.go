@@ -89,6 +89,12 @@ type Conflict struct {
 	Orig   string `json:"orig"`
 	Device string `json:"device"`
 	Time   int64  `json:"time"`
+	// Для выбора «какую оставить» (заполняет список, в журнал не пишется):
+	// кто и когда последним менял основную, размеры обеих.
+	OrigBy   string `json:"origBy,omitempty"`
+	OrigTime int64  `json:"origTime,omitempty"`
+	OrigSize int64  `json:"origSize,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 type hindex struct {
@@ -583,6 +589,12 @@ func (h *Hub) Counts(id string) (files int, bytes int64, conflicts []Conflict, e
 	}
 	conflicts = []Conflict{}
 	for _, c := range f.ix.Conflicts {
+		if o := f.ix.Files[c.Orig]; o != nil {
+			c.OrigBy, c.OrigTime, c.OrigSize = o.By, o.Time, o.Size
+		}
+		if o := f.ix.Files[c.Path]; o != nil {
+			c.Size = o.Size
+		}
 		conflicts = append(conflicts, c)
 	}
 	sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })

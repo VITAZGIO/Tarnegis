@@ -50,9 +50,21 @@ func normMAC(s string) (string, net.HardwareAddr, error) {
 	return strings.ToLower(hw.String()), hw, nil
 }
 
-// wake шлёт волшебный пакет на общий широковещательный адрес и на адрес
-// каждой своей сети (некоторые роутеры пропускают только второй).
-func wake(hw net.HardwareAddr) error {
+// Target — что будить: MAC и, по желанию, свой широковещательный адрес и
+// порт (пусто/0 — общий адрес и адреса своих сетей, порты 9 и 7).
+type Target struct {
+	MAC   string `json:"mac"`
+	Bcast string `json:"bcast,omitempty"`
+	Port  int    `json:"port,omitempty"`
+}
+
+// wake — wakeTo без своего адреса и порта.
+func wake(hw net.HardwareAddr) error { return wakeTo(hw, "", 0) }
+
+// wakeTo шлёт волшебный пакет на общий широковещательный адрес и на адрес
+// каждой своей сети (некоторые роутеры пропускают только второй), плюс на
+// заданный адрес; порт 0 — 9 и 7.
+func wakeTo(hw net.HardwareAddr, bcast string, port int) error {
 	pkt := make([]byte, 0, 102)
 	for i := 0; i < 6; i++ {
 		pkt = append(pkt, 0xff)
@@ -61,6 +73,13 @@ func wake(hw net.HardwareAddr) error {
 		pkt = append(pkt, hw...)
 	}
 	dsts := []net.IP{net.IPv4bcast}
+	if ip := net.ParseIP(strings.TrimSpace(bcast)).To4(); ip != nil {
+		dsts = append([]net.IP{ip}, dsts...)
+	}
+	ports := []int{9, 7}
+	if port > 0 && port < 65536 {
+		ports = []int{port}
+	}
 	lans, _ := lanscan.FindLANs()
 	for _, l := range lans {
 		p := l.Prefix.Masked()
@@ -75,7 +94,7 @@ func wake(hw net.HardwareAddr) error {
 	sent := 0
 	var lastErr error
 	for _, ip := range dsts {
-		for _, port := range []int{9, 7} {
+		for _, port := range ports {
 			c, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: ip, Port: port})
 			if err != nil {
 				lastErr = err
@@ -101,8 +120,8 @@ func serveWol(c net.Conn, _ mesh.Caller) {
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
 	var req struct {
-		Op  string `json:"op"`
-		MAC string `json:"mac"`
+		Op string `json:"op"`
+		Target
 	}
 	if json.NewDecoder(io.LimitReader(c, 512)).Decode(&req) != nil {
 		return
@@ -113,7 +132,7 @@ func serveWol(c net.Conn, _ mesh.Caller) {
 	} else {
 		var hw net.HardwareAddr
 		if _, hw, err = normMAC(req.MAC); err == nil {
-			err = wake(hw)
+			err = wakeTo(hw, req.Bcast, req.Port)
 		}
 	}
 	ans := "ok"
@@ -141,14 +160,21 @@ func shutdownSelf() error {
 }
 
 // askPeer — просьба устройству сети (op: wake с mac или shutdown).
-func askPeer(peer, op, mac string) error {
+func askPeer(peer, op, mac string) error { return askPeerT(peer, op, Target{MAC: mac}) }
+
+// askPeerT — то же с адресом и портом пробуждения (старые устройства их
+// не знают и будят как раньше).
+func askPeerT(peer, op string, t Target) error {
 	c, err := devnet.DialPeer(net.JoinHostPort(peer, strconv.Itoa(WolPort)))
 	if err != nil {
-		return errors.New("не отвечает в сети устройств — выключено или на нём нет плагина «Машины»")
+		return errors.New("не отвечает в сети устройств — выключено или на нём нет плагина «Машины» или «Удалённый стол»")
 	}
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(8 * time.Second))
-	b, _ := json.Marshal(map[string]string{"op": op, "mac": mac})
+	b, _ := json.Marshal(struct {
+		Op string `json:"op"`
+		Target
+	}{op, t})
 	_, _ = c.Write(b)
 	r, _ := io.ReadAll(io.LimitReader(c, 300))
 	if string(r) != "ok" {
@@ -161,13 +187,18 @@ func askPeer(peer, op, mac string) error {
 }
 
 // wakeAll — отсюда и всеми своими устройствами в сети; кто отправил.
-func wakeAll(mac string) (sent, failed []string) {
-	_, hw, err := normMAC(mac)
+func wakeAll(mac string) (sent, failed []string) { return WakeAll(Target{MAC: mac}) }
+
+// WakeAll — разбудить отсюда и руками всех своих устройств в сети (у кого
+// включён плагин «Машины» или «Удалённый стол»); кто отправил.
+func WakeAll(t Target) (sent, failed []string) {
+	mac, hw, err := normMAC(t.MAC)
 	if err != nil {
 		return nil, []string{err.Error()}
 	}
-	if err := wake(hw); err == nil {
-		sent = append(sent, "это устройство")
+	t.MAC = mac
+	if err := wakeTo(hw, t.Bcast, t.Port); err == nil {
+		sent = append(sent, SelfName)
 	}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -182,7 +213,7 @@ func wakeAll(mac string) (sent, failed []string) {
 		wg.Add(1)
 		go func(ip, name string) {
 			defer wg.Done()
-			err := askPeer(ip, "wake", mac)
+			err := askPeerT(ip, "wake", t)
 			mu.Lock()
 			if err == nil {
 				sent = append(sent, name)
@@ -194,4 +225,37 @@ func wakeAll(mac string) (sent, failed []string) {
 	}
 	wg.Wait()
 	return sent, failed
+}
+
+// SelfName — так в списке «кто отправил» записано само это устройство.
+const SelfName = "это устройство"
+
+// NormMAC — MAC в виде aa:bb:cc:dd:ee:ff или ошибка.
+func NormMAC(s string) (string, error) { m, _, err := normMAC(s); return m, err }
+
+// Порт пробуждения слушают и «Машины», и «Удалённый стол»: кто первый
+// включился — открывает, последний выключившийся — закрывает.
+var (
+	wolMu   sync.Mutex
+	wolRefs int
+)
+
+// ServeWol — плагин включился: слушать просьбы разбудить.
+func ServeWol() {
+	wolMu.Lock()
+	defer wolMu.Unlock()
+	if wolRefs++; wolRefs == 1 {
+		mesh.Serve(WolPort, serveWol)
+	}
+}
+
+// StopWol — плагин выключился.
+func StopWol() {
+	wolMu.Lock()
+	defer wolMu.Unlock()
+	if wolRefs > 0 {
+		if wolRefs--; wolRefs == 0 {
+			mesh.Serve(WolPort, nil)
+		}
+	}
 }
