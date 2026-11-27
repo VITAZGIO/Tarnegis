@@ -625,7 +625,7 @@ func shared() []Shared {
 
 func (m *module) Start() error {
 	m.stop = make(chan struct{})
-	mesh.Serve(WolPort, serveWol)
+	ServeWol()
 	mesh.Serve(SharePort, func(c net.Conn, _ mesh.Caller) {
 		defer c.Close()
 		_ = c.SetDeadline(time.Now().Add(10 * time.Second))
@@ -662,7 +662,7 @@ func (m *module) Stop() {
 		delete(sshConns, k)
 	}
 	sshMu.Unlock()
-	mesh.Serve(WolPort, nil)
+	StopWol()
 	mesh.Serve(SharePort, nil)
 	if m.stop != nil {
 		close(m.stop)

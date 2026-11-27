@@ -7,8 +7,10 @@ memory, disk, temperature, load, uptime.
 - **netdata**: http://server:19999. **Home Assistant**: URL, token, sensors.
 - Tick **«Show my machines to all my devices»** on a home server — your phone
   sees them under «From the network».
-- Optional: a **MAC** gives «Wake» (sent from here and from all your devices in
-  the network), **«Shut down as»** gives «Shut down» (the machine runs
+- Wake-on-LAN moved to the «Remote desktop» plugin («Add a device» →
+  «Wake-on-LAN»); machines that already had a MAC keep «Wake» (sent from here
+  and from all your devices in the network).
+- Optional: **«Shut down as»** gives «Shut down» (the machine runs
   Tarnegis with this plugin and allows it).
 - **History on the server**: if the network server has the **«Machines:
   history»** plugin on, readings go there every 30 s too and the CPU graph

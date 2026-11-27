@@ -18,6 +18,9 @@
   .m .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .m .go{grid-column:1/-1;display:flex;gap:6px;align-items:center}
   .m .go .btn.primary{flex:1;justify-content:center}
+  .m .go .btn.primary{min-width:0}
+  /* Узко: у «Разбудить» в строке машины остаётся только значок. */
+  @media (max-width:420px){.m .go .wk .t{display:none}}
   .m:last-child{border-bottom:0}
   .m>.mi{width:26px;height:26px;color:var(--accent)}
   .m .n{font-weight:600}
@@ -25,12 +28,29 @@
   .relay{display:flex;gap:12px;align-items:flex-start}
   .relay>.mi{width:30px;height:30px;color:var(--warn);flex:none}
   .relay.ok>.mi{color:var(--ok)}
-  .f{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .f label{min-width:0}
+  .f input,.f select{width:100%;min-width:0;box-sizing:border-box}
+  .f input[type=checkbox]{width:auto}
   .f label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
   .f .full{grid-column:1/-1}
   .ok{color:var(--ok)}.err{color:var(--err)}
   .q{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);color:var(--dim);font-size:11px;cursor:pointer;background:var(--card2);vertical-align:middle}
   .f select{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);font:inherit}
+  /* Сворачиваемые секции: строка-заголовок, галка справа переворачивается. */
+  .fold>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;min-height:24px}
+  .fold>summary::-webkit-details-marker{display:none}
+  .fold>summary>.mi{width:22px;height:22px;color:var(--accent);flex:none}
+  .fold>summary>.hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fold .chev{flex:none;width:22px;height:22px;color:var(--dim);margin-left:auto;transition:transform .2s}
+  .fold[open]>summary>.chev{transform:rotate(180deg)}
+  .fold[open]>summary{margin-bottom:10px}
+  .fold.sub{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  .fold.sub>summary>.mi{width:18px;height:18px}
+  #relayFold.ok>summary>.mi{color:var(--ok)}
+  #relayFold:not(.ok)>summary>.mi{color:var(--warn)}
+  .m .from{font-size:12px;color:var(--dim)}
+  @media (prefers-reduced-motion: reduce){.fold .chev{transition:none}}
   /* Сеанс: картинка на всю ширину, сверху тонкая строка кнопок. */
   #sess{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;z-index:20}
   #sess[hidden]{display:none}
@@ -48,16 +68,17 @@
 </head>
 <body>
 <div class="wrap" id="home">
-  <div class="card relay" id="relayCard">
-    <span class="mi" style="--i:url(/icons/antenna.svg)"></span>
-    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
-      <div><b id="relayT"></b> <span class="hint" id="relayS"></span> <span class="q" id="relayQ">?</span></div>
-      <div class="hint" id="relayH" hidden></div>
-      <div class="bar"><input id="relay" spellcheck="false"><button class="btn" id="relaySave"></button></div>
+  <details class="card fold" id="relayFold">
+    <summary><span class="mi" style="--i:url(/icons/antenna.svg)" id="relayIco"></span><b id="relayT"></b> <span class="hint" id="relayS"></span><span class="mi chev" style="--i:url(/icons/keyboard_arrow_down.svg)"></span></summary>
+    <div class="relay" id="relayCard">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <div class="hint" id="relayH"></div>
+        <div class="bar"><input id="relay" spellcheck="false"><button class="btn" id="relaySave"></button></div>
+      </div>
     </div>
-  </div>
-  <div class="card" id="list"></div>
-  <div class="card">
+  </details>
+  <details class="card fold" id="addFold">
+    <summary><span class="mi" style="--i:url(/icons/add.svg)"></span><b id="addT"></b><span class="mi chev" style="--i:url(/icons/keyboard_arrow_down.svg)"></span></summary>
     <div class="f">
       <label class="full"><span id="lPick"></span><select id="fPick"></select></label>
       <label><span id="lName"></span><input id="fName"></label>
@@ -67,8 +88,18 @@
       <label class="full"><span id="lSec"></span><select id="fSec"></select></label>
       <label class="full" style="flex-direction:row;align-items:center;gap:8px;color:var(--text)"><input type="checkbox" id="fRem"><span id="lRem"></span></label>
     </div>
-    <div class="bar" style="margin-top:8px"><button class="btn primary" id="fAdd"></button><span class="hint" id="note"></span></div>
-  </div>
+    <details class="fold sub" id="wolFold">
+      <summary><span class="mi" style="--i:url(/icons/power_settings_new.svg)"></span><b id="wolT"></b><span class="mi chev" style="--i:url(/icons/keyboard_arrow_down.svg)"></span></summary>
+      <div class="hint" id="wolH"></div>
+      <div class="f">
+        <label class="full"><span id="lMac"></span><input id="fMac" spellcheck="false" autocomplete="off"></label>
+        <label><span id="lBc"></span><input id="fBc" spellcheck="false" inputmode="decimal"></label>
+        <label><span id="lWp"></span><input id="fWp" inputmode="numeric"></label>
+      </div>
+    </details>
+    <div class="bar" style="margin-top:8px"><button class="btn primary" id="fAdd"></button><button class="btn" id="fCancel" hidden></button><span class="hint" id="note"></span></div>
+  </details>
+  <div class="card" id="list"></div>
 </div>
 
 <div class="wrap" id="cred" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;justify-content:center">
@@ -158,9 +189,12 @@ async function load(){
     `<option value="${esc(p.ip)}" data-n="${esc(p.name || p.host)}">${esc((p.name || p.host) + (p.online ? '' : L(' (не в сети)', ' (offline)')))}</option>`).join('');
   drawList();
   checkRelay();
+  // Пробуждение с других своих устройств — отдельно: опрос сети до 5 с.
+  api('/api/rdp', {op: 'net'}).then(r => { NET = (r && r.wol) || []; drawList(); }).catch(() => {});
 }
+let NET = [];
 async function checkRelay(){
-  const c = $('relayCard');
+  const c = $('relayFold');
   if(!CONF.relay){ c.classList.remove('ok'); $('relayS').textContent = L('— не задан', '— not set'); return; }
   $('relayS').textContent = L('проверяю…', 'checking…');
   const r = await api('/api/rdp', {op: 'check'}).catch(e => ({error: String(e)}));
@@ -168,18 +202,37 @@ async function checkRelay(){
   $('relayS').textContent = r.error ? '— ' + r.error : L('— на связи', '— online');
   $('relayS').className = 'hint ' + (r.error ? 'err' : 'ok');
 }
+const wakeBtn = (attr, id) => `<button class="btn wk" ${attr}="${esc(id)}" title="${esc(L('Разбудить по сети (Wake-on-LAN) со всех своих устройств', 'Wake over the network from all my devices'))}">${icon('power_settings_new')}<span class="t">${esc(L('Разбудить', 'Wake'))}</span></button>`;
 function drawList(){
-  $('list').innerHTML = CONF.hosts.length ? CONF.hosts.map(h => `<div class="m">${icon('desktop_windows')}
+  const own = CONF.hosts.map(h => `<div class="m">${icon('desktop_windows')}
       <div><div class="n">${esc(h.name)}</div><div class="a">${esc((h.user ? h.user + ' · ' : '') + h.host)}${h.saved ? ' · 🔑' : ''}</div></div>
       <span></span>
       <div class="go"><button class="btn primary" data-go="${esc(h.id)}">${icon('desktop_windows')}${esc(L('Подключиться', 'Connect'))}</button>
-        <button class="ico" data-ed="${esc(h.id)}" title="${esc(L('Изменить', 'Edit'))}">${icon('edit')}</button><button class="ico" data-rm="${esc(h.id)}" title="${esc(L('Убрать', 'Remove'))}">${icon('close')}</button></div></div>`).join('')
-    : `<div class="empty" style="padding:20px">${esc(L('Машин пока нет — добавь ниже: имя и адрес в домашней сети (например 192.168.1.202). Адрес — тот, по которому её видит ретранслятор.', 'No machines yet — add one below: a name and its home network address. The address is what the relay sees.'))}</div>`;
+        ${h.mac ? wakeBtn('data-wk', h.id) : ''}
+        <button class="ico" data-ed="${esc(h.id)}" title="${esc(L('Изменить', 'Edit'))}">${icon('edit')}</button><button class="ico" data-rm="${esc(h.id)}" title="${esc(L('Убрать', 'Remove'))}">${icon('close')}</button></div>
+      <div class="hint" data-st="${esc(h.id)}" style="grid-column:1/-1" hidden></div></div>`);
+  // Записи пробуждения с других своих устройств: разбудить можно отсюда.
+  const net = NET.map((w, i) => `<div class="m">${icon('power_settings_new')}
+      <div><div class="n">${esc(w.name)}</div><div class="from">${esc(L('с устройства ', 'from ') + (w.device || ''))} · <span style="font-family:var(--mono)">${esc(w.mac)}</span></div></div>
+      ${wakeBtn('data-wn', String(i))}
+      <div class="hint" data-st="n${i}" style="grid-column:1/-1" hidden></div></div>`);
+  $('list').innerHTML = own.length || net.length ? own.concat(net).join('')
+    : `<div class="empty" style="padding:20px">${esc(L('Машин пока нет — открой «Добавить устройство» выше: имя и адрес в домашней сети (например 192.168.1.202). Адрес — тот, по которому её видит ретранслятор.', 'No machines yet — open «Add a device» above: a name and its home network address. The address is what the relay sees.'))}</div>`;
   $('list').querySelectorAll('[data-go]').forEach(b => b.onclick = () => start(CONF.hosts.find(h => h.id === b.dataset.go)));
+  const wakeUp = async (key, body) => {
+    const st = $('list').querySelector(`[data-st="${key}"]`); st.hidden = false; st.className = 'hint'; st.textContent = L('Отправляю…', 'Sending…');
+    const r = await api('/api/rdp', Object.assign({op: 'wake'}, body)).catch(e => ({error: String(e)}));
+    st.className = 'hint ' + (r.error ? 'err' : 'ok');
+    st.textContent = r.error || L('Отправили: ', 'Sent by: ') + r.sent.map(n => n || L('это устройство', 'this device')).join(', ') + L(' — включится за 10–60 с.', ' — wakes in 10–60 s.');
+  };
+  $('list').querySelectorAll('[data-wk]').forEach(b => b.onclick = () => wakeUp(b.dataset.wk, {id: b.dataset.wk}));
+  $('list').querySelectorAll('[data-wn]').forEach(b => b.onclick = () => { const w = NET[+b.dataset.wn]; wakeUp('n' + b.dataset.wn, {mac: w.mac, bcast: w.bcast || '', wport: w.wport || 0}); });
   $('list').querySelectorAll('[data-ed]').forEach(b => b.onclick = () => {
     const h = CONF.hosts.find(x => x.id === b.dataset.ed); EDIT = h.id;
     $('fName').value = h.name; $('fHost').value = h.host + (h.port && h.port !== 3389 ? ':' + h.port : ''); $('fUser').value = h.user || ''; $('fPass').value = ''; $('fRem').checked = h.saved;
     $('fSec').value = h.security || '';
+    $('fMac').value = h.mac || ''; $('fBc').value = h.bcast || ''; $('fWp').value = h.wport || '';
+    $('addFold').open = true; $('wolFold').open = !!h.mac; $('fCancel').hidden = false;
     $('fAdd').textContent = L('Сохранить', 'Save'); $('fName').focus();
   });
   $('list').querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
@@ -192,12 +245,18 @@ $('relaySave').onclick = async () => { CONF = await api('/api/rdp', {op: 'relay'
 $('fAdd').onclick = async () => {
   let [host, port] = $('fHost').value.trim().split(':');
   const body = {op: 'add', id: EDIT || '', name: $('fName').value.trim(), host, port: +port || 0, user: $('fUser').value.trim(), security: $('fSec').value,
-    pass: $('fRem').checked ? $('fPass').value : '', forget: !$('fRem').checked};
+    pass: $('fRem').checked ? $('fPass').value : '', forget: !$('fRem').checked,
+    mac: $('fMac').value.trim(), bcast: $('fBc').value.trim(), wport: +$('fWp').value || 0};
   const r = await api('/api/rdp', body).catch(e => ({error: String(e)}));
   if(r.error){ $('note').className = 'hint err'; $('note').textContent = r.error; return; }
-  CONF = r; EDIT = null; ['fName', 'fHost', 'fUser', 'fPass'].forEach(id => $(id).value = ''); $('fRem').checked = false;
-  $('fAdd').textContent = L('Добавить', 'Add'); $('note').textContent = ''; drawList();
+  CONF = r; clearForm(); $('addFold').open = false; drawList();
 };
+function clearForm(){
+  EDIT = null; ['fName', 'fHost', 'fUser', 'fPass', 'fMac', 'fBc', 'fWp'].forEach(id => $(id).value = ''); $('fRem').checked = false;
+  $('wolFold').open = false; $('fCancel').hidden = true;
+  $('fAdd').textContent = L('Добавить', 'Add'); $('note').textContent = '';
+}
+$('fCancel').onclick = () => { clearForm(); $('addFold').open = false; };
 
 /* ---------- сеанс ---------- */
 let client = null, keyboard = null, mouse = null, cur = null, creds = null, retries = 0, wasUp = false, mods = {}, touchMode = 'touchpad', qual = 'medium';
@@ -224,17 +283,35 @@ function size(){
   const v = $('view'), dpr = Math.min(window.devicePixelRatio || 1, 2);
   // Телефон: экран в настоящих пикселях и dpi крупнее — Windows сама
   // увеличит шрифты, читать удобно. ПК — как есть.
-  return {w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr), dpi: Math.round(96 * dpr)};
+  // Масштаб интерфейса Windows (100–300 %) выбирают в строке кнопок;
+  // «авто» — как раньше, по плотности экрана.
+  const sc = scaleOf(cur);
+  return {w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr), dpi: Math.round(96 * (sc || dpr))};
+}
+// Масштаб помним для каждой машины на этом устройстве (0 — авто).
+const SCALES = [0, 100, 150, 200, 250, 300];
+function scaleOf(h){ try { return (+localStorage.getItem('rdpScale:' + (h && h.id)) || 0) / 100; } catch(e) { return 0; } }
+function setScale(h, pct){ try { localStorage.setItem('rdpScale:' + h.id, String(pct)); } catch(e) {} }
+// visible — видимая часть окна: при открытой клавиатуре — до неё.
+function visible(){
+  const v = $('view'), vv = window.visualViewport;
+  let h = v.clientHeight;
+  if(kbdOn && vv) h = Math.max(80, Math.min(h, vv.offsetTop + vv.height - v.getBoundingClientRect().top));
+  return {w: v.clientWidth, h};
 }
 function fit(){
   if(!client) return;
-  const d = client.getDisplay(), v = $('view');
-  if(!d.getWidth()) return;
-  const sc = Math.min(v.clientWidth / d.getWidth(), v.clientHeight / d.getHeight());
+  const d = client.getDisplay(), vis = visible();
+  const dw = d.getWidth(), dh = d.getHeight();
+  if(!dw) return;
+  // Клавиатура открыта — вписываем по ширине (картинка не мельчает), а
+  // видимую полосу двигаем за курсором; закрыта — целиком в окно.
+  const sc = kbdOn ? vis.w / dw : Math.min(vis.w / dw, vis.h / dh);
   d.scale(sc);
-  // По центру, а не прижато в угол.
-  $('disp').style.left = Math.max(0, (v.clientWidth - d.getWidth() * sc) / 2) + 'px';
-  $('disp').style.top = Math.max(0, (v.clientHeight - d.getHeight() * sc) / 2) + 'px';
+  let top = Math.max(0, (vis.h - dh * sc) / 2);
+  if(kbdOn && dh * sc > vis.h) top = Math.min(0, Math.max(vis.h - dh * sc, vis.h / 2 - pos.y * sc));
+  $('disp').style.left = Math.max(0, (vis.w - dw * sc) / 2) + 'px';
+  $('disp').style.top = Math.round(top) + 'px';
 }
 function say(t){ $('state').hidden = !t; $('state').textContent = t || ''; }
 
@@ -287,7 +364,13 @@ function bindInput(){
   mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = st => {
     if(!client) return;
     const sc = client.getDisplay().getScale() || 1;
+    const py = pos.y;
     pos = {x: st.x / sc, y: st.y / sc};
+    // Клавиатура открыта — полоса едет за курсором, когда он у края.
+    if(kbdOn && Math.abs(pos.y - py) > 0){
+      const vis = visible(), top = parseFloat($('disp').style.top) || 0, y = pos.y * sc + top;
+      if(y < 40 || y > vis.h - 40) fit();
+    }
     // «ЛКМ» на панели зажата — тянем с нажатой левой (выделить, перетащить).
     client.sendMouseState(new Guacamole.Mouse.State(pos.x, pos.y, st.left || lmbHeld, st.middle, st.right, st.up, st.down));
   };
@@ -354,8 +437,10 @@ $('kbd').addEventListener('input', () => {
     tap(withMods && cp < 0x100 ? ch.toLowerCase().codePointAt(0) : (cp < 0x100 ? cp : 0x01000000 | cp));
   }
 });
-$('kbd').addEventListener('focus', () => { kbdOn = true; fullH = innerHeight; drawTools(); });
-$('kbd').addEventListener('blur', () => { kbdOn = false; drawTools(); });
+$('kbd').addEventListener('focus', () => { kbdOn = true; fullH = innerHeight; drawTools(); setTimeout(fit, 300); });
+$('kbd').addEventListener('blur', () => { kbdOn = false; drawTools(); setTimeout(fit, 300); });
+// iOS не меняет размер окна под клавиатуру — меняется только visualViewport.
+if(window.visualViewport) visualViewport.addEventListener('resize', () => { if(kbdOn) requestAnimationFrame(fit); });
 $('kbd').addEventListener('keydown', e => {
   if(e.key === 'Backspace'){ tap(K.bs); e.preventDefault(); }
   else if(e.key === 'Enter'){ tap(K.enter); e.preventDefault(); }
@@ -385,6 +470,7 @@ function drawTools(){
     b('esc', 'Esc'), b('tab', 'Tab'), b('left', '←'), b('up', '↑'), b('down', '↓'), b('right', '→'),
     b('cad', 'Ctrl+Alt+Del'), b('alttab', 'Alt+Tab'),
     `<select data-t="q" title="${esc(L('Качество', 'Quality'))}">${[['high', L('Чётко', 'High')], ['medium', L('Обычно', 'Medium')], ['low', L('Слабая связь', 'Low')]].map(([v, t]) => `<option value="${v}"${v === qual ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`,
+    `<select data-t="sc" title="${esc(L('Масштаб (переподключит)', 'Scale (reconnects)'))}">${SCALES.map(p => `<option value="${p}"${p / 100 === scaleOf(cur) ? ' selected' : ''}>${p ? p + ' %' : esc(L('Масштаб: авто', 'Scale: auto'))}</option>`).join('')}</select>`,
     b('full', '⛶', !!document.fullscreenElement, L('Во весь экран', 'Full screen')), b('x', '✕ ' + esc(L('Отключить', 'Disconnect')))
   ].join('');
   $('tools').querySelectorAll('button').forEach(el => {
@@ -392,7 +478,8 @@ function drawTools(){
     el.onmousedown = e => e.preventDefault();
     el.onclick = () => tool(el.dataset.t);
   });
-  $('tools').querySelector('select').onchange = e => { qual = e.target.value; reconnect(); };
+  $('tools').querySelector('[data-t="q"]').onchange = e => { qual = e.target.value; reconnect(); };
+  $('tools').querySelector('[data-t="sc"]').onchange = e => { setScale(cur, +e.target.value); reconnect(); };
 }
 function tool(t){
   if(['ctrl', 'alt', 'shift', 'win'].includes(t)){ mods[t] = !mods[t]; drawTools(); return; }
@@ -422,7 +509,6 @@ addEventListener('resize', () => {
 addEventListener('pagehide', () => { if(client) client.disconnect(); immersive(false); });
 
 /* ---------- подписи ---------- */
-$('relayT').textContent = L('Ретранслятор RDP', 'RDP relay');
 $('relayH').innerHTML = esc(L('Это guacd (Apache Guacamole) на компьютере в той же локальной сети, что и машины: он разговаривает с Windows по RDP, а программа — с ним. Поставить: «docker run -d --name guacd --restart unless-stopped -p 4822:4822 guacamole/guacd». Адрес — через сеть устройств («ubuntu.mesh:4822») или в локалке («192.168.1.201:4822»).',
   'This is guacd (Apache Guacamole) on a computer in the same local network as the machines. Install: «docker run -d --name guacd -p 4822:4822 guacamole/guacd». Address — via the device network («ubuntu.mesh:4822») or local («192.168.1.201:4822»).'));
 $('relay').placeholder = 'ubuntu.mesh:4822';
@@ -431,7 +517,15 @@ $('lPick').textContent = L('Из сети устройств', 'From the device 
 $('fPick').onchange = () => { const o = $('fPick').selectedOptions[0]; if(!o || !o.value) return; $('fHost').value = o.value; if(!$('fName').value) $('fName').value = o.dataset.n; };
 $('lSec').textContent = L('Безопасность (если «wrong security type» — выбери другую)', 'Security (if «wrong security type» — try another)');
 $('fSec').innerHTML = [['', L('авто', 'auto')], ['nla', 'NLA'], ['tls', 'TLS'], ['rdp', 'RDP']].map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('');
-$('relayQ').onclick = () => { $('relayH').hidden = !$('relayH').hidden; };
+$('relayT').textContent = L('Настройка ретранслятора', 'Relay settings');
+$('addT').textContent = L('Добавить устройство', 'Add a device');
+$('wolT').textContent = L('Пробуждение (Wake-on-LAN)', 'Wake-on-LAN');
+$('wolH').textContent = L('По желанию. Запись видят все твои устройства сети, а «Разбудить» шлёт пакет со всех сразу — так машину можно включить и не из дома: пакет отправит устройство, которое рядом с ней (например, сервер в той же локальной сети). На машине Wake-on-LAN включают в BIOS и в свойствах сетевой карты.',
+  'Optional. All your devices see this entry, and «Wake» sends the packet from all of them, so you can wake the machine from anywhere: a device next to it (say, a server on the same LAN) sends it. Turn Wake-on-LAN on in the BIOS and in the network card settings.');
+$('lMac').textContent = L('MAC сетевой карты', 'Network card MAC'); $('fMac').placeholder = 'AA:BB:CC:DD:EE:FF';
+$('lBc').textContent = L('Широковещательный адрес (необязательно)', 'Broadcast address (optional)'); $('fBc').placeholder = '192.168.1.255';
+$('lWp').textContent = L('Порт (необязательно)', 'Port (optional)'); $('fWp').placeholder = '9';
+$('fCancel').textContent = L('Отмена', 'Cancel');
 $('lName').textContent = L('Имя', 'Name'); $('fName').placeholder = L('например «ПК»', 'e.g. «PC»');
 $('lHost').textContent = L('Адрес в домашней сети', 'Home network address'); $('fHost').placeholder = '192.168.1.202';
 $('lUser').textContent = L('Пользователь Windows', 'Windows user'); $('fUser').placeholder = L('Имя или ПК\\Имя', 'name or PC\\name');
@@ -447,7 +541,8 @@ $('cGo').onclick = async () => {
   $('cred').hidden = true;
   if($('cRem').checked){
     // Запомнить — в rdp.json этой машины (0600), дальше одна кнопка.
-    CONF = await api('/api/rdp', {op: 'add', id: cur.id, name: cur.name, host: cur.host, port: cur.port || 0, user: creds.user, pass: creds.pass}).catch(() => CONF);
+    CONF = await api('/api/rdp', {op: 'add', id: cur.id, name: cur.name, host: cur.host, port: cur.port || 0, user: creds.user, pass: creds.pass,
+      security: cur.security || '', mac: cur.mac || '', bcast: cur.bcast || '', wport: cur.wport || 0}).catch(() => CONF);
     cur = CONF.hosts.find(h => h.id === cur.id) || cur; drawList();
   }
   start(cur);

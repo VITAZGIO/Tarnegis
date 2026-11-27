@@ -29,10 +29,18 @@
           <button type="button" id="mapZoomOut" data-i18n-title="map_zoom_out" title="Отдалить">−</button>
           <button type="button" id="mapZoomFit" data-i18n-title="map_zoom_fit" title="Показать всё">⤢</button>
         </div></div>
+      <div class="legend legend-lines">
+        <span><svg class="lg-line" viewBox="0 0 28 8" aria-hidden="true"><line class="edge on q-good" x1="2" y1="4" x2="26" y2="4"/></svg><span data-i18n="legend_via">устройство — сервер</span></span>
+        <span><svg class="lg-line" viewBox="0 0 28 8" aria-hidden="true"><line class="edge srv on q-good" x1="2" y1="4" x2="26" y2="4"/></svg><span data-i18n="legend_srv">сервер — сервер</span></span>
+        <span><svg class="lg-line" viewBox="0 0 28 8" aria-hidden="true"><line class="edge p2p" x1="2" y1="4" x2="26" y2="4"/></svg><span data-i18n="legend_p2p">напрямую, мимо сервера</span></span>
+        <span><svg class="lg-line" viewBox="0 0 28 8" aria-hidden="true"><line class="edge relay" x1="2" y1="4" x2="26" y2="4"/></svg><span data-i18n="legend_relay">переслано между серверами</span></span>
+        <span><svg class="lg-line" viewBox="0 0 28 8" aria-hidden="true"><line class="edge off" x1="2" y1="4" x2="26" y2="4"/></svg><span data-i18n="legend_none">нет связи</span></span>
+      </div>
       <div class="legend">
         <span><i style="background:var(--ok)"></i><span data-i18n="legend_good">связь хорошая</span></span>
         <span><i style="background:var(--warn)"></i><span data-i18n="legend_fair">средняя</span></span>
         <span><i style="background:var(--err)"></i><span data-i18n="legend_poor">плохая</span></span>
+        <span><i style="background:var(--accent)"></i><span data-i18n="legend_unknown">задержка ещё не измерена</span></span>
         <span><i style="background:var(--dim);opacity:.5"></i><span data-i18n="legend_off">не в сети</span></span>
       </div>
     </div>

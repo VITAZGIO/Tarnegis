@@ -76,7 +76,10 @@ picture every 30 seconds and right away when you open the page.
 
 - **Map.** It shows every server of the network. A line between servers is
   the link between them: green, yellow or red by latency, grey — no link. A
-  device has a line to each server it is connected to.
+  device has a line to each server it is connected to. A blue dotted arc —
+  devices are linked directly, bypassing the server; a yellow dashed line — a
+  connection relayed between servers; a blue line — latency not measured yet.
+  The legend under the map names every kind of line.
 - **Counters.** «Devices» — how many devices are connected to at least one
   server. «Servers» — how many servers the network has and how many are
   reachable now. Latency and traffic come from all servers.
