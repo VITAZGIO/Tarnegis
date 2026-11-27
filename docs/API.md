@@ -427,6 +427,10 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 Отвечают, только пока приложение добавлено и включено.
 
 - `GET /api/netmap` — карта: `{"state","self","nodes":[{name,host,ip,platform,os,online,lastSeen,direct,rttMs,server}]}`.
+  Серверы (ТЗ 57): в `nodes` и в списке устройств сети есть все серверы, с
+  которыми устройство держит связь (со своим `online`), даже если правила
+  доступа не дают видеть «@servers»; серверы сети серверов без связи — в
+  `nodes` без `ip`, `online: false` (в состоянии сети — `knownServers`).
 - `GET /api/ssh` — серверы этого устройства и открытый ключ программы;
   `POST /api/ssh` `{"op":"save","server":{…}}`, `{"op":"delete"|"forgethost","id"}`.
   `GET /api/ssh/devices` — устройства сети для анкеты.
@@ -445,8 +449,8 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 этого устройства — `id` вида `hub:<id>`, подключённая — её `id`.
 
 - `GET /api/mirror` — `{"serve":[{id,name,path,ignore,files,conflicts,devices,old,snap}],
-  "subs":[{id,peer,host,folder,name,path,mode,status:{state,pending,conflicts,files,bytes,error,lastOk}}],
-  "found":[{peer,host,folders:[{id,name}],joined,path}],"self","suggest","platform","devnet",
+  "subs":[{id,peer,host,peerId,folder,name,path,mode,status:{state,pending,conflicts,files,bytes,error,lastOk,progress}}],
+  "found":[{peer,host,peerId,folders:[{id,name}],joined,path}],"self","suggest","platform","devnet",
   "programDir","snapRoot","snapRootDefault","snapRootNow",
   "access":{"devices":[{id,name,host,ip,platform,server,online,gone,folders}],"ids","pending"}}`.
   `state`: `ok` | `pending` | `conflict` | `offline` | `closed` | `error`
@@ -469,10 +473,18 @@ Invoke-RestMethod "$($a.url)/api/calendar/events?from=2026-11-01&to=2026-11-08" 
 - Размер папки (ТЗ 39): `serve[].bytes` — сумма размеров файлов по индексу
   сервера (без исключённых), `subs[].status.bytes` — по последней сверке на
   этом устройстве. Без лишнего обхода диска.
+- Сервер папки (ТЗ 57): `peerId` — постоянный id сервера в сети (`mesh.Peer.ID`);
+  по нему подключённая папка находит сервер после смены имени и адреса, `host` и
+  `peer` обновляются сами. Папки старой версии получают `peerId`, как только
+  сервер найден. В `join` `peerId` необязателен (берётся из сети).
+- Ход сверки (ТЗ 57): `status.progress` — `{files,filesDone,bytes,bytesDone,started,eta}`
+  пока идёт проход, в котором есть что передать (по настоящей передаче; `started`
+  — unix мс, `eta` — примерно секунд до конца, нет — пока не ясно). Нет поля —
+  передавать нечего.
 - `POST /api/mirror`: `{"op":"serve","path","name"}`, `{"op":"unserve","id"}`,
   `{"op":"grant","device":<id устройства>,"id":"hub:<id>"|"*","on":true|false}`
   (дать или забрать папку; `*` — все раздаваемые),
-  `{"op":"ignore","id","list":[шаблоны]}`, `{"op":"join","peer","host","folder","name","path","mode":"both|recv|send"}`,
+  `{"op":"ignore","id","list":[шаблоны]}`, `{"op":"join","peer","host","peerId","folder","name","path","mode":"both|recv|send"}`,
   `{"op":"leave","id"}` (файлы остаются), `{"op":"mode","id","mode"}`,
   `{"op":"sync","id"}`, `{"op":"resolve","id","path":<копия конфликта>,"keep":"orig|copy|both"}`,
   `{"op":"restore","id","blob"}`.

@@ -45,7 +45,7 @@ func mustWD() string {
 	return wd
 }
 
-func startRelay(t *testing.T) string {
+func startRelay(t *testing.T, args ...string) string {
 	t.Helper()
 	bin, err := buildRelayOnce()
 	if err != nil {
@@ -59,7 +59,7 @@ func startRelay(t *testing.T) string {
 	addr := ln.Addr().String()
 	ln.Close() // отдаём адрес процессу — окно гонки короткое и для теста не важно
 
-	cmd := exec.Command(bin, "-listen", addr)
+	cmd := exec.Command(bin, append([]string{"-listen", addr}, args...)...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
