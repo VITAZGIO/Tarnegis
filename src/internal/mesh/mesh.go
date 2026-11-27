@@ -1801,6 +1801,7 @@ func (c *Client) incoming(l *srvLink, m wire) {
 	}
 	h := service(m.Port)
 	if h == nil && !c.cfg.AllowIncoming {
+		c.log("warn", fmt.Sprintf("Сеть устройств: %s%s → порт %d: отказано, входящие соединения выключены", m.FromHost, Suffix, m.Port))
 		reject("устройство не принимает входящие соединения")
 		return
 	}
@@ -1820,6 +1821,7 @@ func (c *Client) incoming(l *srvLink, m wire) {
 		cancel()
 	}
 	if err != nil {
+		c.log("warn", fmt.Sprintf("Сеть устройств: %s%s → порт %d: на устройстве не удалось открыть порт: %v", m.FromHost, Suffix, m.Port, err))
 		reject(fmt.Sprintf("на устройстве ничего не слушает порт %d", m.Port))
 		return
 	}

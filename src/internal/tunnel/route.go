@@ -103,6 +103,11 @@ func (t *Tunnel) dialRouteTimed(route core.Route, target string) (net.Conn, dial
 		}
 		t0 := time.Now()
 		c, err := m.DialPeer(target)
+		if err != nil {
+			// В файл журнала: события соединений видны только в окне, а по
+			// отказу сети устройств потом ищут причину (ТЗ 55).
+			t.bus.Warnf("Сеть устройств: соединение с %s не удалось: %v", target, err)
+		}
 		return c, dialStats{connect: time.Since(t0)}, err
 	}
 	return nil, dialStats{}, errBlocked

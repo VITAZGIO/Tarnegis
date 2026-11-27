@@ -848,6 +848,7 @@ func (p *p2p) handleStream(peerIP string, conn quic.Connection, str quic.Stream)
 	}
 	h := service(port)
 	if h == nil && !p.c.cfg.AllowIncoming {
+		p.c.log("warn", fmt.Sprintf("Сеть устройств: %s напрямую → порт %d: отказано, входящие соединения выключены", peerIP, port))
 		reply(streamRefused)
 		return
 	}
@@ -861,6 +862,7 @@ func (p *p2p) handleStream(peerIP string, conn quic.Connection, str quic.Stream)
 		cancel()
 	}
 	if err != nil {
+		p.c.log("warn", fmt.Sprintf("Сеть устройств: %s напрямую → порт %d: на устройстве не удалось открыть порт: %v", peerIP, port, err))
 		reply(streamNoListen)
 		return
 	}
