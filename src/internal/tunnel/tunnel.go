@@ -273,6 +273,9 @@ type Tunnel struct {
 	// UDP-поток ждал отказа сервера, журнал заливало одной и той же строкой,
 	// а браузер не спешил переходить с QUIC на обычный TCP — видео стояло.
 	udpRelayRetry time.Time
+	// udpDrop* — что уже записано в журнал про отброшенный UDP (udpDropped).
+	udpDropMu   sync.Mutex
+	udpDropSeen map[string]bool
 
 	// poolCtx живёт отдельно от ctx: слив (см. Drain) гасит пул
 	// SSH-соединений, но оставляет локальные слушатели работать. Всё, что

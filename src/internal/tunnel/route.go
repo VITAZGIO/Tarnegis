@@ -412,15 +412,58 @@ func (t *Tunnel) RouteUDP(src netip.AddrPort, target string, byIP bool, first []
 	case core.RouteServer:
 		relay := t.UDPRelay()
 		if relay == nil {
+			t.udpDropped(c.Target, t.udpRelayWhyNot())
 			return nil
 		}
 		return func(app net.Conn) { t.serveUDPRelay(app, c, relay, t.udpOwner(proc, src)) }
 	}
+	if route == core.RouteMesh {
+		t.udpDropped(c.Target, "в сеть устройств UDP не ходит")
+	} else {
+		t.udpDropped(c.Target, "запрещено правилами")
+	}
 	return nil
 }
 
+// udpRelayWhyNot — короткая причина, почему UDP через сервер сейчас не идёт
+// (для журнала, ТЗ 57: звонок Discord висел на «подключении» молча).
+func (t *Tunnel) udpRelayWhyNot() string {
+	switch {
+	case !t.udpRelayOn():
+		return "UDP через сервер выключен (галочка «Пробрасывать UDP» в настройках)"
+	case !t.viaServer():
+		return "связи с сервером сейчас нет"
+	}
+	return "ретранслятор UDP на сервере не отвечает (ставится мастером настройки VPS)"
+}
+
+// udpDropped пишет в журнал, что UDP-поток отброшен и почему: по разу на
+// цель и причину, не больше udpDropMax записей за жизнь туннеля.
+func (t *Tunnel) udpDropped(target, why string) {
+	if t.bus == nil {
+		return
+	}
+	key := why + "|" + target
+	t.udpDropMu.Lock()
+	if t.udpDropSeen == nil {
+		t.udpDropSeen = map[string]bool{}
+	}
+	fresh := !t.udpDropSeen[key] && len(t.udpDropSeen) < udpDropMax
+	if fresh {
+		t.udpDropSeen[key] = true
+	}
+	t.udpDropMu.Unlock()
+	if fresh {
+		t.bus.Infof("UDP %s отброшен: %s", target, why)
+	}
+}
+
+// udpDropMax — сколько разных записей об отброшенном UDP за жизнь туннеля.
+const udpDropMax = 40
+
 // udpIdle — сколько поток UDP живёт без единой датаграммы в любую сторону.
-const udpIdle = 60 * time.Second
+// Переменная — для тестов.
+var udpIdle = 60 * time.Second
 
 // serveUDPDirect ведёт UDP-поток приложения напрямую мимо сервера.
 func (t *Tunnel) serveUDPDirect(app net.Conn, c core.Conn, why core.Why, proc string, pid int, byIP bool, owner string) {
@@ -484,7 +527,14 @@ func (t *Tunnel) serveUDPRelay(app net.Conn, c core.Conn, relay udpRelay, owner 
 	if err != nil {
 		return
 	}
+	// Срок бездействия считается в обе стороны (ТЗ 57): поток, по которому
+	// только приходят ответы, живёт, как и в pumpDatagrams. Ответ с другого
+	// порта цели (так делают серверы звонков) отдаётся тому же потоку.
+	idle := udpIdle
+	var last atomic.Int64
+	last.Store(time.Now().UnixNano())
 	sessionID := relay.Open(func(data []byte, _ string, _ uint16) {
+		last.Store(time.Now().UnixNano())
 		traffic.Count(owner, traffic.RouteServer, 0, int64(len(data)))
 		app.Write(data)
 	})
@@ -493,12 +543,19 @@ func (t *Tunnel) serveUDPRelay(app net.Conn, c core.Conn, relay udpRelay, owner 
 	defer untrack()
 
 	buf := make([]byte, 65535)
+	step := min(idle, 5*time.Second)
 	for {
-		app.SetReadDeadline(time.Now().Add(udpIdle))
+		app.SetReadDeadline(time.Now().Add(step))
 		n, err := app.Read(buf)
 		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() &&
+				time.Since(time.Unix(0, last.Load())) < idle {
+				continue
+			}
 			return
 		}
+		last.Store(time.Now().UnixNano())
 		if err := relay.Send(sessionID, host, uint16(port), buf[:n]); err != nil {
 			return
 		}

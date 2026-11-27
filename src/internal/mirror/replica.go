@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -55,6 +56,10 @@ type Replica struct {
 	// ожиданием сервера), и Status ждал его — страница папок висела пустой.
 	smu    sync.Mutex
 	status Status
+	// prog — ход нынешнего прохода (ТЗ 57), под smu; moved — байты
+	// текущего файла, уже переданные (обновляется по ходу передачи).
+	prog  *Progress
+	moved atomic.Int64
 }
 
 // Режимы папки.
@@ -103,7 +108,26 @@ type Status struct {
 	Bytes  int64  `json:"bytes,omitempty"`
 	Error  string `json:"error,omitempty"`
 	LastOK int64  `json:"lastOk,omitempty"`
+	// Progress — идёт проход, в котором есть что передать (ТЗ 57): сколько
+	// файлов и байт из скольких. Нет — передавать нечего.
+	Progress *Progress `json:"progress,omitempty"`
 }
+
+// Progress — ход сверки по настоящей передаче: Files/Bytes — сколько
+// нужно передать в этом проходе, Done* — сколько уже. ETA — примерно
+// секунд до конца, 0 — пока не ясно (мало данных или скорость скачет).
+type Progress struct {
+	Files     int   `json:"files"`
+	FilesDone int   `json:"filesDone"`
+	Bytes     int64 `json:"bytes"`
+	BytesDone int64 `json:"bytesDone"`
+	Started   int64 `json:"started"` // unix, мс
+	ETA       int   `json:"eta,omitempty"`
+}
+
+// etaAfter — раньше этого времени и до этой доли оценку не даём: в начале
+// скорость случайна.
+const etaAfter = 5 * time.Second
 
 // ClosedText — что показать, когда папки на сервере для этого устройства
 // нет (ТЗ 18).
@@ -135,6 +159,16 @@ func (r *Replica) Status() Status {
 	s := r.status
 	if s.State == "" {
 		s.State = "pending"
+	}
+	if r.prog != nil {
+		p := *r.prog
+		p.BytesDone = min(p.Bytes, p.BytesDone+r.moved.Load())
+		el := time.Since(time.UnixMilli(p.Started))
+		if el >= etaAfter && p.Bytes > 0 && p.BytesDone*20 >= p.Bytes {
+			rate := float64(p.BytesDone) / el.Seconds()
+			p.ETA = int(float64(p.Bytes-p.BytesDone)/rate) + 1
+		}
+		s.Progress = &p
 	}
 	if s.Conflicts == nil {
 		s.Conflicts = []Conflict{}
@@ -297,6 +331,9 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 		return a < b
 	})
 
+	work := r.startProgress(list, local, disk)
+	defer r.endProgress()
+
 	did, pending, ops := false, 0, 0
 	var firstErr error
 	lastSave := time.Now()
@@ -305,10 +342,14 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 			firstErr = ctx.Err()
 			break
 		}
+		r.moved.Store(0)
 		act, aerr := r.reconcile(ctx, p, local[p], disk[p])
 		if act {
 			did = true
 			ops++
+		}
+		if size, ok := work[p]; ok && aerr == nil {
+			r.stepProgress(size)
 		}
 		if aerr != nil {
 			pending++
@@ -339,6 +380,83 @@ func (r *Replica) Sync(ctx context.Context, wait time.Duration, full bool) (bool
 	}
 	r.setStatus(st)
 	return did, firstErr
+}
+
+// startProgress — что в этом проходе передавать (файл → байт): файлы,
+// которые у нас и на сервере разные. Скачать — размер на сервере, отдать —
+// размер у нас. Удаления — файлы без байт.
+func (r *Replica) startProgress(list []string, local map[string]string, disk map[string]stat) map[string]int64 {
+	work := map[string]int64{}
+	pr := &Progress{Started: time.Now().UnixMilli()}
+	for _, p := range list {
+		if isDir(p) {
+			continue
+		}
+		lh, rm := local[p], r.st.Remote[p]
+		have, onServer := lh != "", rm.Hash != "" && !rm.Del
+		if (have && onServer && lh == rm.Hash) || (!have && !onServer) {
+			continue
+		}
+		syn := r.st.Synced[p].Hash
+		// down — меняется у нас по серверу, up — на сервере по нам.
+		down := (onServer && rm.Hash != syn) || (!onServer && syn != "" && have && lh == syn)
+		up := (have && lh != syn) || (!have && syn != "" && onServer && rm.Hash == syn)
+		if r.Mode == ModeSend {
+			down = false
+		}
+		if r.Mode == ModeRecv {
+			up = false
+		}
+		if !down && !up {
+			continue
+		}
+		var size int64
+		switch {
+		case down && onServer:
+			size = rm.Size
+		case up && have:
+			size = disk[p].Size
+		}
+		work[p] = size
+		pr.Files++
+		pr.Bytes += size
+	}
+	if pr.Files > 0 {
+		r.moved.Store(0)
+		r.smu.Lock()
+		r.prog = pr
+		r.smu.Unlock()
+	}
+	return work
+}
+
+func (r *Replica) stepProgress(size int64) {
+	r.smu.Lock()
+	if r.prog != nil {
+		r.prog.FilesDone++
+		r.prog.BytesDone = min(r.prog.Bytes, r.prog.BytesDone+size)
+	}
+	r.moved.Store(0)
+	r.smu.Unlock()
+}
+
+func (r *Replica) endProgress() {
+	r.smu.Lock()
+	r.prog = nil
+	r.smu.Unlock()
+	r.moved.Store(0)
+}
+
+// countWriter считает переданные байты в r.moved (ход скачивания).
+type countWriter struct {
+	w io.Writer
+	n *atomic.Int64
+}
+
+func (c countWriter) Write(b []byte) (int, error) {
+	n, err := c.w.Write(b)
+	c.n.Add(int64(n))
+	return n, err
 }
 
 func (r *Replica) noteConflicts(cs []Conflict) {
@@ -512,6 +630,7 @@ func (r *Replica) upload(ctx context.Context, p, hash string, size int64) error 
 				stall++
 			}
 			have = out.Have
+			r.moved.Store(have)
 		default:
 			return &RemoteError{resp.StatusCode, out.Error}
 		}
@@ -773,7 +892,8 @@ func (r *Replica) download(ctx context.Context, p string, rm remFile) (string, e
 			fh.Close()
 			return "", err
 		}
-		_, cerr := io.Copy(fh, resp.Body)
+		r.moved.Store(have)
+		_, cerr := io.Copy(countWriter{fh, &r.moved}, resp.Body)
 		resp.Body.Close()
 		if serr := fh.Sync(); cerr == nil {
 			cerr = serr

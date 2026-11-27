@@ -134,6 +134,11 @@ func Build() Map {
 		}
 		m.Nodes = append(m.Nodes, n)
 	}
+	// Серверы сети серверов без связи (ТЗ 57): карта рисует все серверы,
+	// о которых устройство знает, — серыми.
+	for _, p := range st.KnownServers {
+		m.Nodes = append(m.Nodes, Node{Peer: p, Server: true})
+	}
 	m.Links, m.ServerLinks = sharedLinks()
 	return m
 }

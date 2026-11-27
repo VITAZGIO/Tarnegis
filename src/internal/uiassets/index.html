@@ -1295,7 +1295,9 @@
       <p data-i18n="udp_relay_help">SSH умеет пробрасывать только TCP, поэтому по умолчанию видеозвонки, игры и
         QUIC (быстрый HTTP/3) не проходят через туннель. Эта галочка включает проброс через отдельный
         ретранслятор на сервере — ставится один раз, в мастере настройки VPS (кнопка «Настроить сервер по SSH»
-        в этом же меню). Пока он не установлен, галочка ничего не меняет: UDP по-прежнему не проходит.</p>
+        в этом же меню). Пока он не установлен, галочка ничего не меняет: UDP по-прежнему не проходит.
+        По умолчанию выключено — без неё звонки (например, Discord) висят на «подключении»;
+        почему UDP отброшен, видно в журнале.</p>
     </div>
 
     <!-- Цепочка выхода (ТЗ 8): подключаемся к этому серверу, а в интернет
@@ -2460,7 +2462,9 @@ const I18N = {
     udp_relay_help:'SSH умеет пробрасывать только TCP, поэтому по умолчанию видеозвонки, игры и QUIC '+
       '(быстрый HTTP/3) не проходят через туннель. Эта галочка включает проброс через отдельный '+
       'ретранслятор на сервере — ставится один раз, в мастере настройки VPS (кнопка «Настроить сервер по '+
-      'SSH» в этом же меню). Пока он не установлен, галочка ничего не меняет: UDP по-прежнему не проходит.',
+      'SSH» в этом же меню). Пока он не установлен, галочка ничего не меняет: UDP по-прежнему не проходит. '+
+      'По умолчанию выключено — без неё звонки (например, Discord) висят на «подключении»; '+
+      'почему UDP отброшен, видно в журнале.',
     exit_via:'Выход через', exit_via_none:'— без цепочки —',
     exit_via_hint:'Подключаемся к этому серверу, а в интернет выходим только через указанный здесь '+
       '(до двух подряд). Он недоступен — интернета нет: в обход, через этот сервер, трафик не идёт. '+
@@ -2871,7 +2875,9 @@ const I18N = {
     udp_relay_help:'SSH can only forward TCP, so by default video calls, games, and QUIC (fast HTTP/3) '+
       "don't get through the tunnel. This checkbox turns on forwarding through a separate relay on the "+
       'server — set up once, in the VPS setup wizard ("Set up the server over SSH" button in this same '+
-      "menu). Until it's installed, this checkbox changes nothing: UDP still doesn't get through.",
+      "menu). Until it's installed, this checkbox changes nothing: UDP still doesn't get through. "+
+      'Off by default — without it calls (Discord, for example) hang on "connecting"; '+
+      'the log says why UDP was dropped.',
     exit_via:'Exit through', exit_via_none:'— no chain —',
     exit_via_hint:'We connect to this server, but go out to the internet only through the one picked '+
       'here (up to two in a row). It is unreachable — no internet: traffic is never sent out through '+

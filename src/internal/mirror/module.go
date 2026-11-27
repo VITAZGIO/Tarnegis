@@ -85,6 +85,10 @@ type Sub struct {
 	ID     string `json:"id"`
 	Peer   string `json:"peer"` // адрес сервера в сети устройств
 	Host   string `json:"host"` // имя сервера (адрес мог смениться)
+	// PeerID — постоянный id сервера в сети (mesh.Peer.ID, ТЗ 57): по нему
+	// папка находит сервер после смены имени и адреса. Пусто — подключена
+	// старой версией; id дописывается, как только сервер найден.
+	PeerID string `json:"peerId,omitempty"`
 	Folder string `json:"folder"`
 	Name   string `json:"name"`
 	Path   string `json:"path"`
@@ -94,6 +98,7 @@ type Sub struct {
 type found struct {
 	Peer    string      `json:"peer"`
 	Host    string      `json:"host"`
+	PeerID  string      `json:"peerId,omitempty"`
 	Folders []FolderRef `json:"folders"`
 }
 
@@ -117,6 +122,7 @@ type module struct {
 
 type runner struct {
 	Sub
+	m      *module
 	rep    *Replica
 	kick   chan struct{}
 	cancel context.CancelFunc
@@ -408,7 +414,7 @@ func (m *module) find() {
 				return
 			}
 			mu.Lock()
-			out = append(out, found{Peer: p.IP.String(), Host: p.Host, Folders: fs})
+			out = append(out, found{Peer: p.IP.String(), Host: p.Host, PeerID: p.ID, Folders: fs})
 			mu.Unlock()
 		}(p)
 	}
@@ -420,7 +426,8 @@ func (m *module) find() {
 }
 
 // remoteFor — клиент сервера по адресу в сети устройств.
-func remoteFor(peer string) *Remote {
+// Переменная — для тестов.
+var remoteFor = func(peer string) *Remote {
 	return &Remote{Base: "http://" + net.JoinHostPort(peer, strconv.Itoa(Port)),
 		HC: &http.Client{Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -431,23 +438,81 @@ func remoteFor(peer string) *Remote {
 		}}}
 }
 
-// peerAddr — нынешний адрес сервера: по имени, если адрес сменился.
-func peerAddr(s Sub) string {
-	if s.Host != "" {
-		for _, p := range devnet.Status().Peers {
-			if p.Host == s.Host && p.IP.IsValid() {
-				return p.IP.String()
+// locate — сервер папки среди устройств сети: по id (ТЗ 57: имя и адрес
+// могут смениться), у папки без id — по имени, потом по адресу.
+func locate(s Sub, peers []mesh.Peer) (mesh.Peer, bool) {
+	if s.PeerID != "" {
+		for _, p := range peers {
+			if !p.Self && p.ID == s.PeerID {
+				return p, true
 			}
 		}
+		return mesh.Peer{}, false
+	}
+	if s.Host != "" {
+		for _, p := range peers {
+			if !p.Self && p.Host == s.Host && p.IP.IsValid() {
+				return p, true
+			}
+		}
+	}
+	for _, p := range peers {
+		if !p.Self && p.IP.IsValid() && p.IP.String() == s.Peer {
+			return p, true
+		}
+	}
+	return mesh.Peer{}, false
+}
+
+// peerAddr — нынешний адрес сервера папки; не нашли — последний известный.
+func peerAddr(s Sub, peers []mesh.Peer) string {
+	if p, ok := locate(s, peers); ok && p.IP.IsValid() {
+		return p.IP.String()
 	}
 	return s.Peer
 }
 
+// follow — сервер папки сменил имя или адрес: запомнить новые (и id, если
+// папка подключена старой версией) и сохранить список. Отдаёт адрес.
+func (r *runner) follow(peers []mesh.Peer) string {
+	m := r.m
+	if m == nil {
+		return peerAddr(r.Sub, peers)
+	}
+	m.mu.Lock()
+	p, ok := locate(r.Sub, peers)
+	changed := false
+	if ok {
+		ip := ""
+		if p.IP.IsValid() {
+			ip = p.IP.String()
+		}
+		if p.ID != "" && r.PeerID != p.ID {
+			r.PeerID, changed = p.ID, true
+		}
+		if p.Host != "" && r.Host != p.Host {
+			r.Host, changed = p.Host, true
+		}
+		if ip != "" && r.Peer != ip {
+			r.Peer, changed = ip, true
+		}
+	}
+	addr := r.Peer
+	m.mu.Unlock()
+	if changed {
+		_ = m.saveSubs()
+	}
+	return addr
+}
+
+// peersNow — устройства сети (переменная — для тестов).
+var peersNow = func() []mesh.Peer { return devnet.Status().Peers }
+
 func (m *module) startSub(s Sub) {
 	ctx, cancel := context.WithCancel(m.ctx)
-	r := &runner{Sub: s, kick: make(chan struct{}, 1), cancel: cancel}
+	r := &runner{Sub: s, m: m, kick: make(chan struct{}, 1), cancel: cancel}
 	r.rep = &Replica{Folder: s.Folder, Path: s.Path, Mode: s.Mode, Device: selfName(),
-		State: filepath.Join(dataDir(), "sub-"+s.ID+".json"), R: remoteFor(peerAddr(s)), OnEvent: notify}
+		State: filepath.Join(dataDir(), "sub-"+s.ID+".json"), R: remoteFor(peerAddr(s, peersNow())), OnEvent: notify}
 	m.mu.Lock()
 	m.subs[s.ID] = r
 	m.mu.Unlock()
@@ -466,7 +531,7 @@ func (r *runner) loop(ctx context.Context) {
 	wait := time.Duration(0)
 	lastFull := time.Now()
 	for ctx.Err() == nil {
-		r.rep.R = remoteFor(peerAddr(Sub{Host: r.Host, Peer: r.Peer}))
+		r.rep.R = remoteFor(r.follow(peersNow()))
 		full := time.Since(lastFull) > 6*time.Hour
 		did, err := r.rep.Sync(ctx, wait, full)
 		if full && err == nil {
@@ -531,6 +596,15 @@ var errNonEmpty = errors.New("в этой папке уже есть файлы 
 
 // join — подключить папку. В непустую папку — только с выбором existing
 // (ТЗ 36): без него ответ errNonEmpty и что там лежит.
+// sameServer — папки a и b с одного сервера: по id, если он есть у обеих,
+// иначе по имени или адресу.
+func sameServer(a, b Sub) bool {
+	if a.PeerID != "" && b.PeerID != "" {
+		return a.PeerID == b.PeerID
+	}
+	return a.Host == b.Host || a.Peer == b.Peer
+}
+
 func (m *module) join(s Sub, existing string) (*NonEmpty, string, error) {
 	switch s.Mode {
 	case "":
@@ -554,9 +628,12 @@ func (m *module) join(s Sub, existing string) (*NonEmpty, string, error) {
 	if err := m.overlaps(abs); err != nil {
 		return nil, "", err
 	}
+	if p, ok := locate(s, peersNow()); ok && s.PeerID == "" {
+		s.PeerID = p.ID // старая страница id не шлёт — берём из сети
+	}
 	m.mu.Lock()
 	for _, r := range m.subs {
-		if r.Folder == s.Folder && (r.Host == s.Host || r.Peer == s.Peer) {
+		if r.Folder == s.Folder && sameServer(r.Sub, s) {
 			m.mu.Unlock()
 			return nil, "", errors.New("эта папка уже подключена: " + r.Path)
 		}
@@ -694,6 +771,18 @@ func (m *module) newPath(name string) string {
 	return ""
 }
 
+// isJoined — папка folder сервера f уже подключена (одна из subs): по id
+// сервера, у старых записей — по имени или адресу (ТЗ 57: после смены
+// имени папка не предлагается второй раз).
+func isJoined(subs []Sub, f found, folder string) bool {
+	for _, s := range subs {
+		if s.Folder == folder && sameServer(s, Sub{Peer: f.Peer, Host: f.Host, PeerID: f.PeerID}) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *module) state() map[string]any {
 	type serveItem struct {
 		HubFolder
@@ -725,11 +814,10 @@ func (m *module) state() map[string]any {
 	}
 	m.mu.Lock()
 	subs := []subItem{}
-	joined := map[string]bool{}
+	var mine []Sub
 	for _, r := range m.subs {
 		subs = append(subs, subItem{r.Sub, r.rep.Status()})
-		joined[r.Host+"/"+r.Folder] = true
-		joined[r.Peer+"/"+r.Folder] = true
+		mine = append(mine, r.Sub)
 	}
 	type foundItem struct {
 		found
@@ -741,7 +829,7 @@ func (m *module) state() map[string]any {
 	for _, f := range m.found {
 		it := foundItem{f, map[string]bool{}, map[string]string{}}
 		for _, x := range f.Folders {
-			if joined[f.Host+"/"+x.ID] || joined[f.Peer+"/"+x.ID] {
+			if isJoined(mine, f, x.ID) {
 				it.Joined[x.ID] = true
 			} else if p := m.newPath(x.Name); p != "" {
 				it.Path[x.ID] = p
@@ -788,6 +876,7 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 			List   []string `json:"list"`
 			Peer   string   `json:"peer"`
 			Host   string   `json:"host"`
+			PeerID string   `json:"peerId"`
 			Folder string   `json:"folder"`
 			Mode   string   `json:"mode"`
 			Keep   keepArg  `json:"keep"` // resolve: "orig|copy|both"; snap_cfg: число
@@ -837,7 +926,7 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		case "ignore":
 			err = m.hub.SetIgnore(hubID, req.List)
 		case "join":
-			ne, text, err = m.join(Sub{Peer: req.Peer, Host: req.Host, Folder: req.Folder, Name: req.Name, Path: req.Path, Mode: req.Mode}, req.Existing)
+			ne, text, err = m.join(Sub{Peer: req.Peer, Host: req.Host, PeerID: req.PeerID, Folder: req.Folder, Name: req.Name, Path: req.Path, Mode: req.Mode}, req.Existing)
 		case "snap_cfg":
 			if !isHub {
 				err = errors.New("снимки — только у раздаваемой папки (id hub:<id>)")
