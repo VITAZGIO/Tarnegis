@@ -20,14 +20,13 @@ import (
 )
 
 // InviteInfo — разбор приглашения для экрана: JSON {host,port,name,exp,expired}
-// или ошибка человеку.
+// (у короткого кода ещё short, have, need, partial — ТЗ 54) или ошибка человеку.
 func InviteInfo(text string) (string, error) {
-	inv, err := invite.Parse(text)
+	info, err := invite.Inspect(text, time.Now())
 	if err != nil {
 		return "", err
 	}
-	out, _ := json.Marshal(map[string]any{"host": inv.Host, "port": inv.Port, "name": inv.Name,
-		"exp": inv.Exp, "expired": inv.Expired(time.Now())})
+	out, _ := json.Marshal(info)
 	return string(out), nil
 }
 

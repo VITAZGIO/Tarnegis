@@ -22,6 +22,7 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 	"golang.org/x/crypto/ssh"
 
+	"sshtunnel/internal/invite"
 	"sshtunnel/internal/updater"
 )
 
@@ -265,9 +266,12 @@ type inviteReq struct {
 type inviteResult struct {
 	Invite inviteView `json:"invite"`
 	Text   string     `json:"text"`
-	QR     string     `json:"qrPngBase64,omitempty"`
-	Host   string     `json:"host"`
-	Port   int        `json:"port"`
+	// Code — короткий код «XXXX-XXXX-…» (ТЗ 54); пусто — адрес в код не
+	// помещается, тогда только Text. QR — «tarnegis:» + Code (или Text).
+	Code string `json:"code,omitempty"`
+	QR   string `json:"qrPngBase64,omitempty"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }
 
 func (s *Server) createInvite(req inviteReq) (inviteResult, error) {
@@ -326,8 +330,14 @@ func (s *Server) createInvite(req inviteReq) (inviteResult, error) {
 		return inviteResult{}, err
 	}
 	text := encodeDevInvite(inviteDoc{V: 1, Host: host, Port: port, HK: hk, Tok: tok, Exp: d.Expires, Name: d.Name})
-	res := inviteResult{Invite: d.view(), Text: text, Host: host, Port: port}
-	if png, err := qrcode.Encode(text, qrcode.Low, 512); err == nil {
+	res := inviteResult{Invite: d.view(), Text: text, Host: host, Port: port, Code: inviteCode(host, port, d)}
+	qrText := text
+	if res.Code != "" {
+		// QR и ссылка — короткий код (ТЗ 54); длинная строка остаётся для
+		// программ до кода.
+		qrText = invite.CodePrefix + res.Code
+	}
+	if png, err := qrcode.Encode(qrText, qrcode.Low, 512); err == nil {
 		res.QR = base64.StdEncoding.EncodeToString(png)
 	}
 	return res, nil
@@ -343,6 +353,14 @@ type joinReq struct {
 	Type string `json:"type"`
 	Key  string `json:"key"`  // ключ, которым программа вошла (SSH_USER_AUTH)
 	From string `json:"from"` // адрес программы (SSH_CONNECTION)
+	// Короткий код (ТЗ 54, invite/pake.go): v 2, первая строка — tag, hk,
+	// pake; вторая — conf, а sid подставляет команда join.
+	V    int    `json:"v,omitempty"`
+	Tag  string `json:"tag,omitempty"`
+	HK   string `json:"hk,omitempty"`
+	Pake []byte `json:"pake,omitempty"`
+	Conf []byte `json:"conf,omitempty"`
+	Sid  string `json:"sid,omitempty"`
 }
 
 type joinResp struct {
@@ -350,6 +368,11 @@ type joinResp struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 	Err  string `json:"err,omitempty"`
+	Pake []byte `json:"pake,omitempty"`
+	Conf []byte `json:"conf,omitempty"`
+	// Sid — сеанс PAKE между двумя строками; команда join не отдаёт его
+	// программе, а сама шлёт со второй строкой.
+	Sid string `json:"sid,omitempty"`
 }
 
 // redeem — принять приглашение. Отказы пишутся строкой «ssh_tunnel join:
@@ -372,6 +395,9 @@ func (s *Server) redeem(ctx context.Context, req joinReq) joinResp {
 		log.Printf("ssh_tunnel join: refused (%s) from %s", joinLimit, from)
 		return joinResp{Err: joinLimit}
 	}
+	if req.V == invite.JoinV2 {
+		return s.redeemCode(ctx, req, from, key, fail)
+	}
 	if len(req.Tok) < 16 || len(req.Tok) > 128 {
 		return fail(joinUnknown, "")
 	}
@@ -382,6 +408,13 @@ func (s *Server) redeem(ctx context.Context, req joinReq) joinResp {
 	if code != "" {
 		return fail(code, "")
 	}
+	return s.admit(ctx, inv, req, from, key, fail)
+}
+
+// admit — приглашение уже взято (take): завести учётную запись или
+// добавить ключ. Не вышло — приглашение возвращается (release).
+func (s *Server) admit(ctx context.Context, inv devInvite, req joinReq, from, key string,
+	fail func(code, why string) joinResp) joinResp {
 	var c Client
 	if inv.User != "" {
 		cur, ok := s.clients.Get(inv.User)

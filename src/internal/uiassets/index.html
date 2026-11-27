@@ -1019,8 +1019,8 @@
     </div>
     <div class="inviteBox" id="inviteBox" hidden>
       <div class="field"><div class="lbl-row"><label for="inviteText" data-i18n="invite_title">Добавить по приглашению</label>
-        <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="invite_hint">Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): текст начинается с «sshtun1:». Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.</span></span></div>
-        <textarea id="inviteText" spellcheck="false" autocomplete="off" data-i18n-ph="invite_ph" placeholder="sshtun1:…"></textarea></div>
+        <span class="infoq" onclick="event.preventDefault();event.stopPropagation();toggleInfoq(this)">?<span class="tip" data-i18n="invite_hint">Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): короткий код вида XXXX-XXXX-XXXX-XXXX-XXXX (можно с дефисами или без) или длинная строка «sshtun1:…». Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.</span></span></div>
+        <textarea id="inviteText" spellcheck="false" autocomplete="off" data-i18n-ph="invite_ph" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX или sshtun1:…"></textarea></div>
       <div class="field"><label for="inviteName" data-i18n="invite_name">Имя устройства</label>
         <input type="text" id="inviteName" maxlength="64"></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2289,9 +2289,10 @@ const I18N = {
     add_server:'Добавить сервер',
     no_servers:'Нет серверов', no_servers_note:'Добавь сервер, чтобы подключаться.',
     invite_btn:'По приглашению', invite_title:'Добавить по приглашению',
-    invite_hint:'Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): текст начинается с «sshtun1:». '+
-      'Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.',
-    invite_ph:'sshtun1:…', invite_name:'Имя устройства', invite_join:'Добавить',
+    invite_hint:'Приглашение выдаёт панель сервера (Устройства → «Добавить устройство»): короткий код вида XXXX-XXXX-XXXX-XXXX-XXXX '+
+      '(можно с дефисами или без) или длинная строка «sshtun1:…». Программа сама создаст ключ устройства, войдёт на сервер и добавит все серверы, которые разрешила панель. Приглашение одноразовое.',
+    invite_ph:'XXXX-XXXX-XXXX-XXXX-XXXX или sshtun1:…', invite_name:'Имя устройства', invite_join:'Добавить',
+    code_more:'Ещё {n} симв.', code_more_min:'Ещё не меньше {n} симв.', code_ok:'Сервер {host}. Срок и имя проверит панель.',
     invite_for:'Сервер {host}, действует до {date}', invite_expired:'Приглашение истекло — попроси в панели новое',
     invite_empty:'Вставь текст приглашения', invite_joining:'Вхожу на сервер…',
     panel_badge:'из панели',
@@ -2702,9 +2703,10 @@ const I18N = {
     add_server:'Add server',
     no_servers:'No servers', no_servers_note:'Add a server to connect.',
     invite_btn:'By invite', invite_title:'Add by invite',
-    invite_hint:'The server panel issues the invite (Devices → “Add device”): the text starts with “sshtun1:”. '+
-      'The app creates the device key itself, signs in to the server and adds every server the panel allows. An invite works once.',
-    invite_ph:'sshtun1:…', invite_name:'Device name', invite_join:'Add',
+    invite_hint:'The server panel issues the invite (Devices → “Add device”): a short code like XXXX-XXXX-XXXX-XXXX-XXXX '+
+      '(with or without dashes) or a long “sshtun1:…” line. The app creates the device key itself, signs in to the server and adds every server the panel allows. An invite works once.',
+    invite_ph:'XXXX-XXXX-XXXX-XXXX-XXXX or sshtun1:…', invite_name:'Device name', invite_join:'Add',
+    code_more:'{n} more characters', code_more_min:'At least {n} more characters', code_ok:'Server {host}. The panel checks expiry and name.',
     invite_for:'Server {host}, valid until {date}', invite_expired:'The invite has expired — ask the panel for a new one',
     invite_empty:'Paste the invite text', invite_joining:'Signing in to the server…',
     panel_badge:'from panel',
@@ -5862,7 +5864,7 @@ $('pasteBtn').onclick = async () => {
   const text = await readClipboard();
   if(!text) return;
   // Приглашение устройства из панели (ТЗ 48).
-  if(text.includes('sshtun1:')){ openInvite(text); return; }
+  if(text.includes('sshtun1:') || looksLikeCode(text)){ openInvite(text); return; }
   // Ссылка из панели сервера (QR при создании клиента → «Скопировать ссылку»).
   if(/^sshtunnel:\/\//i.test(text.trim())){ await importProfileDoc(text.trim(), true); return; }
   let doc;
@@ -5902,7 +5904,7 @@ async function loadDevice(){
 function openInvite(text){
   show('viewServers');
   $('inviteBox').hidden = false;
-  if(text) $('inviteText').value = text.trim();
+  if(text) $('inviteText').value = looksLikeCode(text) ? formatCode(text) : text.trim();
   $('inviteNote').textContent = '';
   if(text) checkInvite();
   $('inviteText').focus();
@@ -5913,14 +5915,41 @@ $('inviteBtn').onclick = () => {
 };
 $('inviteCancel').onclick = () => { $('inviteBox').hidden = true; $('inviteText').value = ''; };
 
+// Короткий код (ТЗ 54): похоже ли на него и как показать — группы по 4
+// через дефис. Разбор и проверка — в программе (op parse), здесь только вид.
+const CODE_RE = /^\s*(tarnegis:)?[0-9a-z\s-]+$/i;
+function looksLikeCode(t){ return !t.includes('sshtun1:') && CODE_RE.test(t) && t.replace(/^\s*tarnegis:/i, '').replace(/[\s-]/g, '').length >= 20; }
+function formatCode(t){
+  const raw = t.replace(/^\s*tarnegis:/i, '').replace(/[\s-]/g, '').toUpperCase();
+  return raw.replace(/(.{4})(?=.)/g, '$1-');
+}
+
 let inviteTimer = 0;
-$('inviteText').addEventListener('input', () => { clearTimeout(inviteTimer); inviteTimer = setTimeout(checkInvite, 300); });
+$('inviteText').addEventListener('input', () => {
+  const el = $('inviteText');
+  // Дефисы — сами, пока человек печатает в конце поля (вставку тоже
+  // приводим к виду кода). Длинную строку sshtun1: не трогаем.
+  if(!el.value.includes('sshtun1:') && CODE_RE.test(el.value) && el.selectionStart === el.value.length){
+    const v = formatCode(el.value);
+    if(v !== el.value){ el.value = v; el.setSelectionRange(v.length, v.length); }
+  }
+  clearTimeout(inviteTimer); inviteTimer = setTimeout(checkInvite, 150);
+});
 
 async function checkInvite(){
   const text = $('inviteText').value.trim();
   if(!text){ $('inviteNote').textContent = ''; return; }
   const r = await api('/api/device', { op: 'parse', invite: text });
   if(r.error){ $('inviteNote').textContent = r.error; return; }
+  if(r.short){
+    if(r.partial){
+      $('inviteNote').textContent = r.need ? tr('code_more').replace('{n}', r.need - r.have)
+        : tr('code_more_min').replace('{n}', Math.max(14 - r.have, 1));
+      return;
+    }
+    $('inviteNote').textContent = tr('code_ok').replace('{host}', r.host + (r.port && r.port !== 22 ? ':' + r.port : ''));
+    return;
+  }
   if(!$('inviteName').value.trim() && r.name) $('inviteName').value = r.name;
   const until = new Date(r.exp * 1000).toLocaleString(LANG === 'en' ? 'en-GB' : 'ru-RU');
   $('inviteNote').textContent = r.expired ? tr('invite_expired')

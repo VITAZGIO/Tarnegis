@@ -243,12 +243,13 @@ class MainActivity : AppCompatActivity(), AndroidApi.Screen {
     /**
      * Ссылка sshtunnel://import?… — её несёт QR, который панель сервера
      * показывает при создании клиента: системная камера или браузер
-     * открывают её здесь.
+     * открывают её здесь. «tarnegis:<код>» — короткий код приглашения (ТЗ 54).
      */
     private fun handleImportLink(intent: Intent?) {
         if (intent == null) return
         val uri = intent.data ?: return
-        if (!uri.scheme.equals("sshtunnel", ignoreCase = true)) return
+        val scheme = uri.scheme ?: return
+        if (!scheme.equals("sshtunnel", ignoreCase = true) && !scheme.equals("tarnegis", ignoreCase = true)) return
         intent.data = null
         importText(uri.toString())
     }

@@ -87,6 +87,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sshtunnel" android:host="import" />
             </intent-filter>
+            <!-- Короткий код приглашения (ТЗ 54): QR «tarnegis:XXXX-…». -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tarnegis" />
+            </intent-filter>
         </activity>
 
         <!-- Общие с ПК страницы: Книга и дополнительные приложения. -->

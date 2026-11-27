@@ -40,11 +40,17 @@ type Invite struct {
 	Tok  string `json:"tok"`
 	Exp  int64  `json:"exp"`
 	Name string `json:"name,omitempty"`
+
+	// Short — короткий код (ТЗ 54): в нём только адрес и секрет; HK, Tok,
+	// Exp, Name пусты — ключ хоста подтверждает PAKE, остальное знает панель.
+	Short  bool            `json:"-"`
+	Secret [SecretLen]byte `json:"-"`
+	Tag    string          `json:"-"`
 }
 
 // Ошибки разбора — человеку.
 var (
-	ErrNotInvite = errors.New("это не приглашение Tarnegis: текст должен начинаться с «sshtun1:»")
+	ErrNotInvite = errors.New("это не приглашение Tarnegis: нужен код вида XXXX-XXXX-XXXX-XXXX-XXXX или строка «sshtun1:…»")
 	ErrBroken    = errors.New("приглашение повреждено — скопируй его из панели целиком")
 	ErrExpired   = errors.New("приглашение истекло — попроси в панели новое")
 )
@@ -52,7 +58,51 @@ var (
 // IsInvite — похож ли текст на приглашение (по нему «Вставить» и сканер
 // QR решают, что это не файл сервера).
 func IsInvite(text string) bool {
-	return strings.Contains(strings.TrimSpace(text), Prefix)
+	return strings.Contains(strings.TrimSpace(text), Prefix) || LooksLikeCode(codeIn(text))
+}
+
+// codeIn — где в тексте короткий код: после «tarnegis:» до пробела, иначе
+// весь текст (код могли вставить с пробелами между группами).
+func codeIn(text string) string {
+	t := strings.TrimSpace(text)
+	if i := strings.Index(strings.ToLower(t), CodePrefix); i >= 0 {
+		body := t[i+len(CodePrefix):]
+		if j := strings.IndexFunc(body, codeStop); j >= 0 {
+			body = body[:j]
+		}
+		return body
+	}
+	return t
+}
+
+func codeStop(r rune) bool { return strings.ContainsRune(" \t\r\n\"'<>", r) }
+
+// Inspect — разбор для поля ввода: {ok,host,port,name,exp,expired} как
+// раньше, а для короткого кода ещё short, have, need (сколько символов
+// есть и нужно) и partial — код ещё не дописан.
+func Inspect(text string, now time.Time) (map[string]any, error) {
+	if !strings.Contains(text, Prefix) {
+		if norm, ok := NormalizeCode(codeIn(text)); ok && norm != "" {
+			need, err := CodeLength(norm)
+			if err != nil {
+				return nil, err
+			}
+			if need == 0 || len(norm) < need {
+				return map[string]any{"short": true, "partial": true, "have": len(norm), "need": need}, nil
+			}
+		}
+	}
+	inv, err := Parse(text)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"host": inv.Host, "port": inv.Port, "name": inv.Name, "exp": inv.Exp,
+		"expired": !inv.Short && inv.Expired(now)}
+	if inv.Short {
+		n, _ := NormalizeCode(codeIn(text))
+		out["short"], out["have"], out["need"] = true, len(n), len(n)
+	}
+	return out, nil
 }
 
 // Parse разбирает приглашение. Вокруг текста может быть что угодно
@@ -62,7 +112,11 @@ func Parse(text string) (Invite, error) {
 	text = strings.TrimSpace(text)
 	i := strings.Index(text, Prefix)
 	if i < 0 {
-		return Invite{}, ErrNotInvite
+		c, err := ParseCode(codeIn(text))
+		if err != nil {
+			return Invite{}, err
+		}
+		return Invite{V: JoinV2, Host: c.Host, Port: c.Port, Short: true, Secret: c.Secret, Tag: c.Tag()}, nil
 	}
 	body := text[i+len(Prefix):]
 	if j := strings.IndexAny(body, " \t\r\n\"'<>"); j >= 0 {
@@ -94,8 +148,9 @@ func Parse(text string) (Invite, error) {
 	return inv, nil
 }
 
-// Expired — срок приглашения вышел.
-func (i Invite) Expired(now time.Time) bool { return now.Unix() >= i.Exp }
+// Expired — срок приглашения вышел (короткий код срока не несёт — его
+// знает панель).
+func (i Invite) Expired(now time.Time) bool { return !i.Short && now.Unix() >= i.Exp }
 
 // Encode — текст приглашения (так его делает панель; здесь — для тестов и
 // поддельного сервера).

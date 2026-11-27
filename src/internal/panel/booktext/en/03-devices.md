@@ -18,9 +18,14 @@ Each device has its own key and its own system account on the server.
    internet access through the server.
 5. Press **Create invite**.
 
-The panel shows an **invite** — one line starting with `sshtun1:` and its QR
-code. Paste the line into the program on the device (a phone can scan the
-code). The invite works for 24 hours and only once; the panel does not show it
+The panel shows an **invite** — a short code like
+`K7HQ-3MVX-9KPL-2WR8-NZC4`, a “Copy” button and a QR code. Enter the code in
+the program on the device (dashes are optional; a phone can scan the QR).
+The server address is not readable in the code; the program and the panel
+check each other by the code, and the code itself never travels over the
+network. Under the fold is the old long `sshtun1:…` line for older versions of
+the program; either one works, but only one of them and only once. Five failed
+attempts with the code lock the invite — then issue a new one. The invite works for 24 hours and only once; the panel does not show it
 again. The card also says which server the device will join through: always
 the server whose panel created it, even if that panel is open only locally.
 

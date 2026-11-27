@@ -69,7 +69,14 @@ func Redeem(ctx context.Context, text string, o Options) (Redeemed, error) {
 		return Redeemed{}, errors.New("не создать ключ устройства: " + err.Error())
 	}
 	drop := func() { os.Remove(tmp); os.Remove(tmp + ".pub") }
-	resp, err := Join(ctx, inv, signer, name, o.Type, o.Dial)
+	var resp JoinResponse
+	if inv.Short {
+		// Короткий код (ТЗ 54): ключ хоста подтвердил PAKE — дальше он
+		// проверяется строго, как ключ из длинного приглашения.
+		resp, inv.HK, err = joinShort(ctx, inv, signer, name, o.Type, o.Dial)
+	} else {
+		resp, err = Join(ctx, inv, signer, name, o.Type, o.Dial)
+	}
 	if err != nil {
 		drop()
 		return Redeemed{}, err
