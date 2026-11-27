@@ -32,6 +32,9 @@
   .pathRow input{flex:1;min-width:0}
   .st{font-size:13px}
   .st.ok{color:var(--ok)} .st.warn{color:var(--warn)} .st.err{color:var(--err)}
+  .prog{margin-top:6px;font-size:13px}
+  .prog .bar{height:6px;border-radius:3px;background:var(--line, rgba(127,127,127,.25));overflow:hidden;margin-bottom:4px}
+  .prog .bar i{display:block;height:100%;background:var(--ok)}
   .msg{font-size:13px}
   .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
   .found{border-color:var(--accent)}
@@ -252,14 +255,31 @@ async function post(body){
 
 function when(t){ return t ? new Date(t * 1000).toLocaleString(LANG === 'en' ? 'en-GB' : 'ru-RU') : ''; }
 
+// progHTML — ход сверки (ТЗ 57): полоса с процентом, «N из M файлов ·
+// X из Y», примерное время, когда скорость устоялась.
+function progHTML(p){
+  if(!p || !p.files) return '';
+  const pct = p.bytes ? Math.floor(p.bytesDone * 100 / p.bytes) : Math.floor(p.filesDone * 100 / p.files);
+  let eta = '';
+  if(p.eta){
+    const m = Math.round(p.eta / 60);
+    eta = ' · ' + (p.eta < 60 ? L('меньше минуты', 'under a minute')
+      : m < 60 ? L(`~${m} мин`, `~${m} min`) : L(`~${Math.round(m / 6) / 10} ч`, `~${Math.round(m / 6) / 10} h`)) + L(' осталось', ' left');
+  }
+  return `<div class="prog"><div class="bar"><i style="width:${pct}%"></i></div>${pct}% · ` +
+    esc(L(`${p.filesDone} из ${p.files} файлов`, `${p.filesDone} of ${p.files} files`)) +
+    (p.bytes ? ' · ' + esc(size(p.bytesDone)) + ' ' + esc(L('из', 'of')) + ' ' + esc(size(p.bytes)) : '') + esc(eta) + '</div>';
+}
+
 function statusText(st){
   switch(st.state){
-    case 'ok': return [L('синхронизировано', 'in sync'), 'ok'];
+    case 'ok': return st.progress ? [L('синхронизируется', 'syncing'), 'ok'] : [L('синхронизировано', 'in sync'), 'ok'];
     case 'conflict': return [L('конфликт', 'conflict') + ` (${st.conflicts.length})`, 'warn'];
     case 'offline': return [L('сервер недоступен', 'server unreachable') + (st.pending ? ` — ${st.pending} ` + L('файлов ждут', 'files waiting') : ''), 'warn'];
     case 'closed': return [L('владелец закрыл доступ к папке — файлы здесь не тронуты', 'the owner closed access to the folder — files here are untouched'), 'warn'];
     case 'error': return [L('ошибка: ', 'error: ') + (st.error || ''), 'err'];
-    default: return [(st.pending ? `${st.pending} ` : '') + L('файлов ждут', 'files waiting') + (st.error ? ' — ' + st.error : ''), 'warn'];
+    default: if(st.progress) return [L('синхронизируется', 'syncing'), 'ok'];
+      return [(st.pending ? `${st.pending} ` : '') + L('файлов ждут', 'files waiting') + (st.error ? ' — ' + st.error : ''), 'warn'];
   }
 }
 
@@ -386,6 +406,7 @@ function draw(r){
       <button class="ico" data-a="leave" title="${esc(L('Отключить (файлы останутся)', 'Disconnect (files stay)'))}">${icon('close')}</button></div>
       <div class="p">${esc(shortPath(s.path))}</div>
       <div class="st ${cls}">${esc(txt)}${s.status.lastOk ? ' · ' + esc(L('сверено ', 'checked ')) + esc(when(s.status.lastOk)) : ''}</div>
+      ${progHTML(st.progress)}
       <div class="ctl"><select title="${esc(L('Режим', 'Mode'))}">${Object.entries(MODES).map(([k, v]) => `<option value="${k}"${k === s.mode ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>`;
     c.querySelector('select').onchange = ev => post({op: 'mode', id: s.id, mode: ev.target.value});
     c.querySelector('[data-a=sync]').onclick = () => post({op: 'sync', id: s.id});
