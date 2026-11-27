@@ -177,14 +177,15 @@ func unmarshalBody(body []byte) (frame, error) {
 const (
 	// maxSessionsPerConn — предел сессий на одно TCP-соединение.
 	maxSessionsPerConn = 512
-	// idleTimeout — сессия без единой датаграммы в любую сторону дольше
-	// этого времени закрывается сама.
-	idleTimeout = 60 * time.Second
 	// maxConns — предел одновременных TCP-соединений до ретранслятора.
 	// Клиент держит одно на весь туннель; несколько бывает на время
 	// переподключения, пока старое ещё не закрылось.
 	maxConns = 8
 )
+
+// idleTimeout — сессия без единой датаграммы в любую сторону дольше этого
+// времени закрывается сама (флаг -idle — для тестов).
+var idleTimeout = 60 * time.Second
 
 type serverSession struct {
 	pc *net.UDPConn
@@ -304,6 +305,7 @@ func isLoopback(host string) bool {
 
 func main() {
 	addr := flag.String("listen", "127.0.0.1:47830", "адрес, на котором слушать (только localhost)")
+	flag.DurationVar(&idleTimeout, "idle", idleTimeout, "срок бездействия сессии")
 	flag.Parse()
 
 	host, _, err := net.SplitHostPort(*addr)
